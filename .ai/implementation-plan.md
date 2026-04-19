@@ -8,7 +8,7 @@ CodeGuide to greenfield Python CLI (3.11+) generujący pojedynczy self-contained
 
 UX specification is maintained in `.ai/ux-spec.md` (single source of truth for design tokens, exact CLI copy, component dimensions, and state management contracts), anchored by ADR-0011 binary decisions. Pixel-perfect recreation of the UX is targeted for Sprint 5; the Sprint 1 walking skeleton uses minimal HTML without design tokens.
 
-**Cel planu**: rozbić implementację 80 FR / 69 US z PRD na sprinty z twardymi granicami taskowymi (per User Story), tak by użytkownik mógł delegować pojedyncze US do agenta ("Zaimplementuj US-023") zamiast skomplikowanych wielo-story zadań. Plan definiuje także parallel tracks w ramach sprintu (2-3 agenty jednocześnie) i miejsca mini-eval.
+**Cel planu**: rozbić implementację 90 FR / 80 US z PRD na sprinty z twardymi granicami taskowymi (per User Story), tak by użytkownik mógł delegować pojedyncze US do agenta ("Zaimplementuj US-023") zamiast skomplikowanych wielo-story zadań. Plan definiuje także parallel tracks w ramach sprintu (2-3 agenty jednocześnie) i miejsca mini-eval.
 
 ## Founding decisions (z pytań Sokratesowych)
 
@@ -20,7 +20,7 @@ UX specification is maintained in `.ai/ux-spec.md` (single source of truth for d
 | Kiedy eval | **Mini-eval od S3** (click), rozszerzamy per sprint, pełny 5-repo gate w S7. |
 | Tempo | 1 sprint ≈ 1 tydzień nominalnie, elastycznie (agent koduje na żądanie — nie blokuje timeline). |
 | Wersjonowanie | **Inkrementalne v0.0.x** per sprint → **v0.1.0** po release gate (S7). Każdy sprint = tag `v0.0.N`. |
-| Zakres | **100% PRD** — wszystkie 80 FR i 69 US non-negotiable dla v0.1.0. |
+| Zakres | **100% PRD** — wszystkie 90 FR i 80 US non-negotiable dla v0.1.0. |
 | Docs cadence | **Per PR/task** — DoD każdego taska: kod + testy + docs (README/CHANGELOG/ADR jeśli dotyczy). |
 
 ## Definition of Done — per task (US)
