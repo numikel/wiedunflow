@@ -251,4 +251,5 @@ Aktualne architectural decision records (w `docs/adr/`):
 - **ADR-0003** — Clean Architecture layering: entities/use_cases/interfaces/adapters/cli (2026-04-20).
 - **ADR-0004** — UV-exclusive toolchain: pip/pipx/poetry/hatch wykluczone (2026-04-20).
 - **ADR-0005** — Frozen vanilla JS output: zero Preact/React/Astro/bundlera w HTML (2026-04-20).
+- **ADR-0006** — AST snapshot schema: `(IngestionResult, CallGraph, RankedGraph)` triple z invariantami Pydantic jako grounding contract dla Stage 1-3 (2026-04-20).
 - **ADR-0011** — UX design system: A1 Paper only, Inter only, Direction A only, Modern CLI only (2026-04-19).

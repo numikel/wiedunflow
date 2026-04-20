@@ -36,22 +36,32 @@ codeguide . --config tutorial.config.yaml
 
 ```
 $ codeguide --help
-Usage: codeguide [OPTIONS] [REPO_PATH]
+Usage: codeguide [OPTIONS] REPO_PATH
 
-  CodeGuide — generate a tutorial from a Git repository.
+  Generate an interactive HTML tutorial from a local Git repository.
 
 Options:
-  --config PATH       Path to tutorial.config.yaml  [default: ./tutorial.config.yaml]
-  --output PATH       Output HTML file path  [default: tutorial.html]
-  --log-format TEXT   Log format: text | json  [default: text]
-  --resume / --no-resume
-                      Resume from last checkpoint
+  --exclude PATTERN   Additional .gitignore-style pattern to exclude (may repeat).
+  --include PATTERN   Pattern to re-include despite .gitignore (may repeat).
+  --root PATH         Override detected repo root (monorepo subtree).
   -V, --version       Show the version and exit.
   -h, --help          Show this message and exit.
 ```
 
-Sprint 0 scaffold: only `--version` / `--help` are functional. Full pipeline wiring lands in
-Sprint 1.
+### File discovery
+
+`.gitignore` is respected by default.  User `--exclude` patterns are ADDITIVE (layered on top of
+`.gitignore`), and `--include` patterns can re-enable files that would otherwise be excluded.
+`__pycache__` and dotted directories (`.venv`, `.git`) are always skipped.  For monorepos,
+CodeGuide auto-detects the Python subtree (first `pyproject.toml` or `setup.py` below the repo
+root) — pass `--root` to override.
+
+### Supported Python parsing (Sprint 2 / v0.0.2)
+
+- AST extraction: `tree-sitter` + `tree-sitter-python` (functions, classes, methods, async).
+- Call graph resolution: `jedi` with 3-tier coverage reporting (resolved / uncertain / unresolved).
+- Graph ranking: `networkx` PageRank, Louvain communities (seed=42), SCC-condensed topological sort.
+- Planning / generation still uses `FakeLLMProvider` — real LLM adapters land in Sprint 3.
 
 ## Privacy & LLM Disclosure
 
