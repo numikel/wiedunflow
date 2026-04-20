@@ -2,10 +2,13 @@
 # Copyright 2026 Michał Kamiński
 from __future__ import annotations
 
+from codeguide.adapters.cycle_detector import detect_cycles
+from codeguide.adapters.dynamic_import_detector import detect_dynamic_imports
 from codeguide.adapters.fake_clock import FakeClock
 from codeguide.adapters.fake_llm_provider import FakeLLMProvider
 from codeguide.adapters.git_context import get_git_context
 from codeguide.adapters.in_memory_cache import InMemoryCache
+from codeguide.adapters.jedi_resolver import JediResolver
 from codeguide.adapters.stub_bm25_store import StubBm25Store
 from codeguide.adapters.stub_jedi_resolver import StubJediResolver
 from codeguide.adapters.stub_ranker import StubRanker
@@ -16,10 +19,13 @@ __all__ = [
     "FakeClock",
     "FakeLLMProvider",
     "InMemoryCache",
+    "JediResolver",
     "StubBm25Store",
     "StubJediResolver",
     "StubRanker",
     "StubTreeSitterParser",
     "TreeSitterParser",
+    "detect_cycles",
+    "detect_dynamic_imports",
     "get_git_context",
 ]

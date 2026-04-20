@@ -105,6 +105,14 @@ module = "tests.*"
 disallow_untyped_defs = false
 disallow_untyped_decorators = false
 
+[[tool.mypy.overrides]]
+module = ["jedi.*", "jedi"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["networkx.*", "networkx"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = [
