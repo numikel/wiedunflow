@@ -1,23 +1,54 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""CodeGuide CLI entrypoint (scaffold — Sprint 0)."""
+"""CodeGuide CLI entrypoint."""
 
 from __future__ import annotations
+
+import logging
+from pathlib import Path
 
 import click
 
 from codeguide import __version__
+from codeguide.adapters import (
+    FakeClock,
+    FakeLLMProvider,
+    InMemoryCache,
+    StubBm25Store,
+    StubTreeSitterParser,
+)
+from codeguide.use_cases.generate_tutorial import Providers, generate_tutorial
+
+logger = logging.getLogger(__name__)
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(__version__, prog_name="codeguide")
-def main() -> None:
-    """CodeGuide — generate a tutorial from a Git repository.
+@click.argument(
+    "repo_path",
+    type=click.Path(
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+        path_type=Path,
+    ),
+)
+def main(repo_path: Path) -> None:
+    """Generate an interactive HTML tutorial from a local Git repository."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    Sprint 0 scaffold: only --version / --help are functional.
-    Pipeline wiring lands in Sprint 1.
-    """
-    click.echo(f"codeguide {__version__} (scaffold — pipeline available from Sprint 1)")
+    providers = Providers(
+        llm=FakeLLMProvider(),
+        parser=StubTreeSitterParser(),
+        vector_store=StubBm25Store(),
+        cache=InMemoryCache(),
+        clock=FakeClock(),
+    )
+
+    output = generate_tutorial(repo_path, providers)
+    click.echo(f"Tutorial written to: {output}")
+    click.echo(f"Open with: file://{output.as_posix()}")
 
 
 if __name__ == "__main__":  # pragma: no cover

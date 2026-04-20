@@ -248,4 +248,7 @@ Aktualne architectural decision records (w `docs/adr/`):
 
 - **ADR-0001** — LLM stack: wycięcie LangChain/LangGraph, bezpośrednie SDK za portem `LLMProvider` (2026-04-16).
 - **ADR-0002** — RAG w MVP: BM25 (`rank_bm25`) zamiast sqlite-vec + embeddings (2026-04-16).
+- **ADR-0003** — Clean Architecture layering: entities/use_cases/interfaces/adapters/cli (2026-04-20).
+- **ADR-0004** — UV-exclusive toolchain: pip/pipx/poetry/hatch wykluczone (2026-04-20).
+- **ADR-0005** — Frozen vanilla JS output: zero Preact/React/Astro/bundlera w HTML (2026-04-20).
 - **ADR-0011** — UX design system: A1 Paper only, Inter only, Direction A only, Modern CLI only (2026-04-19).
