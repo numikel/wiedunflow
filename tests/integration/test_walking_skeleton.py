@@ -12,9 +12,17 @@ pytestmark = pytest.mark.integration
 
 
 def _normalize_html(html: str) -> str:
-    """Remove volatile fields for stable snapshots."""
-    # Normalize Windows drive letters in any file:// paths that may appear
+    """Remove volatile fields for stable snapshots.
+
+    Normalizes:
+      - Windows drive letters in ``file://`` paths.
+      - The ``<branch>@<short-hash>`` footer token — volatile because the
+        tiny_repo fixture lives inside the CodeGuide repo, so git_context
+        returns the parent repo's HEAD and branch, both of which change on
+        every commit.
+    """
     html = re.sub(r"file:///[A-Za-z]:/", "file:///C:/", html)
+    html = re.sub(r"<code>[^<@]+@[^<]+</code>", "<code>NORMALIZED_BRANCH@HASH</code>", html)
     return html
 
 
