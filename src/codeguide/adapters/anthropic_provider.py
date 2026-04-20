@@ -21,6 +21,7 @@ from tenacity import (
 )
 
 from codeguide import __version__
+from codeguide.entities.code_symbol import CodeSymbol
 from codeguide.entities.lesson import Lesson
 from codeguide.entities.lesson_manifest import (
     LessonManifest,
@@ -46,10 +47,12 @@ class AnthropicProvider:
         api_key: str | None = None,
         model_plan: str = "claude-sonnet-4-6",
         model_narrate: str = "claude-opus-4-7",
+        model_describe: str = "claude-haiku-4-5",
         max_retries: int = 5,
         max_wait_s: int = 60,
         max_tokens_plan: int = 8000,
         max_tokens_narrate: int = 4000,
+        max_tokens_describe: int = 300,
     ) -> None:
         resolved_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not resolved_key:
@@ -57,14 +60,17 @@ class AnthropicProvider:
         self._client = anthropic.Anthropic(api_key=resolved_key)
         self._model_plan = model_plan
         self._model_narrate = model_narrate
+        self._model_describe = model_describe
         self._max_retries = max_retries
         self._max_wait_s = max_wait_s
         self._max_tokens_plan = max_tokens_plan
         self._max_tokens_narrate = max_tokens_narrate
+        self._max_tokens_describe = max_tokens_describe
         logger.info(
             "anthropic_provider_init",
             model_plan=model_plan,
             model_narrate=model_narrate,
+            model_describe=model_describe,
             max_retries=max_retries,
         )
 
@@ -92,6 +98,28 @@ class AnthropicProvider:
             messages=[{"role": "user", "content": outline}],
         )
         return _parse_plan_response(raw)
+
+    def describe_symbol(self, symbol: CodeSymbol, context: str) -> str:
+        """Produce a short natural-language description of a leaf symbol via Haiku.
+
+        Args:
+            symbol: Target ``CodeSymbol`` (function, class, method, …).
+            context: Surrounding source / docstring / AST metadata used for grounding.
+
+        Returns:
+            Markdown description (~2-4 sentences). No JSON envelope, no fences.
+
+        Raises:
+            anthropic.RateLimitError: After exhausting all retry attempts.
+        """
+        user_content = _build_describe_user_prompt(symbol=symbol, context=context)
+        raw = self._create_with_retry(
+            model=self._model_describe,
+            max_tokens=self._max_tokens_describe,
+            system=_DESCRIBE_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_content}],
+        )
+        return raw.strip()
 
     def narrate(
         self,
@@ -246,3 +274,33 @@ CONSTRAINTS:
 - Ground every claim in the provided code references; do not invent function names.
 - Keep narrative under 500 words.
 - Return ONLY the markdown narrative (no JSON wrapper)."""
+
+
+_DESCRIBE_SYSTEM_PROMPT = """You are CodeGuide, producing concise leaf-symbol descriptions for a tutorial.
+
+CONSTRAINTS:
+- Output plain markdown, 2-4 sentences, ~80 words max.
+- Describe what the symbol does, its role in the module, and relevant types.
+- Ground every claim in the provided context; do not invent behaviour.
+- Do NOT include code fences, JSON wrappers, or headings — prose only."""
+
+
+def _build_describe_user_prompt(*, symbol: CodeSymbol, context: str) -> str:
+    """Render a user prompt for ``describe_symbol`` combining symbol metadata and context."""
+    docstring = symbol.docstring or "<none>"
+    flags: list[str] = []
+    if symbol.is_dynamic_import:
+        flags.append("dynamic-import")
+    if symbol.is_uncertain:
+        flags.append("uncertain-resolution")
+    flags_line = ", ".join(flags) if flags else "<none>"
+    return (
+        f"Symbol: {symbol.name}\n"
+        f"Kind: {symbol.kind}\n"
+        f"File: {symbol.file_path} (line {symbol.lineno})\n"
+        f"Docstring: {docstring}\n"
+        f"Flags: {flags_line}\n"
+        f"\n"
+        f"Context:\n"
+        f"{context}\n"
+    )

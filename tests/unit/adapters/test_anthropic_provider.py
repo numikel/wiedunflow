@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import anthropic
@@ -14,6 +15,7 @@ import pytest
 from anthropic.types import TextBlock
 
 from codeguide.adapters.anthropic_provider import AnthropicProvider
+from codeguide.entities.code_symbol import CodeSymbol
 from codeguide.entities.lesson_manifest import LessonManifest
 
 # ---------------------------------------------------------------------------
@@ -203,6 +205,115 @@ def test_narrate_no_concepts_uses_placeholder(mock_cls, monkeypatch):
 
     system_prompt = mock_client.messages.create.call_args.kwargs["system"]
     assert "<none yet>" in system_prompt
+
+
+# ---------------------------------------------------------------------------
+# Test: describe_symbol()
+# ---------------------------------------------------------------------------
+
+
+def _mk_symbol(
+    name: str = "calculator.add",
+    kind: str = "function",
+    docstring: str | None = "Add two integers.",
+    is_dynamic_import: bool = False,
+    is_uncertain: bool = False,
+) -> CodeSymbol:
+    """Build a CodeSymbol for describe_symbol tests."""
+    return CodeSymbol(
+        name=name,
+        kind=kind,  # type: ignore[arg-type]
+        file_path=Path("calculator.py"),
+        lineno=1,
+        docstring=docstring,
+        is_dynamic_import=is_dynamic_import,
+        is_uncertain=is_uncertain,
+    )
+
+
+@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+def test_describe_symbol_uses_haiku_model(mock_cls, monkeypatch):
+    """describe_symbol() calls messages.create with the describe model and tight max_tokens."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _mk_response(
+        "A simple addition helper for two integers."
+    )
+    mock_cls.return_value = mock_client
+
+    provider = AnthropicProvider()
+    description = provider.describe_symbol(_mk_symbol(), context="def add(a, b): return a + b")
+
+    assert mock_client.messages.create.call_count == 1
+    kwargs = mock_client.messages.create.call_args.kwargs
+    assert kwargs["model"] == "claude-haiku-4-5"
+    assert kwargs["max_tokens"] == 300
+    assert description == "A simple addition helper for two integers."
+
+
+@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+def test_describe_symbol_custom_model(mock_cls, monkeypatch):
+    """model_describe= constructor arg is forwarded to messages.create."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _mk_response("desc")
+    mock_cls.return_value = mock_client
+
+    provider = AnthropicProvider(model_describe="claude-haiku-4-6")
+    provider.describe_symbol(_mk_symbol(), context="ctx")
+
+    kwargs = mock_client.messages.create.call_args.kwargs
+    assert kwargs["model"] == "claude-haiku-4-6"
+
+
+@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+def test_describe_symbol_prompt_includes_symbol_metadata(mock_cls, monkeypatch):
+    """describe_symbol() user prompt embeds symbol name, kind, file, docstring."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _mk_response("desc")
+    mock_cls.return_value = mock_client
+
+    symbol = _mk_symbol(name="pkg.mod.foo", kind="function", docstring="Does foo.")
+    provider = AnthropicProvider()
+    provider.describe_symbol(symbol, context="<source snippet>")
+
+    user_prompt = mock_client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "pkg.mod.foo" in user_prompt
+    assert "function" in user_prompt
+    assert "Does foo." in user_prompt
+    assert "<source snippet>" in user_prompt
+
+
+@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+def test_describe_symbol_flags_dynamic_and_uncertain(mock_cls, monkeypatch):
+    """describe_symbol() surfaces is_dynamic_import / is_uncertain flags in the prompt."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _mk_response("desc")
+    mock_cls.return_value = mock_client
+
+    symbol = _mk_symbol(is_dynamic_import=True, is_uncertain=True)
+    provider = AnthropicProvider()
+    provider.describe_symbol(symbol, context="ctx")
+
+    user_prompt = mock_client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "dynamic-import" in user_prompt
+    assert "uncertain-resolution" in user_prompt
+
+
+@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+def test_describe_symbol_strips_whitespace(mock_cls, monkeypatch):
+    """Leading/trailing whitespace in the model response is stripped."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _mk_response("\n\n  actual text  \n\n")
+    mock_cls.return_value = mock_client
+
+    provider = AnthropicProvider()
+    description = provider.describe_symbol(_mk_symbol(), context="ctx")
+
+    assert description == "actual text"
 
 
 # ---------------------------------------------------------------------------

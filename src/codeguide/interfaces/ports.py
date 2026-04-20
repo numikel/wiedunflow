@@ -15,10 +15,28 @@ from codeguide.entities.ranked_graph import RankedGraph
 
 @runtime_checkable
 class LLMProvider(Protocol):
-    """Port for LLM interactions: planning and per-lesson narration."""
+    """Port for LLM interactions: planning, per-symbol description, and per-lesson narration."""
 
     def plan(self, outline: str) -> LessonManifest:
         """Produce a structured lesson manifest from a code-graph outline."""
+        ...
+
+    def describe_symbol(self, symbol: CodeSymbol, context: str) -> str:
+        """Generate a short natural-language description for a single leaf symbol.
+
+        Used by Stage 5 before narration: leaf-function descriptions are produced
+        in parallel (default model: Haiku) and later composed into lesson
+        narratives by :meth:`narrate`.
+
+        Args:
+            symbol: The ``CodeSymbol`` to describe (function, class, method, …).
+            context: Surrounding source snippet or docstring/AST metadata that
+                grounds the description.
+
+        Returns:
+            A concise markdown description (~2-4 sentences). Adapters must not
+            return additional fences or JSON envelopes.
+        """
         ...
 
     def narrate(
