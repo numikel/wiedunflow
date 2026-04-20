@@ -13,8 +13,8 @@ from codeguide.adapters.pygments_highlighter import highlight_python as _highlig
 
 # Runtime imports: used in constructor calls, not just annotations.
 from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.ingestion_result import IngestionResult
 from codeguide.entities.lesson_plan import LessonPlan
+from codeguide.use_cases.ingestion import ingest
 from codeguide.use_cases.offline_linter import validate_offline_invariant
 
 if TYPE_CHECKING:
@@ -57,6 +57,9 @@ def generate_tutorial(
     repo_path: Path,
     providers: Providers,
     output_path: Path | None = None,
+    excludes: tuple[str, ...] = (),
+    includes: tuple[str, ...] = (),
+    root_override: Path | None = None,
 ) -> Path:
     """Run the 7-stage pipeline and write tutorial.html.
 
@@ -64,6 +67,12 @@ def generate_tutorial(
         repo_path: Absolute path to the Git repository root.
         providers: Port implementations to use (stubs in S1, real in S2+).
         output_path: Destination file; defaults to cwd / 'tutorial.html'.
+        excludes: Additional gitignore-style patterns to exclude (additive
+            over ``.gitignore``).  Threaded through to the ingestion stage.
+        includes: Patterns to un-ignore despite ``.gitignore`` or *excludes*.
+            Threaded through to the ingestion stage.
+        root_override: Explicit repo root override for monorepo subtrees.
+            When set, ingestion uses this path as ``repo_root``.
 
     Returns:
         Path to the written tutorial.html file.
@@ -75,7 +84,7 @@ def generate_tutorial(
 
     # Stage 1 — Ingestion
     logger.info("[1/7] Ingestion — discovering source files")
-    ingestion = _stage_ingestion(repo_path)
+    ingestion = ingest(repo_path, excludes=excludes, includes=includes, root_override=root_override)
 
     # Stage 2 — Analysis
     logger.info("[2/7] Analysis — parsing AST and resolving call graph")
@@ -117,34 +126,6 @@ def generate_tutorial(
 # ---------------------------------------------------------------------------
 # Private stage helpers
 # ---------------------------------------------------------------------------
-
-
-def _stage_ingestion(repo_path: Path) -> IngestionResult:
-    """Stage 1: Walk repo, discover Python source files, collect git context.
-
-    Skips hidden directories (starting with '.') and ``__pycache__`` folders.
-    Git metadata is ``unknown`` in the walking-skeleton implementation; the
-    real adapter (Sprint 2 Track A) replaces this with a ``git_context`` call.
-
-    Args:
-        repo_path: Root of the repository to walk.
-    """
-    files = tuple(
-        sorted(
-            p
-            for p in repo_path.rglob("*.py")
-            if not any(part.startswith(".") for part in p.parts)
-            if "__pycache__" not in p.parts
-        )
-    )
-    return IngestionResult(
-        files=files,
-        repo_root=repo_path,
-        commit_hash="unknown",
-        branch="unknown",
-        detected_subtree=None,
-        excluded_count=0,
-    )
 
 
 def _stage_rag(repo_path: Path, vector_store: VectorStore) -> None:

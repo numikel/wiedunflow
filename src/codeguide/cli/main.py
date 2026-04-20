@@ -36,7 +36,33 @@ logger = logging.getLogger(__name__)
         path_type=Path,
     ),
 )
-def main(repo_path: Path) -> None:
+@click.option(
+    "--exclude",
+    "excludes",
+    multiple=True,
+    metavar="PATTERN",
+    help="Additional .gitignore-style pattern to exclude (may repeat).",
+)
+@click.option(
+    "--include",
+    "includes",
+    multiple=True,
+    metavar="PATTERN",
+    help="Pattern to re-include despite .gitignore (may repeat).",
+)
+@click.option(
+    "--root",
+    "root",
+    default=None,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Override detected repo root (monorepo subtree).",
+)
+def main(
+    repo_path: Path,
+    excludes: tuple[str, ...],
+    includes: tuple[str, ...],
+    root: Path | None,
+) -> None:
     """Generate an interactive HTML tutorial from a local Git repository."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -50,7 +76,13 @@ def main(repo_path: Path) -> None:
         clock=FakeClock(),
     )
 
-    output = generate_tutorial(repo_path, providers)
+    output = generate_tutorial(
+        repo_path,
+        providers,
+        excludes=excludes,
+        includes=includes,
+        root_override=root,
+    )
     click.echo(f"Tutorial written to: {output}")
     click.echo(f"Open with: file://{output.as_posix()}")
 
