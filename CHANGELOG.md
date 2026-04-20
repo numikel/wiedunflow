@@ -6,6 +6,10 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **CI**: pin `astral-sh/setup-uv` to `@v7` (was `@v8`, which does not exist as a major tag — only `v8.1.0` release without moving alias). Resolves all matrix jobs failing at "Set up job" with `Unable to resolve action astral-sh/setup-uv@v8`.
+- **CI**: install Chromium via `uv run playwright install chromium` before the `Test` step and cache `~/.playwright-browsers` per `runner.os` + `uv.lock` hash. Fixes `BrowserType.launch: Executable doesn't exist` on `test_html_file_url.py` (US-040 regression gate).
+
 ## [0.0.3] - 2026-04-20 — RAG + Planning + Anthropic (Sprint 3)
 
 ### Added

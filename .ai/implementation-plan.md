@@ -523,7 +523,7 @@ W każdym sprincie S2-S7 identyfikuję 2-3 niezależne tracks (A/B/C). Delegacja
 ### Co poszło dobrze
 - Parallel agents (devops + technical-writer) bez merge-konfliktów (rozdzielony scope plików)
 - CDN fontsource działało (jsdelivr) — WOFF2 magic bytes `wOF2` OK
-- GitHub Actions versions: `checkout@v6`, `setup-uv@v8` (poprawne, weryfikacja curl)
+- GitHub Actions versions: `checkout@v6`, `setup-uv@v7` (skorygowane po Sprint 3 — `@v8` nie istnieje jako major tag, CI padło; autor astral-sh wypuścił tylko `v8.1.0`)
 - mypy strict: 0 issues na 8 plikach od pierwszego uruchomienia
 
 ### Co poszło źle / blockers
