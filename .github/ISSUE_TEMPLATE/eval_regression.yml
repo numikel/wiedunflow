@@ -1,0 +1,41 @@
+name: Eval Regression
+description: Report a quality regression in generated tutorials
+labels: ["eval-regression"]
+body:
+  - type: input
+    id: repo
+    attributes:
+      label: Repository name + commit SHA
+      placeholder: "e.g. pallets/click @ abc1234"
+    validations:
+      required: true
+  - type: dropdown
+    id: rubric
+    attributes:
+      label: Rubric dimension
+      options:
+        - grounding (hallucinated symbols)
+        - coherence (re-teaches prior material)
+        - pedagogy (unclear explanation)
+        - technical-accuracy
+        - output-quality (HTML/formatting)
+    validations:
+      required: true
+  - type: textarea
+    id: baseline
+    attributes:
+      label: Previous baseline
+      description: "Path to baseline: tests/eval/results/<sprint>-<date>.json"
+  - type: textarea
+    id: regression
+    attributes:
+      label: Observed regression
+    validations:
+      required: true
+  - type: input
+    id: repro
+    attributes:
+      label: Reproduction command
+      placeholder: "pytest -m eval -k click --anthropic-model claude-sonnet-4-6"
+    validations:
+      required: true

@@ -1,0 +1,97 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * Copyright 2026 Michał Kamiński
+ *
+ * CodeGuide design tokens — A1 Paper palette (ux-spec §3.7).
+ * Binary choice anchored by ADR-0011.
+ */
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  --bg:        oklch(0.97 0.004 100);
+  --panel:     oklch(0.93 0.006 100);
+  --surface:   oklch(0.89 0.008 100);
+  --topbar:    oklch(0.22 0.01 250);
+  --ink:       oklch(0.18 0.01 250);
+  --ink-2:     oklch(0.31 0.01 250);
+  --ink-dim:   oklch(0.50 0.01 250);
+  --accent:    oklch(0.55 0.18 250);
+  --warn:      oklch(0.35 0.16 35);
+  --border:    oklch(0.82 0.006 100);
+  --border-2:  oklch(0.77 0.008 100);
+  --code-bg:   oklch(0.91 0.008 100);
+  --hl:        oklch(0.87 0.006 100);
+  --hl-line:   oklch(0.35 0.01 250);
+}
+
+[data-theme="dark"] {
+  --bg:        oklch(0.14 0.01 250);
+  --panel:     oklch(0.18 0.01 250);
+  --surface:   oklch(0.22 0.01 250);
+  --topbar:    oklch(0.08 0.01 250);
+  --ink:       oklch(0.92 0.01 250);
+  --ink-2:     oklch(0.77 0.01 250);
+  --ink-dim:   oklch(0.65 0.01 250);
+  --accent:    oklch(0.55 0.18 250);
+  --warn:      oklch(0.82 0.14 45);
+  --border:    oklch(0.27 0.01 250);
+  --border-2:  oklch(0.19 0.01 250);
+  --code-bg:   oklch(0.11 0.01 250);
+  --hl:        oklch(0.20 0.01 250);
+  --hl-line:   oklch(0.70 0.01 250);
+}

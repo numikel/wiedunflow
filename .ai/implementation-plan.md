@@ -510,15 +510,38 @@ W każdym sprincie S2-S7 identyfikuję 2-3 niezależne tracks (A/B/C). Delegacja
 
 ## Session Journal
 
-**Status**: pending
-**Session ref**: [[Sesje/2026-04-19-HHmm-codeguide-sprint-plan|TBD]]
+**Status**: extracted
+**Session ref**: [[Sesje/2026-04-20-codeguide-sprint-0|Sprint 0 Foundation]]
 
 ### Co zrobione
-(do wypełnienia po wykonaniu planu)
+- Sprint 0 plan zaakceptowany (2026-04-20) — 7 pytań Socratesowych, Context7 docs dla UV/ruff/pre-commit
+- T-000.1..T-000.13 wdrożone przez devops-engineer (1 liniowy agent) + technical-writer (równolegle ADR)
+- T-000.14 wdrożone przez python-pro (fonty WOFF2 z CDN, tokens.css, testy)
+- 11/11 testów PASS, ruff clean, mypy strict clean, `codeguide --version` → `0.0.0`
+- Worktree isolation uwaga: agenty pisały do GŁÓWNEGO repo mimo `isolation: worktree` (znany issue)
 
 ### Co poszło dobrze
+- Parallel agents (devops + technical-writer) bez merge-konfliktów (rozdzielony scope plików)
+- CDN fontsource działało (jsdelivr) — WOFF2 magic bytes `wOF2` OK
+- GitHub Actions versions: `checkout@v6`, `setup-uv@v8` (poprawne, weryfikacja curl)
+- mypy strict: 0 issues na 8 plikach od pierwszego uruchomienia
+
 ### Co poszło źle / blockers
+- `isolation: worktree` nie odizolowało agentów — pisali do main repo. Worktree'e zostały locked bez commitów. Trzeba je usunąć ręcznie (`git worktree remove -f -f`).
+- mypy nota: "unused section tests.*" — nieszkodliwa, zniknie gdy pojawią się testy z type hints
+
 ### Lessons learned
+- `isolation: worktree` w Agent tool nie gwarantuje że agent BĘDZIE pisał do worktree — agent używa Write/Edit narzędzi które działają w current working directory. To `isolation: worktree` tylko zakłada repo copy, ale agent musi świadomie pisać do WORKTREE PATH.
+- Dla prawdziwego isolation trzeba podać worktree path explicite w prompcie agenta.
+
 ### CLAUDE.md improvement candidates
+- Dodać notę o `isolation: worktree` — agenty piszą do CWD (main repo), nie do worktree path. Jeśli chcemy izolacji, podaj worktree path explicite w prompcie.
+
 ### Auto-memory candidates
+- `isolation: worktree` w Agent tool nie izoluje file writes — agents use Write/Edit na CWD
+
 ### Wnioski dla następnej sesji
+- Sprint 1: Walking Skeleton — `python-pro` + `test-automator`. Trigger: "Zaimplementuj Sprint 1" 
+- Przed pushem v0.0.0 tag: `git worktree remove -f -f D:/CodeGuide/.claude/worktrees/agent-*`
+- Commit flow: `git checkout -b chore/sprint-0-scaffold && git add ... && git commit -s -m "chore(config): ..."`
+- Pre-commit autoupdate po pierwszym commit (pin najnowsze rev)

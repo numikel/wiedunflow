@@ -1,0 +1,17 @@
+CodeGuide
+Copyright 2026 Michał Kamiński
+
+This product includes software developed at Astral (https://astral.sh/)
+(uv, ruff — both licensed under MIT / Apache-2.0).
+
+This product includes the Inter typeface, licensed under SIL OFL 1.1.
+Copyright 2016-2024 The Inter Project Authors (https://github.com/rsms/inter).
+See src/codeguide/renderer/fonts/OFL-Inter.txt for the full license.
+
+This product includes the JetBrains Mono typeface, licensed under SIL OFL 1.1.
+Copyright 2020 The JetBrains Mono Project Authors
+(https://github.com/JetBrains/JetBrainsMono).
+See src/codeguide/renderer/fonts/OFL-JetBrainsMono.txt for the full license.
+
+[Auto-aggregated Apache-2.0 dependency notices will be appended here
+ by the release workflow in Sprint 7 (per FR-72 / US-062).]

@@ -1,0 +1,32 @@
+name: Feature Request
+description: Suggest an idea for CodeGuide
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: Is your feature request related to a problem? Clear description.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: input
+    id: prd-ref
+    attributes:
+      label: Relevant FR/US from PRD
+      placeholder: "e.g. FR-42, US-023"
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Willing to contribute?
+      options:
+        - label: I'm willing to open a PR for this feature.

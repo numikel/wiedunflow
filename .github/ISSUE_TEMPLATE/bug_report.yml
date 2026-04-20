@@ -1,0 +1,64 @@
+name: Bug Report
+description: File a bug report
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for taking the time to fill out this bug report!"
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Steps to reproduce the behavior.
+      placeholder: "1. Run `codeguide <repo> --log-format json`\n2. See error..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options: [Ubuntu, macOS, Windows]
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "e.g. 3.12.3"
+    validations:
+      required: true
+  - type: input
+    id: codeguide-version
+    attributes:
+      label: CodeGuide version
+      placeholder: "codeguide --version output"
+    validations:
+      required: true
+  - type: dropdown
+    id: llm-provider
+    attributes:
+      label: LLM provider
+      options: [Anthropic (default), OpenAI, Ollama, LM Studio, vLLM, Other]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (sanitized)
+      description: Paste relevant log output. Remove API keys and sensitive data.
+      render: shell
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context

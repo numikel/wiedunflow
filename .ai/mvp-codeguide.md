@@ -1,5 +1,7 @@
 # MVP: Codebase Tutorial Generator
 
+> **Uwaga historyczna (2026-04-16):** Ten dokument odzwierciedla pierwotne decyzje stackowe (LangGraph, sqlite-vec, sonnet-4-5, opcjonalny Preact). Aktualny stack został odchudzony w PRD 0.1.1-draft — patrz `.ai/prd.md` i `.ai/tech-stack.md`. ADR-0001 i ADR-0002 wyjaśniają różnice.
+
 *High-level description dla sesji planistycznej → PRD*
 
 ---
