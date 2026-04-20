@@ -11,6 +11,8 @@ from codeguide.adapters import (
     FakeLLMProvider,
     InMemoryCache,
     StubBm25Store,
+    StubJediResolver,
+    StubRanker,
     StubTreeSitterParser,
 )
 from codeguide.use_cases.generate_tutorial import Providers, generate_tutorial
@@ -29,6 +31,8 @@ def providers() -> Providers:
     return Providers(
         llm=FakeLLMProvider(),
         parser=StubTreeSitterParser(),
+        resolver=StubJediResolver(),
+        ranker=StubRanker(),
         vector_store=StubBm25Store(),
         cache=InMemoryCache(),
         clock=FakeClock(),

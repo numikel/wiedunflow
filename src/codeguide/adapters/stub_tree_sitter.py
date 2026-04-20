@@ -9,21 +9,29 @@ from codeguide.entities.code_symbol import CodeSymbol
 
 
 class StubTreeSitterParser:
-    """Hardcoded parser for tests/fixtures/tiny_repo/ — returns pre-scripted symbols.
+    """Hardcoded parser for the ``tests/fixtures/tiny_repo`` fixture.
 
-    Implements the Parser Protocol via duck typing.  The real tree-sitter
-    adapter (Sprint 2) will replace this with actual AST extraction.
+    Implements the :class:`Parser` Protocol via duck typing. Returns a fixed
+    ``(symbols, raw_graph)`` regardless of the ``files`` passed in. The real
+    tree-sitter adapter (Sprint 2 Track A) replaces this on the CLI path.
     """
 
-    def parse(self, path: Path) -> tuple[list[CodeSymbol], CallGraph]:
-        """Return fixed symbols and call graph regardless of which file is passed.
+    def parse(
+        self,
+        files: list[Path],
+        repo_root: Path,
+    ) -> tuple[list[CodeSymbol], CallGraph]:
+        """Return fixed symbols and call graph regardless of input.
 
         Args:
-            path: Source file path (ignored in stub — walking skeleton).
+            files: Source files (ignored — stub returns fixture data).
+            repo_root: Repository root (ignored — stub returns fixture data).
 
         Returns:
-            A 2-tuple of (symbols, call_graph) covering the tiny_repo fixture.
+            A 2-tuple of ``(symbols, raw_graph)`` covering the tiny_repo fixture.
+            ``raw_graph.resolution_stats`` is ``None`` — the Resolver fills it.
         """
+        _ = files, repo_root
         symbols: list[CodeSymbol] = [
             CodeSymbol(
                 name="calculator.add",

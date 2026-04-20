@@ -21,3 +21,4 @@ class CodeSymbol(BaseModel):
     lineno: int  # 1-indexed
     docstring: str | None = None
     is_uncertain: bool = False  # True for dynamic imports, reflection, runtime polymorphism
+    is_dynamic_import: bool = False  # subset of is_uncertain — specifically importlib/__import__

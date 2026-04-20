@@ -6,34 +6,37 @@ from pathlib import Path
 
 from codeguide.entities.call_graph import CallGraph
 from codeguide.entities.code_symbol import CodeSymbol
+from codeguide.entities.resolution_stats import ResolutionStats
 
 
 class StubJediResolver:
-    """Stub Jedi resolver — returns a pre-scripted CallGraph for tiny_repo.
+    """Stub Resolver returning the raw graph unchanged with 100% coverage.
 
-    Note: resolve() is NOT part of the Parser Protocol (which only requires
-    parse()).  This class is wired directly into generate_tutorial.py for S1
-    and will be replaced by the real Jedi adapter in Sprint 2.
+    Implements the :class:`Resolver` Protocol via duck typing. Used by the
+    walking-skeleton pipeline so that golden tests remain deterministic. The
+    real Jedi adapter lands in Sprint 2 Track B.
     """
 
     def resolve(
         self,
         symbols: list[CodeSymbol],
+        raw_graph: CallGraph,
         repo_root: Path,
     ) -> CallGraph:
-        """Return a fixed call graph regardless of input symbols.
+        """Return a resolved graph: same edges plus perfect ResolutionStats.
 
         Args:
-            symbols: Symbols extracted by the parser (used as graph nodes).
-            repo_root: Repository root path (ignored in stub).
-
-        Returns:
-            A CallGraph with hardcoded edges matching the tiny_repo fixture.
+            symbols: Symbols from the parser (used as graph nodes).
+            raw_graph: Parser output (edges carried over unchanged).
+            repo_root: Repository root (ignored in stub).
         """
+        _ = repo_root
         return CallGraph(
             nodes=tuple(symbols),
-            edges=(
-                ("main.cli", "calculator.add"),
-                ("main.cli", "calculator.subtract"),
+            edges=raw_graph.edges,
+            resolution_stats=ResolutionStats(
+                resolved_pct=100.0,
+                uncertain_count=0,
+                unresolved_count=0,
             ),
         )

@@ -7,6 +7,7 @@ from codeguide.adapters.fake_llm_provider import FakeLLMProvider
 from codeguide.adapters.in_memory_cache import InMemoryCache
 from codeguide.adapters.stub_bm25_store import StubBm25Store
 from codeguide.adapters.stub_jedi_resolver import StubJediResolver
+from codeguide.adapters.stub_ranker import StubRanker
 from codeguide.adapters.stub_tree_sitter import StubTreeSitterParser
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "InMemoryCache",
     "StubBm25Store",
     "StubJediResolver",
+    "StubRanker",
     "StubTreeSitterParser",
 ]

@@ -13,6 +13,7 @@ from codeguide.adapters.pygments_highlighter import highlight_python as _highlig
 
 # Runtime imports: used in constructor calls, not just annotations.
 from codeguide.entities.call_graph import CallGraph
+from codeguide.entities.ingestion_result import IngestionResult
 from codeguide.entities.lesson_plan import LessonPlan
 from codeguide.use_cases.offline_linter import validate_offline_invariant
 
@@ -20,11 +21,20 @@ if TYPE_CHECKING:
     from codeguide.entities.code_symbol import CodeSymbol
     from codeguide.entities.lesson import Lesson
     from codeguide.entities.lesson_manifest import LessonManifest
-    from codeguide.interfaces.ports import Cache, Clock, LLMProvider, Parser, VectorStore
+    from codeguide.entities.ranked_graph import RankedGraph
+    from codeguide.interfaces.ports import (
+        Cache,
+        Clock,
+        LLMProvider,
+        Parser,
+        Ranker,
+        Resolver,
+        VectorStore,
+    )
 
 logger = logging.getLogger(__name__)
 
-_CODEGUIDE_VERSION = "0.0.1"
+_CODEGUIDE_VERSION = "0.0.2"
 
 # Re-export so callers that import from this module can reach the helper.
 highlight_python = _highlight_python
@@ -36,6 +46,8 @@ class Providers:
 
     llm: LLMProvider
     parser: Parser
+    resolver: Resolver
+    ranker: Ranker
     vector_store: VectorStore
     cache: Cache
     clock: Clock
@@ -63,15 +75,16 @@ def generate_tutorial(
 
     # Stage 1 — Ingestion
     logger.info("[1/7] Ingestion — discovering source files")
-    source_files = _stage_ingestion(repo_path)
+    ingestion = _stage_ingestion(repo_path)
 
     # Stage 2 — Analysis
     logger.info("[2/7] Analysis — parsing AST and resolving call graph")
-    symbols, call_graph = _stage_analysis(source_files, providers.parser)
+    symbols, raw_graph = providers.parser.parse(list(ingestion.files), ingestion.repo_root)
+    resolved_graph = providers.resolver.resolve(symbols, raw_graph, ingestion.repo_root)
 
-    # Stage 3 — Graph (S1: identity passthrough — PageRank in Sprint 2)
-    logger.info("[3/7] Graph — ranking symbols (stub passthrough)")
-    ranked_symbols = _stage_graph(symbols, call_graph)
+    # Stage 3 — Graph
+    logger.info("[3/7] Graph — PageRank + communities + topological sort")
+    ranked = providers.ranker.rank(resolved_graph)
 
     # Stage 4 — RAG
     logger.info("[4/7] RAG — indexing documentation")
@@ -79,7 +92,7 @@ def generate_tutorial(
 
     # Stage 5 — Planning
     logger.info("[5/7] Planning — generating lesson manifest")
-    outline = _build_outline(ranked_symbols, call_graph)
+    outline = _build_outline(symbols, resolved_graph, ranked)
     manifest: LessonManifest = providers.llm.plan(outline)
 
     # Stage 6 — Generation
@@ -92,8 +105,8 @@ def generate_tutorial(
     lesson_plan = LessonPlan(
         lessons=tuple(lessons),
         concepts_introduced=tuple(spec.teaches for spec in manifest.lessons),
-        repo_commit_hash="deadbeef",  # S1 stub — real git integration in Sprint 2
-        repo_branch="main",
+        repo_commit_hash=ingestion.commit_hash,
+        repo_branch=ingestion.branch,
     )
     html = _stage_build(lesson_plan, repo_name, now_str)
     output_path.write_text(html, encoding="utf-8")
@@ -106,65 +119,32 @@ def generate_tutorial(
 # ---------------------------------------------------------------------------
 
 
-def _stage_ingestion(repo_path: Path) -> list[Path]:
-    """Stage 1: Walk repo, discover Python source files.
+def _stage_ingestion(repo_path: Path) -> IngestionResult:
+    """Stage 1: Walk repo, discover Python source files, collect git context.
 
     Skips hidden directories (starting with '.') and ``__pycache__`` folders.
+    Git metadata is ``unknown`` in the walking-skeleton implementation; the
+    real adapter (Sprint 2 Track A) replaces this with a ``git_context`` call.
 
     Args:
         repo_path: Root of the repository to walk.
-
-    Returns:
-        Sorted list of absolute paths to ``.py`` files.
     """
-    return sorted(
-        p
-        for p in repo_path.rglob("*.py")
-        if not any(part.startswith(".") for part in p.parts)
-        if "__pycache__" not in p.parts
+    files = tuple(
+        sorted(
+            p
+            for p in repo_path.rglob("*.py")
+            if not any(part.startswith(".") for part in p.parts)
+            if "__pycache__" not in p.parts
+        )
     )
-
-
-def _stage_analysis(
-    source_files: list[Path],
-    parser: Parser,
-) -> tuple[list[CodeSymbol], CallGraph]:
-    """Stage 2: Parse AST, resolve call graph.
-
-    In Sprint 1, ``StubTreeSitterParser`` ignores the path and returns fixture
-    data.  The real tree-sitter adapter lands in Sprint 2.
-
-    Args:
-        source_files: Files discovered by ingestion (only the first is passed
-            to the parser stub — real adapter handles all of them in S2).
-        parser: Port implementation for AST extraction.
-
-    Returns:
-        2-tuple of ``(symbols, call_graph)``.
-    """
-    if not source_files:
-        return [], CallGraph(nodes=(), edges=())
-    symbols, call_graph = parser.parse(source_files[0])
-    return symbols, call_graph
-
-
-def _stage_graph(
-    symbols: list[CodeSymbol],
-    call_graph: CallGraph,
-) -> list[CodeSymbol]:
-    """Stage 3: Rank symbols by importance.
-
-    Sprint 1 identity passthrough — PageRank + community detection land in
-    Sprint 2.
-
-    Args:
-        symbols: Symbols from the analysis stage.
-        call_graph: Call graph (unused in S1 passthrough).
-
-    Returns:
-        Symbols in their original order (unranked).
-    """
-    return symbols
+    return IngestionResult(
+        files=files,
+        repo_root=repo_path,
+        commit_hash="unknown",
+        branch="unknown",
+        detected_subtree=None,
+        excluded_count=0,
+    )
 
 
 def _stage_rag(repo_path: Path, vector_store: VectorStore) -> None:
@@ -184,25 +164,50 @@ def _stage_rag(repo_path: Path, vector_store: VectorStore) -> None:
     vector_store.index(docs)
 
 
-def _build_outline(symbols: list[CodeSymbol], call_graph: CallGraph) -> str:
+def _build_outline(
+    symbols: list[CodeSymbol],
+    call_graph: CallGraph,
+    ranked: RankedGraph,
+) -> str:
     """Build a plain-text outline of the codebase for the planning LLM call.
 
     Args:
-        symbols: Ranked symbol list from Stage 3.
-        call_graph: Call graph from Stage 2.
+        symbols: Symbols emitted by the parser (post-resolver).
+        call_graph: Resolved call graph from Stage 2.
+        ranked: Output of Stage 3 — PageRank, communities, topological order.
 
     Returns:
-        Multi-line string describing symbols and call edges.
+        Multi-line string describing symbols (ordered topologically) and call edges.
     """
-    lines = ["Codebase outline:", ""]
-    for symbol in symbols:
+    pagerank_by_name = {rs.symbol_name: rs.pagerank_score for rs in ranked.ranked_symbols}
+    community_by_name = {rs.symbol_name: rs.community_id for rs in ranked.ranked_symbols}
+    by_name = {s.name: s for s in symbols}
+
+    ordered_names = [n for n in ranked.topological_order if n in by_name]
+    trailing = [s.name for s in symbols if s.name not in ordered_names]
+    ordered_names.extend(trailing)
+
+    lines = ["Codebase outline (topological order, leaves → roots):", ""]
+    for name in ordered_names:
+        symbol = by_name[name]
         uncertainty = " [uncertain]" if symbol.is_uncertain else ""
+        dynamic = " [dynamic]" if symbol.is_dynamic_import else ""
         doc = f" — {symbol.docstring}" if symbol.docstring else ""
-        lines.append(f"  {symbol.kind}: {symbol.name} (line {symbol.lineno}){uncertainty}{doc}")
+        score = pagerank_by_name.get(name, 0.0)
+        community = community_by_name.get(name, -1)
+        lines.append(
+            f"  {symbol.kind}: {symbol.name} (line {symbol.lineno}, "
+            f"pr={score:.3f}, community={community}){uncertainty}{dynamic}{doc}"
+        )
     lines.append("")
     lines.append("Call edges:")
     for caller, callee in call_graph.edges:
         lines.append(f"  {caller} → {callee}")
+    if ranked.has_cycles:
+        lines.append("")
+        lines.append("Cycles detected:")
+        for group in ranked.cycle_groups:
+            lines.append(f"  {' → '.join(group)}")
     return "\n".join(lines)
 
 
