@@ -69,6 +69,13 @@ def ingest(
     if root_override is None:
         detected_subtree = _detect_subtree(repo_path)
 
+    has_readme = (
+        (repo_root / "README.md").exists()
+        or (repo_root / "README.rst").exists()
+        or (repo_root / "README.txt").exists()
+        or (repo_root / "README").exists()
+    )
+
     return IngestionResult(
         files=tuple(sorted(files)),
         repo_root=repo_root,
@@ -76,6 +83,7 @@ def ingest(
         branch=branch,
         detected_subtree=detected_subtree,
         excluded_count=excluded_count,
+        has_readme=has_readme,
     )
 
 

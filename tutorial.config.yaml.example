@@ -1,0 +1,22 @@
+# CodeGuide configuration — copy to `tutorial.config.yaml` in your repo root
+# Precedence: CLI flags > env vars (CODEGUIDE_*) > --config <path> >
+#             ./tutorial.config.yaml > ~/.config/codeguide/config.yaml > defaults.
+
+llm:
+  provider: anthropic          # anthropic | openai | openai_compatible (S4+)
+  model_plan: claude-sonnet-4-6
+  model_narrate: claude-opus-4-7
+  concurrency: 10              # cap 20; used from S4 (Stage 5/6 parallel calls)
+  max_retries: 5               # tenacity attempts on RateLimitError (429)
+  max_wait_s: 60               # backoff ceiling per attempt
+  # api_key: set via ANTHROPIC_API_KEY env var (recommended) — do NOT commit secrets
+
+# Ingestion — additive over .gitignore
+exclude_patterns:
+  - "**/tests/**"
+  - "**/migrations/**"
+include_patterns: []
+
+# Planning
+max_lessons: 30                # hard cap per FR-35
+target_audience: "mid-level Python developer"

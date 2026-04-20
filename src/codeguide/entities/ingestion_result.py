@@ -22,6 +22,7 @@ class IngestionResult(BaseModel):
     branch: str
     detected_subtree: Path | None = None  # monorepo subtree; None when repo_root is the tree
     excluded_count: int = 0
+    has_readme: bool = False  # True when README.md / .rst / .txt exists at repo root
 
     @model_validator(mode="after")
     def validate_commit_hash_non_empty(self) -> Self:

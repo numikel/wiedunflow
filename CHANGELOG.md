@@ -6,6 +6,37 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-04-20 — RAG + Planning + Anthropic (Sprint 3)
+
+### Added
+- **`AnthropicProvider`** (`codeguide.adapters.anthropic_provider`) — first real `LLMProvider` implementation.  Uses `claude-sonnet-4-6` for planning, `claude-opus-4-7` for narration.  Retries `RateLimitError` with `tenacity` exponential backoff + jitter (initial=2s, max=60s, 5 attempts) and a `before_sleep` callback that emits a structlog `anthropic_backoff` warning.
+- **`Bm25Store`** (`codeguide.adapters.bm25_store`) — real `VectorStore` backed by `rank_bm25.BM25Okapi` (k1=1.5, b=0.75).  Custom tokenizer splits `snake_case` + `camelCase`, lowercases, and strips a curated stopword list.  Replaces `StubBm25Store` (kept as a backward-compat alias).
+- **Corpus assembler** (`codeguide.use_cases.rag_corpus.build_corpus` / `build_and_index`) — indexes docstrings (weight 1.0), `README.md` (1.0), `docs/**/*.md` (1.0), `CONTRIBUTING.md` (1.0), last 50 git-log messages (0.8).  Missing files are skipped with a structlog info event (US-036 AC#1).
+- **Doc coverage entity + use case** (`entities.doc_coverage.DocCoverage`, `use_cases.doc_coverage.compute_doc_coverage`) — surfaces `is_low` when `< 20 %` of symbols have docstrings; drives the tutorial footer warning banner (US-038).
+- **No-README banner** (US-036 AC#3) — `IngestionResult.has_readme` propagates through `ManifestMetadata` to an info banner in the rendered HTML.
+- **`compute_structural_change` / `is_structural_change`** (`codeguide.use_cases.graph_diff`) — pure top-N PageRank diff; infrastructure for the Sprint 4 cache-invalidation layer (US-024).
+- **`plan_with_retry`** (`codeguide.use_cases.plan_lesson_manifest`) — single retry with a reinforcement prompt that echoes the offending symbols + the allowed-symbols list.  Raises `PlanningFatalError` after the second failure (ADR-0007).
+- **Grounding validator** (`entities.lesson_manifest.validate_against_graph`) — enforces the Sprint 1 invariant: every `code_refs[*].symbol` must exist in the AST snapshot.  Raises `LessonManifestValidationError` listing the ungrounded symbols.
+- **Config precedence chain** (`codeguide.cli.config`) — `pydantic-settings` + custom YAML loader.  Merge order: CLI flags → `CODEGUIDE_*` env → `--config <path>` → `./tutorial.config.yaml` → `platformdirs` user config → defaults.  US-004 pulled forward from Sprint 6.
+- **Consent banner** (`codeguide.cli.consent`) — in-memory, per-session `[y/N]` prompt before the first Anthropic call.  `--yes` / `--no-consent-prompt` bypass for CI; `ConsentRequiredError` on non-TTY without bypass.  Persistence deferred to Sprint 6.
+- **New CLI options**: `--config PATH`, `--no-consent-prompt`, `--yes`, `--provider {anthropic,openai,openai_compatible}`, `--model-plan`, `--model-narrate`.
+- **ADR-0007** — Planning prompt contract: single Sonnet call, strict JSON schema, grounding invariant, 1-retry budget, fatal fail semantics.
+- **`tutorial.config.yaml.example`** — reference config at repo root.
+- **Mini-eval harness** (`tests/eval/test_s3_click_baseline.py`) — `@pytest.mark.eval` end-to-end run on `pallets/click`; skips gracefully without `ANTHROPIC_API_KEY` or the submodule.  Writes a baseline JSON to `tests/eval/results/s3-click-baseline.json`.
+
+### Changed
+- **`LessonSpec.code_refs`** (breaking, pre-v0.1.0): `tuple[str, ...]` → `tuple[CodeRef, ...]`.  `CodeRef` (`entities.code_ref`) carries `file_path`, `symbol`, `line_start`, `line_end`, `role ∈ {primary, referenced, example}`.
+- **`LessonManifest`** — now requires a `metadata: ManifestMetadata` field with `schema_version: "1.0.0"`, `codeguide_version`, `total_lessons`, `generated_at`, `has_readme`, `doc_coverage`.  `total_lessons` must match `len(lessons)` (Pydantic `model_validator`).
+- **CLI pipeline** now wires `TreeSitterParser` + `JediResolver` + `NetworkxRanker` + `Bm25Store` by default; `FakeLLMProvider` is used only when `--provider` selects a non-Anthropic backend (Sprint 4).
+- **`FakeLLMProvider`** rebuilt for the new manifest schema (full `ManifestMetadata` + `CodeRef` emission) so the default (keyless) CLI path still produces a valid tutorial.
+- Golden snapshot refreshed for the new banner CSS classes and the enriched manifest shape.
+
+### Dependencies
+- Added: `anthropic>=0.40.0`, `rank-bm25>=0.2.2`, `tenacity>=9.0.0`, `pydantic-settings>=2.6.0`, `platformdirs>=4.3.0`, `pyyaml>=6.0`, `numpy>=1.24`.
+
+### Deprecated
+- `StubBm25Store` — import still works via the `adapters/__init__.py` alias but points at the real `Bm25Store`.  Remove the alias in v0.1.0.
+
 ## [0.0.2] - 2026-04-20 — Analysis + Graph real (Sprint 2)
 
 ### Added

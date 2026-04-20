@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+from codeguide.entities.code_ref import CodeRef
 from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec
+from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
 
 
 class FakeLLMProvider:
@@ -29,31 +32,65 @@ class FakeLLMProvider:
             outline: Code-graph outline string (ignored in stub).
 
         Returns:
-            A fixed LessonManifest covering the tiny_repo calculator fixture.
+            A fixed LessonManifest covering the tiny_repo calculator fixture,
+            with structured ``CodeRef`` entries and full ``ManifestMetadata``.
         """
+        lessons = (
+            LessonSpec(
+                id="lesson-001",
+                title="The add function",
+                teaches="How to implement basic addition as a typed Python function",
+                code_refs=(
+                    CodeRef(
+                        file_path=Path("calculator.py"),
+                        symbol="calculator.add",
+                        line_start=1,
+                        line_end=3,
+                        role="primary",
+                    ),
+                ),
+            ),
+            LessonSpec(
+                id="lesson-002",
+                title="The subtract function",
+                teaches="How to implement basic subtraction and reuse the same pattern",
+                prerequisites=("lesson-001",),
+                code_refs=(
+                    CodeRef(
+                        file_path=Path("calculator.py"),
+                        symbol="calculator.subtract",
+                        line_start=5,
+                        line_end=7,
+                        role="primary",
+                    ),
+                ),
+            ),
+            LessonSpec(
+                id="lesson-003",
+                title="CLI entry point",
+                teaches="How the main() function ties the calculator together",
+                prerequisites=("lesson-001", "lesson-002"),
+                code_refs=(
+                    CodeRef(
+                        file_path=Path("main.py"),
+                        symbol="main.cli",
+                        line_start=1,
+                        line_end=10,
+                        role="primary",
+                    ),
+                ),
+            ),
+        )
         return LessonManifest(
             schema_version="1.0.0",
-            lessons=(
-                LessonSpec(
-                    id="lesson-001",
-                    title="The add function",
-                    teaches="How to implement basic addition as a typed Python function",
-                    code_refs=("calculator.add",),
-                ),
-                LessonSpec(
-                    id="lesson-002",
-                    title="The subtract function",
-                    teaches="How to implement basic subtraction and reuse the same pattern",
-                    prerequisites=("lesson-001",),
-                    code_refs=("calculator.subtract",),
-                ),
-                LessonSpec(
-                    id="lesson-003",
-                    title="CLI entry point",
-                    teaches="How the main() function ties the calculator together",
-                    prerequisites=("lesson-001", "lesson-002"),
-                    code_refs=("main.cli",),
-                ),
+            lessons=lessons,
+            metadata=ManifestMetadata(
+                schema_version="1.0.0",
+                codeguide_version="0.0.3",
+                total_lessons=len(lessons),
+                generated_at=datetime(2026, 4, 20, 0, 0, 0, tzinfo=UTC),
+                has_readme=True,
+                doc_coverage=None,
             ),
         )
 
@@ -74,7 +111,6 @@ class FakeLLMProvider:
         raw: Any = json.loads(spec_json)
         lesson_id: str = str(raw.get("id", "lesson-unknown"))
         title: str = str(raw.get("title", "Untitled"))
-        code_refs: tuple[str, ...] = tuple(str(r) for r in raw.get("code_refs", []))
         teaches: str = str(raw.get("teaches", ""))
 
         narrative = (
@@ -86,6 +122,13 @@ class FakeLLMProvider:
             "The implementation follows a straightforward pattern: accept typed parameters, "
             "perform the operation, and return a typed result. "
             "Python's type hints make this code self-documenting at the function signature level."
+        )
+
+        # code_refs are now CodeRef objects in LessonSpec; narrate receives JSON where
+        # they are serialized dicts — extract symbol names for the Lesson entity.
+        raw_refs = raw.get("code_refs", [])
+        code_refs: tuple[str, ...] = tuple(
+            r["symbol"] if isinstance(r, dict) else str(r) for r in raw_refs
         )
 
         return Lesson(

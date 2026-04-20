@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 if TYPE_CHECKING:
+    from codeguide.entities.doc_coverage import DocCoverage
     from codeguide.entities.lesson_plan import LessonPlan
 
 
@@ -31,6 +32,8 @@ class JinjaRenderer:
         repo_name: str,
         codeguide_version: str,
         generated_at: str,
+        doc_coverage: DocCoverage | None = None,
+        has_readme: bool = True,
     ) -> str:
         """Return the rendered HTML as a string.
 
@@ -39,6 +42,11 @@ class JinjaRenderer:
             repo_name: Human-readable repository name shown in the page title.
             codeguide_version: Package version string for the footer.
             generated_at: ISO-8601 timestamp string for the footer.
+            doc_coverage: Optional documentation coverage metrics.  When
+                provided and ``doc_coverage.is_low`` is ``True``, a warning
+                banner is rendered in the HTML footer.
+            has_readme: When ``False``, an info banner is rendered in the
+                footer indicating that repository-level context may be limited.
 
         Returns:
             Fully rendered HTML string with all lesson data embedded as JSON.
@@ -78,5 +86,7 @@ class JinjaRenderer:
                 codeguide_version=codeguide_version,
                 generated_at=generated_at,
                 tutorial_data_json=json.dumps(tutorial_data, ensure_ascii=False),
+                doc_coverage=doc_coverage,
+                has_readme=has_readme,
             )
         )

@@ -1,6 +1,6 @@
 [project]
 name = "codeguide"
-version = "0.0.2"
+version = "0.0.3"
 description = "Generate interactive, self-contained HTML tutorials from local Git repositories"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "click>=8.1.7",
     "pydantic>=2.7",
+    "pydantic-settings>=2.6.0",
     "jinja2>=3.1",
     "pygments>=2.17",
     "markupsafe>=2.1",
@@ -32,6 +33,12 @@ dependencies = [
     "networkx>=3.3",
     "pathspec>=0.12.1",
     "structlog>=24.1",
+    "anthropic>=0.40.0",
+    "rank-bm25>=0.2.2",
+    "tenacity>=9.0.0",
+    "platformdirs>=4.3.0",
+    "pyyaml>=6.0",
+    "numpy>=1.24",
 ]
 
 [project.urls]
@@ -113,6 +120,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["networkx.*", "networkx"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["rank_bm25"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
