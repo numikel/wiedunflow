@@ -10,18 +10,14 @@ from typing import TYPE_CHECKING
 
 from codeguide.adapters.jinja_renderer import JinjaRenderer
 from codeguide.adapters.pygments_highlighter import highlight_python as _highlight_python
-
-# Runtime imports: used in constructor calls, not just annotations.
-from codeguide.entities.call_graph import CallGraph
 from codeguide.entities.lesson_plan import LessonPlan
 from codeguide.use_cases.ingestion import ingest
 from codeguide.use_cases.offline_linter import validate_offline_invariant
+from codeguide.use_cases.outline_builder import build_outline
 
 if TYPE_CHECKING:
-    from codeguide.entities.code_symbol import CodeSymbol
     from codeguide.entities.lesson import Lesson
     from codeguide.entities.lesson_manifest import LessonManifest
-    from codeguide.entities.ranked_graph import RankedGraph
     from codeguide.interfaces.ports import (
         Cache,
         Clock,
@@ -101,7 +97,7 @@ def generate_tutorial(
 
     # Stage 5 — Planning
     logger.info("[5/7] Planning — generating lesson manifest")
-    outline = _build_outline(symbols, resolved_graph, ranked)
+    outline = build_outline(symbols, resolved_graph, ranked)
     manifest: LessonManifest = providers.llm.plan(outline)
 
     # Stage 6 — Generation
@@ -143,53 +139,6 @@ def _stage_rag(repo_path: Path, vector_store: VectorStore) -> None:
     if readme.exists():
         docs.append(("README.md", readme.read_text(encoding="utf-8")))
     vector_store.index(docs)
-
-
-def _build_outline(
-    symbols: list[CodeSymbol],
-    call_graph: CallGraph,
-    ranked: RankedGraph,
-) -> str:
-    """Build a plain-text outline of the codebase for the planning LLM call.
-
-    Args:
-        symbols: Symbols emitted by the parser (post-resolver).
-        call_graph: Resolved call graph from Stage 2.
-        ranked: Output of Stage 3 — PageRank, communities, topological order.
-
-    Returns:
-        Multi-line string describing symbols (ordered topologically) and call edges.
-    """
-    pagerank_by_name = {rs.symbol_name: rs.pagerank_score for rs in ranked.ranked_symbols}
-    community_by_name = {rs.symbol_name: rs.community_id for rs in ranked.ranked_symbols}
-    by_name = {s.name: s for s in symbols}
-
-    ordered_names = [n for n in ranked.topological_order if n in by_name]
-    trailing = [s.name for s in symbols if s.name not in ordered_names]
-    ordered_names.extend(trailing)
-
-    lines = ["Codebase outline (topological order, leaves → roots):", ""]
-    for name in ordered_names:
-        symbol = by_name[name]
-        uncertainty = " [uncertain]" if symbol.is_uncertain else ""
-        dynamic = " [dynamic]" if symbol.is_dynamic_import else ""
-        doc = f" — {symbol.docstring}" if symbol.docstring else ""
-        score = pagerank_by_name.get(name, 0.0)
-        community = community_by_name.get(name, -1)
-        lines.append(
-            f"  {symbol.kind}: {symbol.name} (line {symbol.lineno}, "
-            f"pr={score:.3f}, community={community}){uncertainty}{dynamic}{doc}"
-        )
-    lines.append("")
-    lines.append("Call edges:")
-    for caller, callee in call_graph.edges:
-        lines.append(f"  {caller} → {callee}")
-    if ranked.has_cycles:
-        lines.append("")
-        lines.append("Cycles detected:")
-        for group in ranked.cycle_groups:
-            lines.append(f"  {' → '.join(group)}")
-    return "\n".join(lines)
 
 
 def _stage_generation(manifest: LessonManifest, llm: LLMProvider) -> list[Lesson]:

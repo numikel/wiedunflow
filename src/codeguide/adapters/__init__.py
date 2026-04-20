@@ -9,6 +9,7 @@ from codeguide.adapters.fake_llm_provider import FakeLLMProvider
 from codeguide.adapters.git_context import get_git_context
 from codeguide.adapters.in_memory_cache import InMemoryCache
 from codeguide.adapters.jedi_resolver import JediResolver
+from codeguide.adapters.networkx_ranker import NetworkxRanker
 from codeguide.adapters.stub_bm25_store import StubBm25Store
 from codeguide.adapters.stub_jedi_resolver import StubJediResolver
 from codeguide.adapters.stub_ranker import StubRanker
@@ -20,6 +21,7 @@ __all__ = [
     "FakeLLMProvider",
     "InMemoryCache",
     "JediResolver",
+    "NetworkxRanker",
     "StubBm25Store",
     "StubJediResolver",
     "StubRanker",
