@@ -34,6 +34,9 @@ class JinjaRenderer:
         generated_at: str,
         doc_coverage: DocCoverage | None = None,
         has_readme: bool = True,
+        skipped_count: int = 0,
+        degraded: bool = False,
+        total_planned: int = 0,
     ) -> str:
         """Return the rendered HTML as a string.
 
@@ -47,6 +50,12 @@ class JinjaRenderer:
                 banner is rendered in the HTML footer.
             has_readme: When ``False``, an info banner is rendered in the
                 footer indicating that repository-level context may be limited.
+            skipped_count: Number of lessons skipped due to grounding failures
+                (US-031).  Shown in footer and DEGRADED banner.
+            degraded: When ``True``, renders the DEGRADED banner at the top of
+                the HTML output (US-032).
+            total_planned: Total number of regular planned lessons; used in the
+                DEGRADED banner text ("N of M skipped").
 
         Returns:
             Fully rendered HTML string with all lesson data embedded as JSON.
@@ -56,6 +65,7 @@ class JinjaRenderer:
         # Build the JSON payload for the <script type="application/json"> block.
         lessons_data = []
         for lesson in lesson_plan.lessons:
+            is_skipped = lesson.status == "skipped"
             # Convert double newlines into paragraph tags for the narrative HTML.
             paragraphs = lesson.narrative.split("\n\n")
             narrative_html = "<p>" + "</p><p>".join(paragraphs) + "</p>"
@@ -67,6 +77,7 @@ class JinjaRenderer:
                     "narrative_html": narrative_html,
                     "code_refs": list(lesson.code_refs),
                     "status": lesson.status,
+                    "is_skipped": is_skipped,
                 }
             )
 
@@ -88,5 +99,8 @@ class JinjaRenderer:
                 tutorial_data_json=json.dumps(tutorial_data, ensure_ascii=False),
                 doc_coverage=doc_coverage,
                 has_readme=has_readme,
+                skipped_count=skipped_count,
+                degraded=degraded,
+                total_planned=total_planned,
             )
         )

@@ -38,12 +38,21 @@ class CodeguideConfig(BaseSettings):
     All ``CODEGUIDE_*`` environment variables are picked up automatically by
     Pydantic BaseSettings.  Nested YAML keys (``llm.provider``) are flattened
     to ``llm_provider`` etc. before being passed as init kwargs.
+
+    Provider values:
+    - ``anthropic``: uses ``ANTHROPIC_API_KEY``
+    - ``openai``: uses ``OPENAI_API_KEY``
+    - ``openai_compatible``: alias for ``openai``, also uses ``OPENAI_API_KEY``
+    - ``custom``: uses ``llm_api_key_env`` env-var name (for Ollama / LM Studio / vLLM);
+      ``llm_base_url`` points to the OSS endpoint (e.g. ``http://localhost:11434/v1``)
     """
 
-    llm_provider: Literal["anthropic", "openai", "openai_compatible"] = "anthropic"
+    llm_provider: Literal["anthropic", "openai", "openai_compatible", "custom"] = "anthropic"
     llm_model_plan: str = "claude-sonnet-4-6"
     llm_model_narrate: str = "claude-opus-4-7"
     llm_api_key: SecretStr | None = None
+    llm_base_url: str | None = None
+    llm_api_key_env: str | None = None
     llm_concurrency: int = 10
     llm_max_retries: int = 5
     llm_max_wait_s: int = 60
@@ -121,6 +130,8 @@ def _load_yaml_flat(path: Path) -> dict[str, Any]:
             "model_plan": "llm_model_plan",
             "model_narrate": "llm_model_narrate",
             "api_key": "llm_api_key",
+            "base_url": "llm_base_url",
+            "api_key_env": "llm_api_key_env",
             "concurrency": "llm_concurrency",
             "max_retries": "llm_max_retries",
             "max_wait_s": "llm_max_wait_s",
@@ -139,28 +150,62 @@ def _load_yaml_flat(path: Path) -> dict[str, Any]:
 def resolve_api_key(config: CodeguideConfig) -> str:
     """Extract and return the plain API key for the configured provider.
 
-    Priority: ``config.llm_api_key`` (from YAML / env) → ``ANTHROPIC_API_KEY``
-    environment variable for the Anthropic provider.
+    Resolution order per provider:
+
+    - **anthropic**: ``config.llm_api_key`` → ``ANTHROPIC_API_KEY`` env var.
+    - **openai** / **openai_compatible**: ``config.llm_api_key`` → ``OPENAI_API_KEY`` env var.
+    - **custom** (Ollama / LM Studio / vLLM): reads the env var named by
+      ``config.llm_api_key_env`` when set; falls back to ``"not-needed"``
+      placeholder (OSS endpoints typically ignore the api_key).
 
     Args:
         config: Resolved ``CodeguideConfig``.
 
     Returns:
-        The plain-text API key string.
+        The plain-text API key string (may be ``"not-needed"`` for local endpoints).
 
     Raises:
         ConfigError: No key is available for the requested provider.
     """
+    # llm_api_key in config always wins regardless of provider.
+    if config.llm_api_key is not None:
+        return config.llm_api_key.get_secret_value()
+
     if config.llm_provider == "anthropic":
-        if config.llm_api_key is not None:
-            return config.llm_api_key.get_secret_value()
-        key = os.environ.get("ANTHROPIC_API_KEY")
+        return _require_env("ANTHROPIC_API_KEY", "anthropic")
+
+    if config.llm_provider in ("openai", "openai_compatible"):
+        return _require_env("OPENAI_API_KEY", config.llm_provider)
+
+    if config.llm_provider == "custom":
+        return _resolve_custom_key(config)
+
+    raise ConfigError(f"Unknown provider {config.llm_provider!r}.")
+
+
+def _require_env(env_var: str, provider: str) -> str:
+    """Return ``env_var`` value or raise :class:`ConfigError`."""
+    key = os.environ.get(env_var)
+    if not key:
+        raise ConfigError(
+            f"{env_var} is required when --provider={provider}. "
+            "Set the env var or configure llm.api_key in tutorial.config.yaml."
+        )
+    return key
+
+
+def _resolve_custom_key(config: CodeguideConfig) -> str:
+    """Resolve API key for the ``custom`` provider (Ollama / LM Studio / vLLM).
+
+    Reads the env var named by ``config.llm_api_key_env`` when set; falls back
+    to ``"not-needed"`` for endpoints that ignore the api_key entirely.
+    """
+    if config.llm_api_key_env:
+        key = os.environ.get(config.llm_api_key_env)
         if not key:
             raise ConfigError(
-                "ANTHROPIC_API_KEY is required when --provider=anthropic. "
-                "Set the env var or configure llm.api_key in tutorial.config.yaml."
+                f"Env var {config.llm_api_key_env!r} is not set for custom provider. "
+                "Set the env var or remove llm.api_key_env from tutorial.config.yaml."
             )
         return key
-
-    # S4+ — other providers supported in future sprints.
-    raise ConfigError(f"Provider {config.llm_provider!r} not yet supported in Sprint 3.")
+    return "not-needed"
