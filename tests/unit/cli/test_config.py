@@ -188,7 +188,7 @@ def test_full_precedence_chain(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 6. resolve_api_key — env var path
+# 6. resolve_api_key — anthropic provider
 # ---------------------------------------------------------------------------
 
 
@@ -223,7 +223,113 @@ def test_resolve_api_key_missing_raises(monkeypatch):
 
 
 def test_resolve_api_key_unsupported_provider():
-    """resolve_api_key raises ConfigError for providers not yet supported."""
-    cfg = CodeguideConfig(llm_provider="openai")
-    with pytest.raises(ConfigError, match="not yet supported"):
+    """resolve_api_key raises ConfigError for unknown provider values."""
+    # Force an unknown value past Pydantic validation using model_construct.
+    cfg = CodeguideConfig.model_construct(llm_provider="unknown_provider")  # type: ignore[call-arg]
+    with pytest.raises(ConfigError, match="Unknown provider"):
         resolve_api_key(cfg)
+
+
+# ---------------------------------------------------------------------------
+# 8. resolve_api_key — openai provider
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_api_key_openai_from_env(monkeypatch):
+    """resolve_api_key returns OPENAI_API_KEY env var for openai provider."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-env")
+    monkeypatch.delenv("CODEGUIDE_LLM_API_KEY", raising=False)
+    cfg = CodeguideConfig(llm_provider="openai")
+    key = resolve_api_key(cfg)
+    assert key == "sk-openai-env"
+
+
+def test_resolve_api_key_openai_from_config(monkeypatch):
+    """resolve_api_key prefers llm_api_key in config over OPENAI_API_KEY env var."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
+    cfg = CodeguideConfig(llm_provider="openai", llm_api_key="sk-config-key")  # type: ignore[arg-type]
+    key = resolve_api_key(cfg)
+    assert key == "sk-config-key"
+
+
+def test_resolve_api_key_openai_missing_raises(monkeypatch):
+    """resolve_api_key raises ConfigError when OPENAI_API_KEY is absent for openai provider."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    cfg = CodeguideConfig(llm_provider="openai")
+    with pytest.raises(ConfigError, match="OPENAI_API_KEY is required"):
+        resolve_api_key(cfg)
+
+
+def test_resolve_api_key_openai_compatible_from_env(monkeypatch):
+    """resolve_api_key handles openai_compatible provider the same as openai."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-compat-env")
+    monkeypatch.delenv("CODEGUIDE_LLM_API_KEY", raising=False)
+    cfg = CodeguideConfig(llm_provider="openai_compatible")
+    key = resolve_api_key(cfg)
+    assert key == "sk-compat-env"
+
+
+# ---------------------------------------------------------------------------
+# 9. resolve_api_key — custom provider (Ollama / LM Studio / vLLM)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_api_key_custom_with_api_key_env(monkeypatch):
+    """resolve_api_key reads the env var named by llm_api_key_env for custom provider."""
+    monkeypatch.setenv("MY_LOCAL_KEY", "sk-local-secret")
+    cfg = CodeguideConfig(llm_provider="custom", llm_api_key_env="MY_LOCAL_KEY")
+    key = resolve_api_key(cfg)
+    assert key == "sk-local-secret"
+
+
+def test_resolve_api_key_custom_api_key_env_missing_raises(monkeypatch):
+    """resolve_api_key raises ConfigError when the named env var is not set."""
+    monkeypatch.delenv("MY_LOCAL_KEY", raising=False)
+    cfg = CodeguideConfig(llm_provider="custom", llm_api_key_env="MY_LOCAL_KEY")
+    with pytest.raises(ConfigError, match="MY_LOCAL_KEY"):
+        resolve_api_key(cfg)
+
+
+def test_resolve_api_key_custom_no_api_key_env_returns_placeholder(monkeypatch):
+    """resolve_api_key returns 'not-needed' when custom provider has no api_key_env."""
+    cfg = CodeguideConfig(llm_provider="custom")
+    key = resolve_api_key(cfg)
+    assert key == "not-needed"
+
+
+def test_resolve_api_key_custom_explicit_api_key_wins(monkeypatch):
+    """resolve_api_key prefers explicit llm_api_key over api_key_env for custom provider."""
+    monkeypatch.setenv("MY_LOCAL_KEY", "sk-from-env-var")
+    cfg = CodeguideConfig(
+        llm_provider="custom",
+        llm_api_key="sk-explicit",  # type: ignore[arg-type]
+        llm_api_key_env="MY_LOCAL_KEY",
+    )
+    key = resolve_api_key(cfg)
+    assert key == "sk-explicit"
+
+
+# ---------------------------------------------------------------------------
+# 10. YAML flattening for new BYOK fields
+# ---------------------------------------------------------------------------
+
+
+def test_yaml_base_url_and_api_key_env(tmp_path, monkeypatch):
+    """YAML llm.base_url and llm.api_key_env are loaded into config fields."""
+    monkeypatch.delenv("CODEGUIDE_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("CODEGUIDE_LLM_API_KEY_ENV", raising=False)
+    cfg_file = tmp_path / "tutorial.config.yaml"
+    _write_yaml(
+        cfg_file,
+        {
+            "llm": {
+                "provider": "custom",
+                "base_url": "http://localhost:11434/v1",
+                "api_key_env": "OLLAMA_KEY",
+            }
+        },
+    )
+    cfg = load_config(cli_config_path=cfg_file)
+    assert cfg.llm_provider == "custom"
+    assert cfg.llm_base_url == "http://localhost:11434/v1"
+    assert cfg.llm_api_key_env == "OLLAMA_KEY"

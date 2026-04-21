@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""AnthropicProvider — LLMProvider adapter backed by the official Anthropic Python SDK."""
+"""OpenAIProvider — LLMProvider adapter backed by the official OpenAI Python SDK.
+
+Single adapter covers OpenAI default (base_url=None) + OSS endpoints
+(Ollama, LM Studio, vLLM) via base_url override.
+"""
 
 from __future__ import annotations
 
@@ -9,9 +13,10 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-import anthropic
+import httpx
+import openai
 import structlog
-from anthropic.types import TextBlock
+from openai import OpenAI
 from tenacity import (
     RetryCallState,
     retry,
@@ -32,11 +37,13 @@ from codeguide.entities.lesson_manifest import (
 logger = structlog.get_logger(__name__)
 
 
-class AnthropicProvider:
-    """Implementation of LLMProvider via official Anthropic Python SDK.
+class OpenAIProvider:
+    """LLMProvider via OpenAI SDK — supports OpenAI default and OSS endpoints via base_url.
 
-    plan() uses Sonnet 4.6; narrate() uses Opus 4.7 by default.
-    Retries on RateLimitError with exponential backoff + jitter (tenacity).
+    plan() uses model_plan (default: gpt-4o).
+    narrate() uses model_narrate (default: gpt-4o).
+    describe_symbol() uses model_describe (default: gpt-4o-mini).
+    Retries on RateLimitError/APITimeoutError with exponential backoff + jitter (tenacity).
 
     The consent check is intentionally NOT performed here — it belongs in the
     CLI layer, which has TTY awareness (US-051).
@@ -45,19 +52,35 @@ class AnthropicProvider:
     def __init__(
         self,
         api_key: str | None = None,
-        model_plan: str = "claude-sonnet-4-6",
-        model_narrate: str = "claude-opus-4-7",
-        model_describe: str = "claude-haiku-4-5",
+        base_url: str | None = None,
+        model_plan: str = "gpt-4o",
+        model_narrate: str = "gpt-4o",
+        model_describe: str = "gpt-4o-mini",
         max_retries: int = 5,
         max_wait_s: int = 60,
         max_tokens_plan: int = 8000,
         max_tokens_narrate: int = 4000,
         max_tokens_describe: int = 300,
     ) -> None:
-        resolved_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not resolved_key:
-            raise ValueError("ANTHROPIC_API_KEY is required (pass api_key= or set env var)")
-        self._client = anthropic.Anthropic(api_key=resolved_key)
+            # For OSS endpoints (Ollama etc), api_key is ignored but OpenAI SDK
+            # requires a non-empty string. Use a placeholder when base_url is set.
+            if base_url:
+                resolved_key = "not-needed"
+            else:
+                raise ValueError(
+                    "OPENAI_API_KEY is required (pass api_key= or set env var) "
+                    "when base_url is not provided"
+                )
+        timeout = httpx.Timeout(60.0, read=55.0, write=10.0, connect=2.0)
+        self._client = OpenAI(
+            api_key=resolved_key,
+            base_url=base_url,
+            max_retries=0,  # CRITICAL: disable SDK retry; tenacity owns retry logic
+            timeout=timeout,
+        )
+        self._base_url = base_url
         self._model_plan = model_plan
         self._model_narrate = model_narrate
         self._model_describe = model_describe
@@ -67,7 +90,8 @@ class AnthropicProvider:
         self._max_tokens_narrate = max_tokens_narrate
         self._max_tokens_describe = max_tokens_describe
         logger.info(
-            "anthropic_provider_init",
+            "openai_provider_init",
+            base_url=base_url or "default(openai)",
             model_plan=model_plan,
             model_narrate=model_narrate,
             model_describe=model_describe,
@@ -77,9 +101,8 @@ class AnthropicProvider:
     def plan(self, outline: str) -> LessonManifest:
         """Call the planning model and return a structured LessonManifest.
 
-        The LLM is expected to return a JSON object with a ``lessons`` array.
-        Provider builds the required ``ManifestMetadata`` (version, timestamp,
-        counts) from the parsed lessons rather than asking the LLM to produce it.
+        Uses json_object response_format to guarantee valid JSON output from the
+        model — avoids markdown fences or prose wrappers around the JSON.
 
         Args:
             outline: Ranked call-graph outline produced by Stage 3 (graph).
@@ -89,18 +112,19 @@ class AnthropicProvider:
 
         Raises:
             pydantic.ValidationError: If the LLM returns malformed JSON.
-            anthropic.RateLimitError: After exhausting all retry attempts.
+            openai.RateLimitError: After exhausting all retry attempts.
         """
         raw = self._create_with_retry(
             model=self._model_plan,
             max_tokens=self._max_tokens_plan,
             system=_PLAN_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": outline}],
+            response_format={"type": "json_object"},
         )
         return _parse_plan_response(raw)
 
     def describe_symbol(self, symbol: CodeSymbol, context: str) -> str:
-        """Produce a short natural-language description of a leaf symbol via Haiku.
+        """Produce a short natural-language description of a leaf symbol.
 
         Args:
             symbol: Target ``CodeSymbol`` (function, class, method, …).
@@ -110,7 +134,7 @@ class AnthropicProvider:
             Markdown description (~2-4 sentences). No JSON envelope, no fences.
 
         Raises:
-            anthropic.RateLimitError: After exhausting all retry attempts.
+            openai.RateLimitError: After exhausting all retry attempts.
         """
         user_content = _build_describe_user_prompt(symbol=symbol, context=context)
         raw = self._create_with_retry(
@@ -136,7 +160,7 @@ class AnthropicProvider:
             A Lesson with markdown narrative from the model.
 
         Raises:
-            anthropic.RateLimitError: After exhausting all retry attempts.
+            openai.RateLimitError: After exhausting all retry attempts.
         """
         concepts_block = ", ".join(concepts_introduced) if concepts_introduced else "<none yet>"
         system_prompt = _NARRATE_SYSTEM_PROMPT.format(concepts_introduced=concepts_block)
@@ -167,32 +191,35 @@ class AnthropicProvider:
         max_tokens: int,
         system: str,
         messages: list[dict[str, str]],
+        response_format: dict[str, str] | None = None,
     ) -> str:
-        """Call messages.create with tenacity retry on 429 RateLimitError.
+        """Call chat.completions.create with tenacity retry on rate limits / timeouts.
 
         Uses exponential backoff with jitter, capped at max_wait_s seconds.
         Logs each backoff via structlog at WARNING level.
+        Only retries openai.RateLimitError and openai.APITimeoutError — NOT
+        authentication errors (openai.AuthenticationError) or other APIErrors.
         """
 
         @retry(
-            retry=retry_if_exception_type(anthropic.RateLimitError),
+            retry=retry_if_exception_type(
+                (openai.RateLimitError, openai.APITimeoutError)
+            ),
             wait=wait_exponential_jitter(initial=2, max=self._max_wait_s, jitter=1),
             stop=stop_after_attempt(self._max_retries),
             before_sleep=_log_backoff,
             reraise=True,
         )
         def _call() -> str:
-            response = self._client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                system=system,
-                messages=messages,  # type: ignore[arg-type]
-            )
-            parts: list[str] = []
-            for block in response.content:
-                if isinstance(block, TextBlock):
-                    parts.append(block.text)
-            return "".join(parts)
+            kwargs: dict[str, Any] = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "messages": [{"role": "system", "content": system}, *messages],
+            }
+            if response_format is not None:
+                kwargs["response_format"] = response_format
+            response = self._client.chat.completions.create(**kwargs)
+            return response.choices[0].message.content or ""
 
         return _call()
 
@@ -233,7 +260,7 @@ def _parse_plan_response(raw: str) -> LessonManifest:
 def _log_backoff(retry_state: RetryCallState) -> None:
     """Structlog warning emitted before each retry sleep."""
     logger.warning(
-        "anthropic_backoff",
+        "openai_backoff",
         attempt=retry_state.attempt_number,
         wait_s=round(retry_state.upcoming_sleep, 2),
     )
