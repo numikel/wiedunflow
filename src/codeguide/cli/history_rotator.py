@@ -28,7 +28,7 @@ def write_history_copy(
         The new history path (``<history_dir>/run-report-<iso>.json``).
     """
     history_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
     target = history_dir / f"run-report-{stamp}.json"
     target.write_bytes(current_report.read_bytes())
 

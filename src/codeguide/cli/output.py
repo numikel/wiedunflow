@@ -73,6 +73,7 @@ def init_console(
         no_color=no_color,
         highlight=False,
         emoji=False,
+        legacy_windows=False,
     )
 
 
