@@ -54,13 +54,53 @@ Options:
   --config PATH                Path to a YAML config file (default: ./tutorial.config.yaml).
   --no-consent-prompt          Skip the privacy consent banner (non-interactive).
   --yes                        Auto-confirm all prompts including the consent banner.
-  --provider [anthropic|openai|openai_compatible]
-                               LLM provider (default: anthropic; openai / openai_compatible in Sprint 4).
+  --provider [anthropic|openai|openai_compatible|custom]
+                               LLM provider (default: anthropic; `custom` for Ollama / LM Studio / vLLM).
   --model-plan MODEL           Override the planning-stage model (default: claude-sonnet-4-6).
   --model-narrate MODEL        Override the narration-stage model (default: claude-opus-4-7).
+  --base-url URL               OpenAI-compatible endpoint (e.g. http://localhost:11434/v1 for Ollama).
+  --resume / --no-resume       Resume from the last checkpoint (US-017); --no-resume forces clean run.
+  --regenerate-plan            Discard the cached lesson manifest and re-run Stage 4 (US-018).
+  --cache-path FILE            Override the cache database location (US-020).
+  --max-cost USD               Abort if the projected LLM cost exceeds this value (US-019).
   -V, --version                Show the version and exit.
   -h, --help                   Show this message and exit.
 ```
+
+### Exit codes (Sprint 4 / v0.0.4)
+
+- `0` — tutorial written, `run-report.status == "ok"`.
+- `1` — fatal error (config, planning, unhandled exception).  `run-report.status == "failed"`, `stack_trace` recorded.
+- `2` — tutorial written **but degraded** (> 30 % of planned lessons skipped).  `run-report.status == "degraded"`.
+- `130` — interrupted by Ctrl+C.  `run-report.status == "interrupted"`; rerun with `--resume` to continue.
+
+Every run writes `.codeguide/run-report.json` (US-029 / US-056) with structured status, skipped-lesson count, cache hit rate, and (on failure) the full traceback.
+
+### Ctrl+C semantics (US-027, US-028)
+
+The CLI installs a two-phase SIGINT handler.  The first Ctrl+C flushes an explanatory banner to stderr, lets the **current lesson finish** (cap: 90 s), and checkpoints state so the next run can `--resume` from where it left off.  A second Ctrl+C within 2 seconds calls `os._exit(130)` for an immediate abort.
+
+### BYOK — OpenAI, Ollama, LM Studio, vLLM (US-052, US-053)
+
+The same `OpenAIProvider` adapter covers the hosted OpenAI API and any OpenAI-compatible endpoint via `--base-url`.  Anthropic stays the default.
+
+```bash
+# OpenAI (hosted)
+export OPENAI_API_KEY=sk-...
+codeguide ./my-repo --provider openai --model-plan gpt-4o --model-narrate gpt-4o
+
+# Ollama — local inference, no API key, consent banner skipped
+codeguide ./my-repo \
+  --provider custom \
+  --base-url http://localhost:11434/v1 \
+  --model-plan llama3.1:70b \
+  --model-narrate llama3.1:70b
+
+# LM Studio / vLLM — same pattern, swap base-url to the server port
+codeguide ./my-repo --provider custom --base-url http://localhost:8000/v1
+```
+
+Ollama and other OSS endpoints ignore `api_key`; pass anything (the SDK requires a non-empty string).  Consent is **not** prompted when `--base-url` is set because nothing leaves the machine.
 
 ### File discovery
 
@@ -91,8 +131,10 @@ until you accept the consent banner on the first run of a session.**  `--yes` an
 logs.  There is **zero telemetry** and **zero usage analytics** — the only outbound traffic is
 the LLM API call.
 
-For sensitive codebases, Ollama / LM Studio / vLLM local-inference adapters arrive in Sprint 4
-(`--provider openai_compatible` with a `base_url` override).
+For sensitive codebases use the **local-inference path** shipped in Sprint 4 / v0.0.4:
+`--provider custom --base-url http://localhost:11434/v1` (Ollama) or any OpenAI-compatible
+endpoint (LM Studio, vLLM).  Consent is **not** prompted when `--base-url` is set — no code
+leaves your machine.  See the *BYOK* section above for ready-to-paste examples.
 
 ## Configuration
 

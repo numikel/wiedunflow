@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from codeguide import __version__
 from codeguide.adapters import (
     FakeClock,
     FakeLLMProvider,
@@ -69,6 +70,6 @@ def test_planning_integration_schema_version_in_output(planning_tutorial_html: P
 
 
 def test_planning_integration_codeguide_version_in_output(planning_tutorial_html: Path) -> None:
-    """The footer must carry the codeguide_version (0.0.3 from Sprint 3)."""
+    """The footer must carry the current codeguide_version."""
     html = planning_tutorial_html.read_text(encoding="utf-8")
-    assert "0.0.3" in html, "codeguide_version 0.0.3 not found in tutorial HTML"
+    assert __version__ in html, f"codeguide_version {__version__} not found in tutorial HTML"

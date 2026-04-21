@@ -202,9 +202,7 @@ class OpenAIProvider:
         """
 
         @retry(
-            retry=retry_if_exception_type(
-                (openai.RateLimitError, openai.APITimeoutError)
-            ),
+            retry=retry_if_exception_type((openai.RateLimitError, openai.APITimeoutError)),
             wait=wait_exponential_jitter(initial=2, max=self._max_wait_s, jitter=1),
             stop=stop_after_attempt(self._max_retries),
             before_sleep=_log_backoff,

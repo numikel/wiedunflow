@@ -48,6 +48,9 @@ class LessonSpec(BaseModel):
     prerequisites: tuple[str, ...] = ()  # lesson ids that must precede this one
     code_refs: tuple[CodeRef, ...] = ()  # structured references grounded in AST snapshot
     external_context_needed: bool = False
+    # US-049: synthetic closing "Where to go next" lesson (+1 beyond max_lessons cap).
+    # Closing specs have empty code_refs — grounding validation is skipped.
+    is_closing: bool = False
 
 
 class LessonManifest(BaseModel):

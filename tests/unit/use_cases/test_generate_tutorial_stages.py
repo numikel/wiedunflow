@@ -36,8 +36,12 @@ def all_providers() -> Providers:
 def test_generate_tutorial_returns_html_path(all_providers: Providers, tmp_path: Path) -> None:
     output = tmp_path / "test_tutorial.html"
     result = generate_tutorial(_TINY_REPO, all_providers, output_path=output)
-    assert result == output
+    assert result.output_path == output
     assert output.exists()
+    # Walking-skeleton path produces no skipped lessons or DEGRADED run.
+    assert result.skipped_lessons == ()
+    assert result.degraded is False
+    assert result.total_planned >= 1
 
 
 def test_generate_tutorial_html_valid_utf8(all_providers: Providers, tmp_path: Path) -> None:

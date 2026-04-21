@@ -6,7 +6,35 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-04-21 — Generation + Cache + BYOK + Grounding (Sprint 4)
+
+### Added
+- **`LLMProvider.describe_symbol`** port method (`codeguide.interfaces.ports`) — per-symbol leaf description semantics separated from `narrate`. `AnthropicProvider` uses `claude-haiku-4-5` (max_tokens=300) by default; `FakeLLMProvider` returns a deterministic stub. Phase 1 blocker preceding all other S4 work.
+- **`OpenAIProvider`** (`codeguide.adapters.openai_provider`) — single adapter covering both the hosted OpenAI API (default `base_url=None`) and OSS endpoints (Ollama, LM Studio, vLLM) via `base_url` override. Uses `openai` SDK with `max_retries=0` so `tenacity` owns all retry policy (exponential backoff on `RateLimitError` / `APITimeoutError`, scope never widens to `BaseException`). OSS endpoints accept any placeholder API key and skip the consent banner (US-052, US-053).
+- **`SQLiteCache`** (`codeguide.adapters.sqlite_cache`) — durable, cross-platform cache backed by SQLite with WAL journal mode and `check_same_thread=False` + `threading.Lock` for safe parallel writes. Tables: `schema_version`, `checkpoints`, `plan_cache`, `file_cache`, `pagerank_snapshots`. Cache key excludes model name by design — switching providers requires explicit `--regenerate-plan` (US-017, US-018, US-020, US-023, US-025, US-026). ADR-0008.
+- **`cache_key.build_cache_key` / `build_plan_key`** helpers — SHA-256 over `(repo_abs_path, commit, lesson_id | "plan")`.
+- **Grounding retry + skipped placeholder + DEGRADED marker** (`codeguide.use_cases.grounding_retry`, `entities.skipped_lesson`) — Stage 5 per-lesson retry (1 attempt on the same model with a reinforcement prompt echoing invalid symbols and allowed list), then skip with a `SkippedLesson(lesson_id, missing_symbols)` marker. Rendered as a dashed-border placeholder in the HTML (ux-spec). `skipped_count / total_planned_lessons > 0.30` (strict) flips the run to `status="degraded"` with exit code 2 and an orange banner at the top of the tutorial (US-030, US-031, US-032).
+- **Word-count validator** (150–1200 words) — narrations under 150 words trigger the single grounding retry budget; narrations over 1200 are truncated at a sentence boundary (US-034).
+- **30-lesson cap enforcement + "Where to go next" closing lesson** — Stage 4 planner is prompted to stay ≤ 30 regular lessons; a synthetic closing lesson (`LessonSpec.is_closing=True`, empty `code_refs`, no grounding validation) is appended after Stage 5 regardless of the cap, producing 31 lessons total for a full-sized run (US-035, US-049).
+- **`RunReport`** entity (`codeguide.entities.run_report`) + atomic writer (`codeguide.cli.run_report_writer`) — structured `.codeguide/run-report.json` with `status`, `started_at`/`finished_at`, `total_planned_lessons`, `skipped_lessons_count`, `retry_count`, `cache_hit_rate`, `total_cost_usd`, `provider`, `failed_at_lesson`, `stack_trace`, `degraded_ratio`. Pydantic cross-field validators enforce `skipped ≤ planned`, `failed ⇒ stack_trace`, `non-failed ⇒ no failure payload`, `finished ≥ started`. Written via `tmp + Path.replace()` for crash-safe atomicity (US-029, US-032, US-056).
+- **`SigintHandler`** (`codeguide.cli.signals`) — two-phase Ctrl+C: first SIGINT sets `should_finish` event + stderr banner + 90s safety timer; second SIGINT within 2s calls `os._exit(130)`. Timer and `signal.signal` are both restored on `.restore()` for test hygiene (US-027, US-028).
+- **New CLI options** (`codeguide.cli.main`): `--base-url URL`, `--resume/--no-resume`, `--regenerate-plan`, `--cache-path FILE`, `--max-cost USD`. `--provider` now accepts `custom` for BYOK OSS endpoints.
+- **CLI exit-code contract**: `0` ok, `1` fatal (unhandled + config errors, US-029), `2` degraded (US-032), `130` interrupted (US-027/028). All paths write `run-report.json` before exiting.
+- **`GenerationResult`** return type for `generate_tutorial` — replaces the raw `Path`. Carries `output_path`, `skipped_lessons`, `degraded`, `degraded_ratio`, `total_planned`, `retry_count` so the CLI can build the run report without re-deriving state.
+- **Graceful-abort plumbing** — `generate_tutorial(should_abort=...)` polls the predicate between stages and inside Stage 5 between lessons; raises `KeyboardInterrupt` to unwind cleanly.
+- **ADR-0008** — SQLite cache schema v1 (tables, WAL, model-NOT-in-key decision, forward migration stub).
+- **Tests**: 24 new tests — `test_run_report.py` (9), `test_run_report_writer.py` (7), `test_signals.py` (8 including fake-clock SIGINT scenarios), plus the Phase 2 suites shipped earlier in Sprint 4 (`test_grounding_retry.py`, `test_resume_run.py`, `test_graph_diff.py`, `test_sqlite_cache.py`, `test_openai_provider.py`, `test_cache_key.py`, `test_closing_lesson.py`, updated `test_config.py` / `test_fake_llm_provider.py` / `test_anthropic_provider.py`).
+
+### Changed
+- **`LessonSpec.is_closing: bool = False`** field added (was referenced by `_build_closing_spec` without being declared on the model — Phase 2 gap).
+- **`FakeLLMProvider.narrate`** — stub narrative extended to ≥ 150 words so the walking-skeleton pipeline satisfies the new word-count validator (US-034) without invoking a real LLM.
+- **`cli/main.py`** — wired to `SQLiteCache` (was `InMemoryCache`), `OpenAIProvider` branch for all three non-Anthropic providers, `SigintHandler` lifecycle, and top-level `try/except` that always emits `run-report.json`.
+- **`generate_tutorial`** signature now returns `GenerationResult` and accepts `should_abort: Callable[[], bool] | None`.
+- **`tutorial.html` template** — DEGRADED banner slot at the top, skipped-lesson placeholder rendered inline per `status="skipped"` (jinja renderer + template updates from Phase 2 Track A).
+- **Golden HTML snapshot** (`tests/integration/__snapshots__/test_walking_skeleton.ambr`) regenerated for the new DEGRADED-banner markup (body `flex-direction: column` + `.banner-degraded` styles).
+
 ### Fixed
+- Closing-lesson generation no longer crashes on `LessonSpec(is_closing=True)` — previously raised `Unexpected keyword argument` at runtime because the field was missing on the Pydantic model.
 - **CI**: pin `astral-sh/setup-uv` to `@v7` (was `@v8`, which does not exist as a major tag — only `v8.1.0` release without moving alias). Resolves all matrix jobs failing at "Set up job" with `Unable to resolve action astral-sh/setup-uv@v8`.
 - **CI**: install Chromium via `uv run playwright install chromium` before the `Test` step and cache `~/.playwright-browsers` per `runner.os` + `uv.lock` hash. Fixes `BrowserType.launch: Executable doesn't exist` on `test_html_file_url.py` (US-040 regression gate).
 

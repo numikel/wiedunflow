@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -42,7 +43,7 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 _std_logger = logging.getLogger(__name__)
 
-_CODEGUIDE_VERSION = "0.0.3"
+_CODEGUIDE_VERSION = "0.0.4"
 
 # Default lesson cap (US-035).  Track C (config.py) owns the configurable field;
 # we fall back to this constant when ``config`` is not available or doesn't have
@@ -108,7 +109,7 @@ class _StageGenerationOutput:
     concepts_introduced: tuple[str, ...] = ()
 
 
-def generate_tutorial(
+def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally long
     repo_path: Path,
     providers: Providers,
     output_path: Path | None = None,
@@ -116,7 +117,8 @@ def generate_tutorial(
     includes: tuple[str, ...] = (),
     root_override: Path | None = None,
     max_lessons: int = _DEFAULT_MAX_LESSONS,
-) -> Path:
+    should_abort: Callable[[], bool] | None = None,
+) -> GenerationResult:
     """Run the 7-stage pipeline and write tutorial.html.
 
     Args:
@@ -131,21 +133,33 @@ def generate_tutorial(
             When set, ingestion uses this path as ``repo_root``.
         max_lessons: Hard cap on planned lessons (US-035).  Defaults to 30.
             Track C (config.py) passes the user-configured value here.
+        should_abort: Optional predicate polled between stages; when it
+            returns ``True`` the pipeline raises :class:`KeyboardInterrupt`
+            after flushing the current state (US-027 graceful SIGINT).
 
     Returns:
-        Path to the written tutorial.html file.
+        :class:`GenerationResult` carrying the output path, DEGRADED flag,
+        retry count, and skipped-lesson markers — the CLI uses this to build
+        the ``RunReport``.
 
     Raises:
         PlanningFatalError: When the planning stage fails after all retries.
+        KeyboardInterrupt: When ``should_abort`` returns ``True`` between
+            stages (graceful SIGINT — US-027).
     """
     if output_path is None:
         output_path = Path("tutorial.html").resolve()
 
     repo_name = repo_path.name
 
+    def _check_abort() -> None:
+        if should_abort is not None and should_abort():
+            raise KeyboardInterrupt("SIGINT received — aborting generation")
+
     # Stage 1 — Ingestion
     _std_logger.info("[1/7] Ingestion — discovering source files")
     ingestion = ingest(repo_path, excludes=excludes, includes=includes, root_override=root_override)
+    _check_abort()
 
     # Stage 2 — Analysis
     _std_logger.info("[2/7] Analysis — parsing AST and resolving call graph")
@@ -212,6 +226,8 @@ def generate_tutorial(
             update={"lessons": truncated_lessons, "metadata": truncated_metadata}
         )
 
+    _check_abort()
+
     # Stage 6 — Generation
     _std_logger.info("[6/7] Generation — narrating lessons")
     generation_result = _stage_generation(
@@ -221,6 +237,7 @@ def generate_tutorial(
         ingestion=ingestion,
         repo_path=repo_path,
         ranked=ranked,
+        should_abort=should_abort,
     )
     all_lessons: list[Lesson] = generation_result.lessons
     skipped_lessons: list[SkippedLesson] = generation_result.skipped
@@ -263,7 +280,14 @@ def generate_tutorial(
     )
     output_path.write_text(html, encoding="utf-8")
     _std_logger.info("Tutorial written to %s", output_path)
-    return output_path
+    return GenerationResult(
+        output_path=output_path,
+        skipped_lessons=tuple(skipped_lessons),
+        degraded=degraded,
+        degraded_ratio=degraded_ratio,
+        total_planned=total_planned,
+        retry_count=generation_result.retry_count,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -364,6 +388,7 @@ def _stage_generation(
     ingestion: object,
     repo_path: Path,
     ranked: RankedGraph,
+    should_abort: Callable[[], bool] | None = None,
 ) -> _StageGenerationOutput:
     """Stage 6: Narrate each lesson spec with grounding retry.
 
@@ -388,7 +413,14 @@ def _stage_generation(
     output = _StageGenerationOutput()
 
     for spec in manifest.lessons:
-        result = narrate_with_grounding_retry(spec, allowed_symbols, llm, output.concepts_introduced)
+        if should_abort is not None and should_abort():
+            # Graceful SIGINT between lessons (US-027).  Partially generated
+            # lessons remain in ``output`` so the caller can flush a checkpoint
+            # before re-raising KeyboardInterrupt.
+            raise KeyboardInterrupt("SIGINT received during generation stage")
+        result = narrate_with_grounding_retry(
+            spec, allowed_symbols, llm, output.concepts_introduced
+        )
 
         if isinstance(result, SkippedLesson):
             # Lesson failed both attempts — produce a placeholder Lesson with
