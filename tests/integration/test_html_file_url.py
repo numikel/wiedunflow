@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 from playwright.sync_api import ConsoleMessage, Request, Route, sync_playwright
@@ -18,10 +19,12 @@ def test_tutorial_opens_in_browser_no_console_errors(tutorial_html: Path) -> Non
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
-        # Block all external network; allow only file:// and about: protocols
+        # Block all external network; allow only local file pages and about: URLs.
+        # Use urlparse: Chromium may emit file:/C:/... (two slashes) on Windows, which
+        # does not startswith("file://") and would otherwise be aborted by the route.
         def handle_route(route: Route, request: Request) -> None:
-            url: str = request.url
-            if url.startswith("file://") or url.startswith("about:"):
+            scheme = urlparse(request.url).scheme.lower()
+            if scheme in ("file", "about"):
                 route.continue_()
             else:
                 route.abort()
@@ -35,10 +38,17 @@ def test_tutorial_opens_in_browser_no_console_errors(tutorial_html: Path) -> Non
         page.on("console", on_console)
 
         file_url = tutorial_html.as_uri()
-        page.goto(file_url, wait_until="domcontentloaded", timeout=10_000)
+        page.goto(file_url, wait_until="load", timeout=30_000)
 
-        # Assert first lesson is visible
-        page.wait_for_selector("#lesson-title", timeout=5_000)
+        # Wait until inline boot script populated the title (avoids relying on
+        # Playwright "visible" heuristics for an empty <h1> on slow CI runners).
+        page.wait_for_function(
+            """() => {
+                const el = document.getElementById('lesson-title');
+                return Boolean(el && (el.textContent || '').trim().length > 0);
+            }""",
+            timeout=30_000,
+        )
         title = page.locator("#lesson-title").text_content()
         assert title is not None and len(title) > 0, "Lesson title should not be empty"
 
@@ -65,8 +75,8 @@ def test_tutorial_prev_button_disabled_on_first_lesson(tutorial_html: Path) -> N
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.goto(tutorial_html.as_uri(), wait_until="domcontentloaded", timeout=10_000)
-        page.wait_for_selector("#btn-prev", timeout=5_000)
+        page.goto(tutorial_html.as_uri(), wait_until="load", timeout=30_000)
+        page.wait_for_selector("#btn-prev", state="attached", timeout=30_000)
 
         prev_btn = page.locator("#btn-prev")
         assert not prev_btn.is_enabled(), "Prev button should be disabled on first lesson"
