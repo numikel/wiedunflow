@@ -77,6 +77,31 @@
   --code-bg:   oklch(0.91 0.008 100);
   --hl:        oklch(0.87 0.006 100);
   --hl-line:   oklch(0.35 0.01 250);
+
+  /* Confidence pills (US-080) */
+  --conf-hi-bg:   oklch(0.93 0.08 145);
+  --conf-hi-ink:  oklch(0.32 0.12 145);
+  --conf-med-bg:  oklch(0.93 0.09 80);
+  --conf-med-ink: oklch(0.35 0.12 75);
+  --conf-low-bg:  oklch(0.93 0.08 30);
+  --conf-low-ink: oklch(0.35 0.10 25);
+
+  /* Degraded banner (US-079) */
+  --degraded-bg:     oklch(0.94 0.10 40);
+  --degraded-ink:    oklch(0.35 0.16 35);
+  --degraded-border: oklch(0.82 0.14 40);
+
+  /* Syntax tokens (decision #4: .tok-*) */
+  --tok-kw:   oklch(0.55 0.15 300);
+  --tok-str:  oklch(0.50 0.13 145);
+  --tok-com:  var(--ink-dim);
+  --tok-fn:   oklch(0.55 0.15 240);
+  --tok-cls:  oklch(0.55 0.16 40);
+  --tok-num:  oklch(0.55 0.16 30);
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 [data-theme="dark"] {
@@ -94,4 +119,22 @@
   --code-bg:   oklch(0.11 0.01 250);
   --hl:        oklch(0.20 0.01 250);
   --hl-line:   oklch(0.70 0.01 250);
+
+  --conf-hi-bg:   oklch(0.28 0.08 145);
+  --conf-hi-ink:  oklch(0.75 0.14 145);
+  --conf-med-bg:  oklch(0.30 0.09 75);
+  --conf-med-ink: oklch(0.80 0.14 80);
+  --conf-low-bg:  oklch(0.30 0.09 30);
+  --conf-low-ink: oklch(0.75 0.14 30);
+
+  --degraded-bg:     oklch(0.30 0.10 35);
+  --degraded-ink:    oklch(0.82 0.14 45);
+  --degraded-border: oklch(0.40 0.12 35);
+
+  --tok-kw:   oklch(0.78 0.14 310);
+  --tok-str:  oklch(0.78 0.14 140);
+  --tok-com:  var(--ink-dim);
+  --tok-fn:   oklch(0.78 0.14 235);
+  --tok-cls:  oklch(0.78 0.14 55);
+  --tok-num:  oklch(0.78 0.14 40);
 }

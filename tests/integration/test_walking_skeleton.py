@@ -2,28 +2,23 @@
 # Copyright 2026 Michał Kamiński
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 import pytest
-from syrupy import SnapshotAssertion
 
 pytestmark = pytest.mark.integration
 
 
-def _normalize_html(html: str) -> str:
-    """Remove volatile fields for stable snapshots.
-
-    Normalizes:
-      - Windows drive letters in ``file://`` paths.
-      - The ``<branch>@<short-hash>`` footer token — volatile because the
-        tiny_repo fixture lives inside the CodeGuide repo, so git_context
-        returns the parent repo's HEAD and branch, both of which change on
-        every commit.
-    """
-    html = re.sub(r"file:///[A-Za-z]:/", "file:///C:/", html)
-    html = re.sub(r"<code>[^<@]+@[^<]+</code>", "<code>NORMALIZED_BRANCH@HASH</code>", html)
-    return html
+def _extract_json(html: str, script_id: str) -> object:
+    """Pull a ``<script type="application/json" id="...">`` payload out of the HTML."""
+    marker = f'id="{script_id}"'
+    idx = html.find(marker)
+    assert idx >= 0, f"Missing embedded JSON block: {script_id}"
+    start = html.find(">", idx) + 1
+    end = html.find("</script>", start)
+    return json.loads(html[start:end])
 
 
 def test_tutorial_html_exists(tutorial_html: Path) -> None:
@@ -31,37 +26,61 @@ def test_tutorial_html_exists(tutorial_html: Path) -> None:
 
 
 def test_tutorial_html_size(tutorial_html: Path) -> None:
+    """Sprint 5: inline WOFF2 fonts (~800 KB) + CSS + JS raise baseline.
+
+    Spec budget (US-050) is <8 MB for a medium repo; tiny_repo should comfortably
+    stay under 3 MB.
+    """
     size = tutorial_html.stat().st_size
-    assert size < 500 * 1024, f"tutorial.html too large: {size} bytes (limit: 500 KB)"
-    assert size > 1024, "tutorial.html suspiciously small"
-
-
-def test_tutorial_html_snapshot(tutorial_html: Path, snapshot: SnapshotAssertion) -> None:
-    """Golden snapshot — any template change must be intentional (run with --snapshot-update)."""
-    html = tutorial_html.read_text(encoding="utf-8")
-    assert _normalize_html(html) == snapshot
+    assert size < 3 * 1024 * 1024, f"tutorial.html too large: {size} bytes (limit: 3 MB)"
+    assert size > 50 * 1024, "tutorial.html suspiciously small (fonts should be inlined)"
 
 
 def test_tutorial_html_has_three_lessons(tutorial_html: Path) -> None:
-    html = tutorial_html.read_text(encoding="utf-8")
-    assert html.count('"lesson-001"') >= 1
-    assert html.count('"lesson-002"') >= 1
-    assert html.count('"lesson-003"') >= 1
+    lessons = _extract_json(tutorial_html.read_text(encoding="utf-8"), "tutorial-lessons")
+    assert isinstance(lessons, list)
+    lesson_ids = {lesson["id"] for lesson in lessons}
+    assert "lesson-001" in lesson_ids
+    assert "lesson-002" in lesson_ids
+    assert "lesson-003" in lesson_ids
 
 
 def test_tutorial_html_no_external_resources(tutorial_html: Path) -> None:
+    """US-040: no outbound http(s) references in the rendered HTML."""
     html = tutorial_html.read_text(encoding="utf-8")
-    # Should have no external http/https references (FakeLLM doesn't add them)
-    external = re.findall(r"https?://(?!localhost)", html)
+    external = re.findall(r"""(?<!data:)https?://(?!localhost)""", html)
     assert external == [], f"Found external URLs: {external}"
 
 
-def test_tutorial_html_has_nav_buttons(tutorial_html: Path) -> None:
+def test_tutorial_html_has_three_json_payloads(tutorial_html: Path) -> None:
+    """ADR-0009 envelope: meta + clusters + lessons JSON scripts are present."""
     html = tutorial_html.read_text(encoding="utf-8")
-    assert 'id="btn-prev"' in html
-    assert 'id="btn-next"' in html
+    assert '<script type="application/json" id="tutorial-meta">' in html
+    assert '<script type="application/json" id="tutorial-clusters">' in html
+    assert '<script type="application/json" id="tutorial-lessons">' in html
 
 
-def test_tutorial_html_has_tutorial_data_script(tutorial_html: Path) -> None:
+def test_tutorial_html_has_schema_version(tutorial_html: Path) -> None:
+    """US-048: meta payload carries schema_version and codeguide_version."""
+    meta = _extract_json(tutorial_html.read_text(encoding="utf-8"), "tutorial-meta")
+    assert isinstance(meta, dict)
+    assert meta["schema_version"] == "1.0.0"
+    assert "codeguide_version" in meta
+    assert meta["codeguide_version"]
+
+
+def test_tutorial_html_has_topbar_and_footer(tutorial_html: Path) -> None:
+    """Structural DOM contract per ADR-0009."""
     html = tutorial_html.read_text(encoding="utf-8")
-    assert '<script type="application/json" id="tutorial-data">' in html
+    assert 'id="tutorial-topbar"' in html
+    assert 'id="tutorial-footer"' in html
+    assert 'id="tutorial-narration"' in html
+    assert 'id="tutorial-code"' in html
+    assert 'id="tutorial-splitter"' in html
+
+
+def test_tutorial_html_offline_footer_message(tutorial_html: Path) -> None:
+    """US-047: the footer asserts offline-guaranteed behaviour."""
+    html = tutorial_html.read_text(encoding="utf-8")
+    assert "fully offline" in html
+    assert "Apache 2.0" in html

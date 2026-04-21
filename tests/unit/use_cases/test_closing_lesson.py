@@ -74,13 +74,13 @@ def test_us_049_closing_lesson_is_beyond_cap(tmp_path: Path) -> None:
     )
     generate_tutorial(_TINY_REPO, providers, output_path=output, max_lessons=3)
     html = output.read_text(encoding="utf-8")
-    data_start = html.find('id="tutorial-data"')
-    # Parse the embedded JSON to count lessons.
+    # Sprint 5 ADR-0009: lessons live in their own script block.
+    data_start = html.find('id="tutorial-lessons"')
     json_start = html.find(">", data_start) + 1
     json_end = html.find("</script>", json_start)
-    tutorial_data = json.loads(html[json_start:json_end])
+    lessons = json.loads(html[json_start:json_end])
     # 3 regular + 1 closing = 4
-    assert len(tutorial_data["lessons"]) == 4
+    assert len(lessons) == 4
 
 
 def test_us_049_closing_lesson_is_closing_flag_in_spec() -> None:
@@ -98,8 +98,6 @@ def test_us_049_closing_lesson_is_closing_flag_in_spec() -> None:
 
 def test_us_049_closing_lesson_same_grounding_validation(tmp_path: Path) -> None:
     """AC3: Closing lesson subject to same grounding validation."""
-    # With empty allowed_symbols, closing lesson always passes grounding.
-    # We verify the closing lesson is rendered without the SKIPPED placeholder.
     output = tmp_path / "tutorial.html"
     providers = Providers(
         llm=FakeLLMProvider(),
@@ -112,15 +110,12 @@ def test_us_049_closing_lesson_same_grounding_validation(tmp_path: Path) -> None
     )
     generate_tutorial(_TINY_REPO, providers, output_path=output)
     html = output.read_text(encoding="utf-8")
-    # The closing lesson should NOT show the SKIPPED pill.
-    # We extract the closing lesson data from the JSON payload.
-    json_start = html.find('id="tutorial-data"')
+    # Sprint 5 ADR-0009: closing lesson carries status="generated" in the new
+    # per-lesson script block (the ``is_skipped`` legacy field was removed).
+    json_start = html.find('id="tutorial-lessons"')
     content_start = html.find(">", json_start) + 1
     content_end = html.find("</script>", content_start)
-    tutorial_data = json.loads(html[content_start:content_end])
-    closing_lessons = [
-        lesson for lesson in tutorial_data["lessons"] if lesson["id"] == "lesson-closing"
-    ]
+    lessons = json.loads(html[content_start:content_end])
+    closing_lessons = [lesson for lesson in lessons if lesson["id"] == "lesson-closing"]
     assert len(closing_lessons) == 1
     assert closing_lessons[0]["status"] == "generated"
-    assert closing_lessons[0]["is_skipped"] is False

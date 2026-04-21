@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import structlog
 from pydantic import BaseModel, ConfigDict
 
+from codeguide import __version__ as _codeguide_version
 from codeguide.adapters.jinja_renderer import JinjaRenderer
 from codeguide.adapters.pygments_highlighter import highlight_python as _highlight_python
 from codeguide.entities.lesson import Lesson
@@ -42,8 +43,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 _std_logger = logging.getLogger(__name__)
-
-_CODEGUIDE_VERSION = "0.0.4"
 
 # Default lesson cap (US-035).  Track C (config.py) owns the configurable field;
 # we fall back to this constant when ``config`` is not available or doesn't have
@@ -197,7 +196,7 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         update={
             "metadata": ManifestMetadata(
                 schema_version="1.0.0",
-                codeguide_version=_CODEGUIDE_VERSION,
+                codeguide_version=_codeguide_version,
                 total_lessons=len(manifest.lessons),
                 generated_at=now,
                 has_readme=ingestion.has_readme,
@@ -505,7 +504,7 @@ def _stage_build(
     html = renderer.render(
         lesson_plan=lesson_plan,
         repo_name=repo_name,
-        codeguide_version=_CODEGUIDE_VERSION,
+        codeguide_version=_codeguide_version,
         generated_at=generated_at,
         doc_coverage=doc_coverage,
         has_readme=has_readme,
