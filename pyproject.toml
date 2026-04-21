@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Michał Kamiński", email = "michal.s.kaminski@gmail.com" }]
-keywords = ["tutorial", "documentation", "llm", "code-analysis", "ast", "rag", "anthropic"]
+keywords = ["tutorial", "documentation", "llm", "code-analysis", "ast", "rag", "anthropic", "openai"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -34,6 +34,7 @@ dependencies = [
     "pathspec>=0.12.1",
     "structlog>=24.1",
     "anthropic>=0.40.0",
+    "openai>=1.50.0",
     "rank-bm25>=0.2.2",
     "tenacity>=9.0.0",
     "platformdirs>=4.3.0",
