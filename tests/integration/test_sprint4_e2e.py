@@ -35,7 +35,7 @@ import pytest
 from click.testing import CliRunner
 
 from codeguide.adapters.fake_llm_provider import FakeLLMProvider
-from codeguide.cli.main import main as cli_main
+from codeguide.cli.main import cli as cli_main
 from codeguide.entities.lesson import Lesson
 from codeguide.entities.lesson_manifest import LessonManifest
 
