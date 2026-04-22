@@ -6,6 +6,7 @@ All tests run against the shared session-scoped ``tutorial_html`` fixture and
 exercise the tutorial entirely from the browser side — no server, no external
 network, file:// scheme only.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -221,9 +222,7 @@ def test_us076_splitter_persists_narration_fraction(tutorial_html: Path) -> None
         _open(page, tutorial_html)
 
         # Write a known fraction, re-init, verify CSS grid matches.
-        page.evaluate(
-            """() => localStorage.setItem('codeguide:tweak:narr-frac:v2', '0.3')"""
-        )
+        page.evaluate("""() => localStorage.setItem('codeguide:tweak:narr-frac:v2', '0.3')""")
         page.reload(wait_until="load", timeout=30_000)
         page.wait_for_function(
             """() => document.querySelector('.lesson-link.active') !== null""",
@@ -253,9 +252,7 @@ def test_us077_theme_toggle_persists(tutorial_html: Path) -> None:
 
         theme_attr = page.evaluate("() => document.documentElement.getAttribute('data-theme')")
         assert theme_attr == "dark"
-        stored = page.evaluate(
-            "() => localStorage.getItem('codeguide:tweak:theme:v2')"
-        )
+        stored = page.evaluate("() => localStorage.getItem('codeguide:tweak:theme:v2')")
         assert stored == "dark"
 
         browser.close()

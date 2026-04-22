@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
 """US-055: OSC 8 hyperlink escape sequences for clickable terminal output."""
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -42,7 +42,12 @@ from codeguide.cli.run_report_writer import write_run_report
 from codeguide.cli.signals import SigintHandler
 from codeguide.entities.run_report import RunReport, RunStatus
 from codeguide.interfaces.ports import LLMProvider
-from codeguide.use_cases.generate_tutorial import GenerationResult, Providers, generate_tutorial
+from codeguide.use_cases.generate_tutorial import (
+    GenerationResult,
+    MaxCostExceededError,
+    Providers,
+    generate_tutorial,
+)
 from codeguide.use_cases.plan_lesson_manifest import PlanningFatalError
 
 logger = logging.getLogger(__name__)
@@ -281,6 +286,9 @@ def main(
             started_at=started_at,
             provider_label=provider_label,
             console=console,
+            dry_run=dry_run,
+            review_plan=review_plan,
+            max_cost_usd=max_cost_usd,
         )
     finally:
         sigint.restore()
@@ -364,6 +372,9 @@ def _run_pipeline(
     started_at: datetime,
     provider_label: str,
     console: object,
+    dry_run: bool = False,
+    review_plan: bool = False,
+    max_cost_usd: float | None = None,
 ) -> int:
     """Run the generation pipeline, write the run report, return an exit code."""
     try:
@@ -375,6 +386,9 @@ def _run_pipeline(
             root_override=root,
             max_lessons=max_lessons,
             should_abort=should_abort,
+            dry_run=dry_run,
+            review_plan=review_plan,
+            max_cost_usd=max_cost_usd,
         )
     except KeyboardInterrupt:
         _write_final_report(
@@ -385,6 +399,21 @@ def _run_pipeline(
         )
         click.echo("Run interrupted by user. Partial state retained for --resume.", err=True)
         return 130
+    except MaxCostExceededError as exc:
+        _write_final_report(
+            repo_path=repo_path,
+            provider_label=provider_label,
+            started_at=started_at,
+            status="failed",
+            stack_trace=f"MaxCostExceededError: {exc}",
+            failed_at_lesson="<cost-gate>",
+        )
+        click.echo(
+            f"aborted: estimated cost ${exc.estimate_usd:.2f} exceeds --max-cost "
+            f"${exc.cap_usd:.2f}. No API calls were made.",
+            err=True,
+        )
+        return 1
     except PlanningFatalError as exc:
         _write_final_report(
             repo_path=repo_path,

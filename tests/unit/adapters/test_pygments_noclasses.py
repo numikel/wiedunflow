@@ -6,6 +6,7 @@ The formatter maps Pygments TokenType to ``.tok-*`` CSS classes so the output
 HTML can be styled via ``tokens.css`` / ``tutorial.css`` instead of relying on
 inline ``style=`` attributes.
 """
+
 from __future__ import annotations
 
 from codeguide.adapters.pygments_highlighter import highlight_python

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
 """US-058: run-report history rotation keeps the last 10 copies."""
+
 from __future__ import annotations
 
 import time
@@ -18,9 +19,7 @@ def _write_current(repo: Path, payload: str) -> Path:
 def test_history_first_copy_created(tmp_path: Path) -> None:
     current = _write_current(tmp_path, '{"status": "ok"}')
     history = tmp_path / "history"
-    archived = write_history_copy(
-        current_report=current, history_dir=history, keep_latest=10
-    )
+    archived = write_history_copy(current_report=current, history_dir=history, keep_latest=10)
     assert archived.exists()
     assert archived.parent == history
     assert archived.read_text(encoding="utf-8") == '{"status": "ok"}'

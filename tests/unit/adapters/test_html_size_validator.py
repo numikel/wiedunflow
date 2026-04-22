@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
 """US-050: output HTML size budget — 8 MB target, 20 MB hard warn."""
+
 from __future__ import annotations
 
 from pathlib import Path

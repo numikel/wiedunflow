@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
 """US-072: framed run-report card with status-colored border."""
+
 from __future__ import annotations
 
 import io

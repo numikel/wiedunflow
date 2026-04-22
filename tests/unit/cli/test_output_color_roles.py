@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
 """US-074: 8 CLI color roles exposed as rich.style.Style via make_theme()."""
+
 from __future__ import annotations
 
 from rich.style import Style
 
 from codeguide.cli.output import make_theme
 
-_EXPECTED_ROLES = frozenset(
-    {"default", "dim", "good", "warn", "err", "accent", "link", "prompt"}
-)
+_EXPECTED_ROLES = frozenset({"default", "dim", "good", "warn", "err", "accent", "link", "prompt"})
 
 
 def test_theme_defines_all_eight_roles() -> None:

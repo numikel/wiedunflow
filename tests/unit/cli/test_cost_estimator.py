@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
 """US-012: ex-ante cost estimator heuristic."""
+
 from __future__ import annotations
 
 from codeguide.cli.cost_estimator import estimate

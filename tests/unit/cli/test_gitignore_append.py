@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
 """US-057: ensure `.codeguide/` gets appended to `.gitignore` idempotently."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -34,4 +35,4 @@ def test_inserts_leading_newline_when_missing(tmp_path: Path) -> None:
     ensure_gitignore_entry(tmp_path)
     content = (tmp_path / ".gitignore").read_text(encoding="utf-8")
     assert content.endswith(".codeguide/\n")
-    assert "existing-entry\n.codeguide/\n" == content
+    assert content == "existing-entry\n.codeguide/\n"

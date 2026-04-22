@@ -14,8 +14,14 @@ from pydantic import BaseModel, ConfigDict
 from codeguide import __version__ as _codeguide_version
 from codeguide.adapters.jinja_renderer import JinjaRenderer
 from codeguide.adapters.pygments_highlighter import highlight_python as _highlight_python
+from codeguide.cli.cost_estimator import estimate as _estimate_cost
+from codeguide.cli.editor_resolver import open_in_editor as _open_in_editor
 from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import LessonSpec, ManifestMetadata
+from codeguide.entities.lesson_manifest import (
+    LessonManifest,
+    LessonSpec,
+    ManifestMetadata,
+)
 from codeguide.entities.lesson_plan import LessonPlan
 from codeguide.entities.skipped_lesson import SkippedLesson
 from codeguide.use_cases.doc_coverage import compute_doc_coverage
@@ -29,7 +35,6 @@ from codeguide.use_cases.rag_corpus import build_and_index
 if TYPE_CHECKING:
     from codeguide.entities.code_symbol import CodeSymbol
     from codeguide.entities.doc_coverage import DocCoverage
-    from codeguide.entities.lesson_manifest import LessonManifest
     from codeguide.entities.ranked_graph import RankedGraph
     from codeguide.interfaces.ports import (
         Cache,
@@ -57,6 +62,23 @@ _CLOSING_OMITTED_SYMBOLS_COUNT = 5
 
 # Re-export so callers that import from this module can reach the helper.
 highlight_python = _highlight_python
+
+
+class MaxCostExceededError(RuntimeError):
+    """Raised by the cost-gate pre-flight check when the estimate exceeds ``--max-cost``.
+
+    US-019: the CLI translates this into a structured run-report with ``status="failed"``
+    and an exit code of 1 without making any narration calls.
+    """
+
+    def __init__(self, estimate_usd: float, cap_usd: float, lessons: int) -> None:
+        super().__init__(
+            f"Estimated cost ${estimate_usd:.2f} exceeds --max-cost cap ${cap_usd:.2f} "
+            f"for {lessons} lessons"
+        )
+        self.estimate_usd = estimate_usd
+        self.cap_usd = cap_usd
+        self.lessons = lessons
 
 
 @dataclass(frozen=True)
@@ -117,6 +139,9 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
     root_override: Path | None = None,
     max_lessons: int = _DEFAULT_MAX_LESSONS,
     should_abort: Callable[[], bool] | None = None,
+    dry_run: bool = False,
+    review_plan: bool = False,
+    max_cost_usd: float | None = None,
 ) -> GenerationResult:
     """Run the 7-stage pipeline and write tutorial.html.
 
@@ -205,6 +230,69 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         }
     )
 
+    # --max-cost pre-flight (US-019 — Sprint 5 follow-up): short-circuit before any
+    # Stage 5/6 LLM call if the heuristic estimate exceeds the user-supplied cap.
+    if max_cost_usd is not None:
+        est = _estimate_cost(
+            symbols=len(symbols),
+            lessons=len(manifest.lessons),
+            clusters=1,
+        )
+        if est.total_cost_usd > max_cost_usd:
+            logger.error(
+                "max_cost_exceeded",
+                estimate_usd=est.total_cost_usd,
+                cap_usd=max_cost_usd,
+                lessons=len(manifest.lessons),
+            )
+            raise MaxCostExceededError(
+                estimate_usd=est.total_cost_usd,
+                cap_usd=max_cost_usd,
+                lessons=len(manifest.lessons),
+            )
+
+    # --review-plan (US-016): write the manifest to .codeguide/manifest.json and
+    # open it in the resolved editor.  On save, re-validate; an invalid manifest
+    # falls back to the original planner output.
+    if review_plan:
+        manifest = _review_plan_interactive(manifest, repo_path)
+
+    # --dry-run (US-015): short-circuit Stage 5 and 6, render a preview HTML where
+    # every lesson carries a placeholder narrative but full metadata (title,
+    # code_refs) so the user can audit the plan without paying for narration.
+    if dry_run:
+        preview_lessons = _build_preview_lessons(manifest)
+        lesson_plan = LessonPlan(
+            lessons=tuple(preview_lessons),
+            concepts_introduced=(),
+            repo_commit_hash=ingestion.commit_hash,
+            repo_branch=ingestion.branch,
+        )
+        now_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        html = _stage_build(
+            lesson_plan,
+            repo_name,
+            now_str,
+            doc_coverage=doc_coverage,
+            has_readme=ingestion.has_readme,
+            skipped_lessons=[],
+            degraded=False,
+            total_planned=len(preview_lessons),
+        )
+        preview_output = output_path
+        if preview_output.name == "tutorial.html":
+            preview_output = preview_output.with_name("tutorial-preview.html")
+        preview_output.write_text(html, encoding="utf-8")
+        _std_logger.info("[dry-run] Preview written to %s", preview_output)
+        return GenerationResult(
+            output_path=preview_output,
+            skipped_lessons=(),
+            degraded=False,
+            degraded_ratio=0.0,
+            total_planned=len(preview_lessons),
+            retry_count=0,
+        )
+
     # US-035: assert the manifest respects the lesson cap.  The planning LLM is
     # instructed by Track C (config.py / planning prompt) to cap at max_lessons.
     # Here we surface a warning but do not hard-fail — partial tutorials are
@@ -292,6 +380,59 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
 # ---------------------------------------------------------------------------
 # Private stage helpers
 # ---------------------------------------------------------------------------
+
+
+def _build_preview_lessons(manifest: LessonManifest) -> list[Lesson]:
+    """Translate LessonSpecs into placeholder ``Lesson`` entities for --dry-run (US-015).
+
+    Narration carries a short ``[preview]`` marker so validators pass; the actual
+    Opus call is skipped entirely. Title + code_refs are preserved so the reader
+    can audit the plan.
+    """
+    preview: list[Lesson] = []
+    for spec in manifest.lessons:
+        code_ref_names = tuple(ref.symbol for ref in spec.code_refs)
+        preview.append(
+            Lesson(
+                id=spec.id,
+                title=spec.title,
+                narrative=(
+                    f"[preview] This lesson will be generated during a full run "
+                    f"(teaches: {spec.teaches})."
+                ),
+                code_refs=code_ref_names,
+                status="generated",
+            )
+        )
+    return preview
+
+
+def _review_plan_interactive(manifest: LessonManifest, repo_path: Path) -> LessonManifest:
+    """Open the manifest in ``$EDITOR`` for manual review (US-016).
+
+    Writes ``<repo>/.codeguide/manifest.edited.json`` so edits survive across
+    runs and can be diffed. On save, the file is validated back into a
+    ``LessonManifest``; an invalid edit falls back to the original with a
+    structured warning so the run continues rather than hard-failing.
+    """
+    edit_dir = repo_path / ".codeguide"
+    edit_dir.mkdir(parents=True, exist_ok=True)
+    edit_path = edit_dir / "manifest.edited.json"
+    edit_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+
+    rc = _open_in_editor(edit_path)
+    if rc != 0:
+        logger.warning("review_plan_editor_nonzero_exit", rc=rc)
+
+    try:
+        return LessonManifest.model_validate_json(edit_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning(
+            "review_plan_validation_failed",
+            error=str(exc),
+            msg="edited manifest rejected; falling back to original planner output",
+        )
+        return manifest
 
 
 def _collect_allowed_symbols(

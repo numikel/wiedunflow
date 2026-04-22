@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
 """US-016: editor resolver order — $EDITOR -> $VISUAL -> code --wait -> notepad/vi."""
+
 from __future__ import annotations
 
 import sys

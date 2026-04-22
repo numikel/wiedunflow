@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
 """US-022: --log-format=json emits one JSON object per line with ts/level/stage/msg."""
+
 from __future__ import annotations
 
 import json

@@ -5,6 +5,7 @@
 The two-sink architecture keeps pipeline code UI-agnostic. A ``from rich``
 import anywhere outside ``cli/output.py`` is a regression.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
