@@ -15,6 +15,7 @@ from codeguide.adapters.stub_jedi_resolver import StubJediResolver
 from codeguide.adapters.stub_ranker import StubRanker
 from codeguide.adapters.stub_tree_sitter import StubTreeSitterParser
 from codeguide.adapters.tree_sitter_parser import TreeSitterParser
+from codeguide.adapters.yaml_consent_store import YamlConsentStore
 
 # Backward-compat alias — Sprint 1 stubs; callers should migrate to Bm25Store.
 StubBm25Store = Bm25Store
@@ -31,6 +32,7 @@ __all__ = [
     "StubRanker",
     "StubTreeSitterParser",
     "TreeSitterParser",
+    "YamlConsentStore",
     "detect_cycles",
     "detect_dynamic_imports",
     "get_git_context",
