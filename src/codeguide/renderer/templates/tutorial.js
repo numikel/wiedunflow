@@ -155,6 +155,45 @@
     return -1;
   }
 
+  function renderLessonFooter(lessons, repoId, idx) {
+    var root = document.getElementById("tutorial-narration-body");
+    if (!root) { return; }
+    var footer = document.createElement("div");
+    footer.className = "lesson-footer";
+    var isLast = idx >= lessons.length - 1;
+    if (!isLast) {
+      var nextLesson = lessons[idx + 1];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "next-btn-inline";
+      btn.innerHTML = "Next: " + escapeHtml(nextLesson.title) + " →";
+      btn.addEventListener("click", function () {
+        navigateTo(lessons, repoId, nextLesson.id, {});
+      });
+      footer.appendChild(btn);
+    } else {
+      var done = document.createElement("div");
+      done.className = "lesson-footer-done";
+      done.textContent = "✓ End of tutorial";
+      footer.appendChild(done);
+      var backBtn = document.createElement("button");
+      backBtn.type = "button";
+      backBtn.className = "next-btn-inline secondary";
+      backBtn.textContent = "Back to start ↺";
+      backBtn.addEventListener("click", function () {
+        navigateTo(lessons, repoId, lessons[0].id, {});
+      });
+      footer.appendChild(backBtn);
+    }
+    root.appendChild(footer);
+  }
+
+  function escapeHtml(s) {
+    var div = document.createElement("div");
+    div.textContent = s == null ? "" : String(s);
+    return div.innerHTML;
+  }
+
   function scrollHighlightIntoView() {
     // After renderCode, bring the first highlighted row into view so nav
     // feels responsive (US-040/045 spirit — lesson switch must move focus).
@@ -185,6 +224,7 @@
     }
     var lesson = lessons[idx];
     renderNarration(lesson); renderCode(lesson); setActiveLink(id); updateProgress(idx, lessons.length);
+    renderLessonFooter(lessons, repoId, idx);
     updateNavButtons(idx, lessons.length);
     scrollHighlightIntoView();
     if (!options.fromHash) { location.hash = "#/lesson/" + id; }

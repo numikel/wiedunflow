@@ -272,7 +272,20 @@ CONSTRAINTS:
 - Audience: mid-level Python developer.
 - Do NOT re-teach these already-covered concepts: {concepts_introduced}.
 - Ground every claim in the provided code references; do not invent function names.
-- Keep narrative under 500 words.
+
+LENGTH — narration MUST be proportional to code complexity. A 3-line function
+does not need 500 words. Aim for the shortest lesson that teaches what the code
+does and why, then stop:
+- Trivial (< 10 lines, no control flow, 1 concept):         160-220 words.
+- Moderate (10-30 lines, 1-2 control structures):           220-350 words.
+- Complex (> 30 lines OR multiple intertwined constructs):  350-500 words.
+- Hard ceiling: 500 words. Hard floor: 150 words (validator).
+
+Avoid padding: no tangential digressions, no "did you know" factoids, no
+enumeration of every possible Python idiom, no duck-typing essays unless the
+code actually relies on duck typing. Prefer one precise example over three
+speculative ones.
+
 - Return ONLY the markdown narrative (no JSON wrapper)."""
 
 

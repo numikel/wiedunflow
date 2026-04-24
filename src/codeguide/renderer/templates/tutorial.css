@@ -177,6 +177,38 @@ body {
 }
 #tutorial-narration .prose em { color: var(--ink-2); }
 
+/* Inline end-of-lesson navigation (US-040) */
+.lesson-footer {
+  margin-top: 40px; padding-top: 24px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+  max-width: 62ch;
+}
+.lesson-footer-done {
+  font-size: 14px; font-weight: 500;
+  color: var(--ink-2);
+}
+.next-btn-inline {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 16px; border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent); color: #fff;
+  font-family: inherit; font-size: 14px; font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.next-btn-inline:hover {
+  background: oklch(from var(--accent) calc(l - 0.05) c h);
+  transform: translateX(2px);
+}
+.next-btn-inline.secondary {
+  background: transparent; color: var(--accent);
+}
+.next-btn-inline.secondary:hover {
+  background: var(--accent); color: #fff;
+  transform: none;
+}
+
 /* Confidence pill (US-080) */
 .conf-pill {
   display: inline-flex; align-items: center; gap: 5px;
