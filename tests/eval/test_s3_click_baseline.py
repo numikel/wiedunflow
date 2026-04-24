@@ -69,13 +69,13 @@ def test_s3_click_baseline(tmp_path: Path, click_repo_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "codeguide.cli.main",
+            "codeguide",
+            "generate",
             str(click_repo_path),
             "--yes",
             "--no-consent-prompt",
-            "--output",
-            str(output),
         ],
+        cwd=tmp_path,  # codeguide writes tutorial.html into cwd (no --output flag)
         env={**os.environ},
         capture_output=True,
         text=True,
