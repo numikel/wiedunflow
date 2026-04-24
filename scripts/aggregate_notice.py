@@ -116,12 +116,16 @@ def aggregate(output_path: Path, *, check: bool = False) -> int:
             file=sys.stderr,
         )
 
+    # Enforce LF line endings so the generated NOTICE is byte-identical
+    # across POSIX (LF) and Windows (CRLF when using default text mode).
+    new_bytes = new_content.replace("\r\n", "\n").encode("utf-8")
+
     if check:
         if not output_path.exists():
             print(f"error: {output_path} does not exist", file=sys.stderr)
             return 1
-        existing = output_path.read_text(encoding="utf-8")
-        if existing != new_content:
+        existing_bytes = output_path.read_bytes().replace(b"\r\n", b"\n")
+        if existing_bytes != new_bytes:
             print(
                 f"error: {output_path} is out of date — re-run aggregate_notice.py",
                 file=sys.stderr,
@@ -129,7 +133,7 @@ def aggregate(output_path: Path, *, check: bool = False) -> int:
             return 1
         return 0
 
-    output_path.write_text(new_content, encoding="utf-8")
+    output_path.write_bytes(new_bytes)
     print(
         f"NOTICE written to {output_path} ({len(apache_deps)} Apache deps, {len(missing)} missing)",
         file=sys.stderr,
