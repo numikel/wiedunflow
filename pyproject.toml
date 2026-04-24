@@ -1,6 +1,6 @@
 [project]
 name = "codeguide"
-version = "0.0.5"
+version = "0.0.6"
 description = "Generate interactive, self-contained HTML tutorials from local Git repositories"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -57,6 +57,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "pytest-playwright>=0.5",
+    "pytest-socket>=0.7",
     "syrupy>=4.6",
     "mypy>=1.10",
     "ruff>=0.5.0",
@@ -64,6 +65,7 @@ dev = [
     "pyyaml>=6.0",
     "types-pyyaml>=6.0",
     "pillow>=10.0",
+    "pip-audit>=2.7",
 ]
 
 [build-system]
@@ -143,4 +145,5 @@ markers = [
     "eval_robustness: analysis-only robustness tests on 5 pinned OSS repos with FakeLLMProvider (opt-in, log-only)",
     "integration: walking skeleton e2e tests",
     "playwright: headless browser tests (require playwright install)",
+    "netns: Linux-only zero-telemetry tests using unshare -n (US-011)",
 ]

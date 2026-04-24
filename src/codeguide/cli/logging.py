@@ -19,6 +19,8 @@ from typing import Any
 
 import structlog
 
+from codeguide.cli.secret_filter import redact as _redact_secret
+
 _state: dict[str, bool] = {"configured": False}
 
 
@@ -48,7 +50,27 @@ def _rename_timestamp_to_ts(
     return event_dict
 
 
-def configure(*, json_mode: bool, level: int = logging.INFO) -> None:
+def _redact_secrets_processor(
+    _: object, __: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
+    """Redact API-key-shaped substrings in every string value (US-069).
+
+    Installed by :func:`configure` before the rendering processor when
+    ``redact_secrets=True`` (the default). Authoritative pattern list lives
+    in :mod:`codeguide.cli.secret_filter` per ADR-0010.
+    """
+    for key, val in list(event_dict.items()):
+        if isinstance(val, str):
+            event_dict[key] = _redact_secret(val)
+    return event_dict
+
+
+def configure(
+    *,
+    json_mode: bool,
+    level: int = logging.INFO,
+    redact_secrets: bool = True,
+) -> None:
     """Configure the global structlog logger for the current run.
 
     Args:
@@ -56,6 +78,9 @@ def configure(*, json_mode: bool, level: int = logging.INFO) -> None:
             (``--log-format=json``). When ``False``, render a human-friendly
             key=value line.
         level: stdlib logging level threshold (DEBUG/INFO/WARNING/...).
+        redact_secrets: When ``True`` (default), a ``SecretFilter`` processor
+            redacts API-key-shaped substrings before rendering (US-069). The
+            ``--no-log-redaction`` flag is the only supported way to disable.
     """
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
@@ -67,6 +92,8 @@ def configure(*, json_mode: bool, level: int = logging.INFO) -> None:
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
     ]
+    if redact_secrets:
+        shared_processors.append(_redact_secrets_processor)
 
     if json_mode:
         renderer: structlog.types.Processor = structlog.processors.JSONRenderer(

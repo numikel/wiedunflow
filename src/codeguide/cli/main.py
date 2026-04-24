@@ -1,6 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""CodeGuide CLI entrypoint."""
+"""CodeGuide CLI entrypoint.
+
+Sprint 6 restructure: the top-level ``codeguide`` command is now a click
+group with two subcommands:
+
+* ``codeguide init`` — interactive wizard (US-002 / Track A).
+* ``codeguide generate <repo>`` — run the 7-stage tutorial pipeline.
+
+The ``_DefaultToGenerate`` group subclass preserves backward compatibility:
+``codeguide <repo>`` (pre-Sprint 6 UX) still works — the first positional
+that is not a known subcommand is interpreted as a repo path and routed
+through ``generate``.
+"""
 
 from __future__ import annotations
 
@@ -32,6 +44,7 @@ from codeguide.cli.consent import (
     ensure_consent_granted,
 )
 from codeguide.cli.history_rotator import write_history_copy
+from codeguide.cli.init_wizard import run_init_wizard
 from codeguide.cli.logging import configure as configure_logging
 from codeguide.cli.logging import get_logger as get_structlog
 from codeguide.cli.output import (
@@ -53,8 +66,101 @@ from codeguide.use_cases.plan_lesson_manifest import PlanningFatalError
 logger = logging.getLogger(__name__)
 
 
-@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+class _DefaultToGenerate(click.Group):
+    """Click group that treats an unknown first positional as a repo path.
+
+    This keeps the pre-Sprint-6 UX alive: ``codeguide ./repo`` is rewritten
+    to ``codeguide generate ./repo`` at parse time. Known subcommands
+    (``init``, ``generate``) still resolve normally.
+    """
+
+    def resolve_command(
+        self,
+        ctx: click.Context,
+        args: list[str],
+    ) -> tuple[str | None, click.Command | None, list[str]]:
+        try:
+            return super().resolve_command(ctx, args)
+        except click.UsageError:
+            # First positional is not a registered subcommand — assume repo path.
+            if args and not args[0].startswith("-"):
+                args.insert(0, "generate")
+                return super().resolve_command(ctx, args)
+            raise
+
+
+@click.group(
+    cls=_DefaultToGenerate,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 @click.version_option(__version__, prog_name="codeguide")
+def cli() -> None:
+    """CodeGuide — generate interactive HTML tutorials from local Git repositories."""
+
+
+@cli.command("init")
+@click.option(
+    "--provider",
+    type=click.Choice(["anthropic", "openai", "openai_compatible", "custom"]),
+    default=None,
+    help="LLM provider (non-interactive: skip the provider prompt).",
+)
+@click.option(
+    "--model-plan",
+    default=None,
+    metavar="MODEL",
+    help="Model for planning stage (non-interactive: skip the model prompt).",
+)
+@click.option(
+    "--model-narrate",
+    default=None,
+    metavar="MODEL",
+    help="Model for narration stage (non-interactive: skip the model prompt).",
+)
+@click.option(
+    "--api-key",
+    default=None,
+    metavar="KEY",
+    help="API key for the provider (non-interactive: skip the api-key prompt).",
+)
+@click.option(
+    "--base-url",
+    default=None,
+    metavar="URL",
+    help="Base URL for openai_compatible / custom providers (optional).",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Overwrite an existing user-level config.yaml without prompting.",
+)
+def init_cmd(
+    provider: str | None,
+    model_plan: str | None,
+    model_narrate: str | None,
+    api_key: str | None,
+    base_url: str | None,
+    force: bool,
+) -> None:
+    """Interactive wizard — write a user-level ``config.yaml`` (US-002).
+
+    All prompts can be skipped via flags (US-003). Running ``codeguide init``
+    a second time refuses to overwrite the existing file unless ``--force``
+    is passed.
+    """
+    exit_code = run_init_wizard(
+        provider=provider,
+        model_plan=model_plan,
+        model_narrate=model_narrate,
+        api_key=api_key,
+        base_url=base_url,
+        force=force,
+    )
+    sys.exit(exit_code)
+
+
+@cli.command("generate")
 @click.argument(
     "repo_path",
     type=click.Path(
@@ -184,7 +290,15 @@ logger = logging.getLogger(__name__)
     default="text",
     help="Structured log output format on stderr (US-022).",
 )
-def main(
+@click.option(
+    "--no-log-redaction",
+    "no_log_redaction",
+    is_flag=True,
+    default=False,
+    hidden=True,
+    help="(dev-only) Disable SecretFilter in logs.",
+)
+def generate_cmd(
     repo_path: Path,
     excludes: tuple[str, ...],
     includes: tuple[str, ...],
@@ -203,10 +317,11 @@ def main(
     dry_run: bool,
     review_plan: bool,
     log_format: str,
+    no_log_redaction: bool,
 ) -> None:
     """Generate an interactive HTML tutorial from a local Git repository."""
     json_mode = log_format == "json"
-    configure_logging(json_mode=json_mode)
+    configure_logging(json_mode=json_mode, redact_secrets=not no_log_redaction)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     console = init_console(json_mode=json_mode)
     structlog_logger = get_structlog(stage="cli")
@@ -295,6 +410,11 @@ def main(
 
     rotate_run_report_history(repo_path)
     sys.exit(exit_code)
+
+
+def main() -> None:
+    """Process entrypoint — delegates to the click group."""
+    cli()
 
 
 def _build_llm_provider(

@@ -409,7 +409,7 @@ Track C:
 | 0007 | Planning prompt contract + retry | S3 | do napisania |
 | 0008 | Cache schema v1 | S4 | do napisania |
 | 0009 | Output JSON schema v1.0.0 | S5 | do napisania |
-| 0010 | Secret redaction + zero-telemetry | S6 | do napisania |
+| 0010 | Secret redaction + zero-telemetry | S6 | Accepted 2026-04-22 |
 
 ## Delegation playbook — jak rozmawiać z agentem
 

@@ -16,6 +16,7 @@ import pathspec
 
 from codeguide.adapters.git_context import get_git_context
 from codeguide.entities.ingestion_result import IngestionResult
+from codeguide.ingestion.file_filter import should_include_file
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ def ingest(
     excludes: tuple[str, ...] = (),
     includes: tuple[str, ...] = (),
     root_override: Path | None = None,
+    security_allow_secret_files: frozenset[str] = frozenset(),
 ) -> IngestionResult:
     """Stage 1: discover Python source files and resolve git context.
 
@@ -54,6 +56,9 @@ def ingest(
             (prepended with ``!`` before the spec).
         root_override: Explicit repo root override (monorepo subtree).  When
             set, ``repo_root`` is this path and ``detected_subtree`` is ``None``.
+        security_allow_secret_files: Exact file names that override the
+            hard-refuse secret blocklist (from
+            ``CodeguideConfig.security_allow_secret_files``).
 
     Returns:
         A populated :class:`~codeguide.entities.ingestion_result.IngestionResult`.
@@ -61,7 +66,7 @@ def ingest(
     repo_root = root_override if root_override is not None else repo_path
 
     spec = _build_spec(repo_root, excludes, includes)
-    files, excluded_count = _collect_files(repo_root, spec)
+    files, excluded_count = _collect_files(repo_root, spec, allow_list=security_allow_secret_files)
 
     commit_hash, branch = get_git_context(repo_root)
 
@@ -137,22 +142,32 @@ def _should_skip_path(path: Path) -> bool:
 def _collect_files(
     repo_root: Path,
     spec: pathspec.GitIgnoreSpec,
+    *,
+    allow_list: frozenset[str] = frozenset(),
 ) -> tuple[list[Path], int]:
-    """Walk *repo_root* and collect ``.py`` files that pass the spec filter.
+    """Walk *repo_root* and collect ``.py`` files that pass all filter gates.
+
+    Gates applied in order:
+    1. Always-skip (dotted directories, ``__pycache__``).
+    2. Hard-refuse secret blocklist (``ingestion/file_filter.py``).
+    3. Pathspec filter (``.gitignore`` + excludes/includes).
 
     Args:
         repo_root: Directory to walk.
         spec: Combined gitignore spec (files that *match* are excluded).
+        allow_list: Exact file names exempted from the hard-refuse blocklist.
 
     Returns:
         Tuple of ``(kept_files, excluded_count)`` where *kept_files* is a list
         of absolute :class:`Path` objects and *excluded_count* is the number of
-        ``.py`` files that were excluded by the spec.
+        files that were excluded by any gate.
     """
     kept: list[Path] = []
     excluded = 0
 
-    for abs_path in repo_root.rglob("*.py"):
+    for abs_path in repo_root.rglob("*"):
+        if not abs_path.is_file():
+            continue
         rel = abs_path.relative_to(repo_root)
 
         # Always-skip rules (dotted dirs, __pycache__) — checked on relative parts.
@@ -160,9 +175,13 @@ def _collect_files(
             excluded += 1
             continue
 
-        # Pathspec filter — match against the POSIX relative path string.
-        if spec.match_file(rel.as_posix()):
+        # Combine hard-refuse + pathspec via should_include_file.
+        if not should_include_file(abs_path, rel, spec, allow_list=allow_list):
             excluded += 1
+            continue
+
+        # Only collect Python source files.
+        if abs_path.suffix != ".py":
             continue
 
         kept.append(abs_path)

@@ -3,20 +3,22 @@
 Thank you for your interest in contributing! This document covers the development workflow,
 commit conventions, and expectations for pull requests.
 
-## Developer Certificate of Origin
+## Developer Certificate of Origin (DCO)
 
-This project uses the [Developer Certificate of Origin (DCO)](https://developercertificate.org/)
-instead of a CLA. By contributing, you certify that you wrote or otherwise have the right to
-submit the code.
+All contributions are accepted under the [Developer Certificate of Origin
+(DCO)](https://developercertificate.org/). By signing off on your commits
+you certify that you have the right to submit the change under the
+project's license (Apache-2.0).
 
-**Every commit must be signed off** with:
+Sign off every commit with the ``-s`` flag:
 
 ```bash
-git commit -s -m "feat(cli): add --output flag"
+git commit -s -m "feat(rag): add hybrid retrieval fallback"
 ```
 
-The `-s` flag appends `Signed-off-by: Your Name <your@email.com>` to the commit message.
-DCO is enforced on all pull requests via GitHub Actions.
+This appends a ``Signed-off-by: Your Name <you@example.com>`` line using
+your configured git identity. The ``dco`` GitHub Action blocks any PR
+that contains commits without the trailer.
 
 ## Development Setup
 

@@ -13,6 +13,7 @@ Precedence (highest to lowest):
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -21,6 +22,8 @@ import platformdirs
 import yaml
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigError(Exception):
@@ -60,6 +63,9 @@ class CodeguideConfig(BaseSettings):
     include_patterns: list[str] = Field(default_factory=list)
     max_lessons: int = 30
     target_audience: str = "mid-level Python developer"
+    # US-008: exact file names exempted from the hard-refuse secret blocklist.
+    # YAML path: security.allow_secret_files: [".env.example"]
+    security_allow_secret_files: frozenset[str] = Field(default_factory=frozenset)
 
     model_config = SettingsConfigDict(
         env_prefix="CODEGUIDE_",
@@ -113,7 +119,32 @@ def load_config(
     # Build init kwargs: YAML (already env-stripped) + CLI (dominates).
     init_kwargs: dict[str, Any] = {**merged_yaml, **clean_overrides}
 
-    return CodeguideConfig(**init_kwargs)
+    config = CodeguideConfig(**init_kwargs)
+
+    # US-003: emit DEBUG log for key resolved config fields with their source.
+    _log_resolved_config(config, clean_overrides, merged_yaml)
+
+    return config
+
+
+def _log_resolved_config(
+    config: CodeguideConfig,
+    cli_overrides: dict[str, Any],
+    yaml_values: dict[str, Any],
+) -> None:
+    """Emit DEBUG-level logs showing where each key config field was resolved from."""
+    key_fields = ("llm_provider", "llm_model_plan", "llm_model_narrate")
+    for field in key_fields:
+        if field in cli_overrides:
+            source = "cli"
+        elif f"CODEGUIDE_{field.upper()}" in os.environ:
+            source = "env"
+        elif field in yaml_values:
+            source = "yaml"
+        else:
+            source = "default"
+        value = getattr(config, field)
+        logger.debug("config resolved: %s=%s from %s", field, value, source)
 
 
 def _load_yaml_flat(path: Path) -> dict[str, Any]:
@@ -143,6 +174,13 @@ def _load_yaml_flat(path: Path) -> dict[str, Any]:
     for key in ("exclude_patterns", "include_patterns", "max_lessons", "target_audience"):
         if key in data:
             flat[key] = data[key]
+
+    # security.allow_secret_files → frozenset[str]
+    security = data.get("security")
+    if isinstance(security, dict):
+        allow_list = security.get("allow_secret_files")
+        if isinstance(allow_list, list):
+            flat["security_allow_secret_files"] = frozenset(str(x) for x in allow_list)
 
     return flat
 

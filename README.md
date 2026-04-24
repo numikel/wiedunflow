@@ -29,21 +29,70 @@ $env:ANTHROPIC_API_KEY = "sk-ant-..." # PowerShell
 ## Quickstart
 
 ```bash
-# Generate a tutorial for the current repository (prompts for consent on first run)
-codeguide .
+# 1. First-run setup — interactive wizard writes ~/.config/codeguide/config.yaml
+codeguide init
 
-# Non-interactive (CI, scripts) — skip the consent banner
-codeguide /path/to/repo --yes
+# 2. Generate a tutorial for the current repository (prompts for consent on first cloud run)
+codeguide generate .
+# Shorthand alias (preserved for backward compat): `codeguide .` still works
 
-# Use a custom config
-codeguide . --config tutorial.config.yaml
+# 3. Non-interactive (CI, scripts) — skip both wizard and consent banner
+ANTHROPIC_API_KEY=sk-ant-... codeguide generate /path/to/repo --yes --no-consent-prompt
 ```
+
+## First-run setup (`codeguide init`)
+
+Sprint 6 adds a subcommand that writes a nested-YAML user-level config without
+touching the project:
+
+```
+$ codeguide init --help
+Usage: codeguide init [OPTIONS]
+
+  Interactive wizard — write a user-level config.yaml (US-002).
+
+Options:
+  --provider [anthropic|openai|openai_compatible|custom]
+                            LLM provider (non-interactive: skip provider prompt).
+  --model-plan MODEL        Model for the planning stage.
+  --model-narrate MODEL     Model for the narration stage.
+  --api-key KEY             API key for the provider (hidden input when prompting).
+  --base-url URL            Base URL for openai_compatible / custom endpoints.
+  --force                   Overwrite an existing user-level config.yaml.
+```
+
+Config locations (per `platformdirs`):
+
+| OS      | Path                                                   |
+|---------|--------------------------------------------------------|
+| Linux   | `$XDG_CONFIG_HOME/codeguide/config.yaml` (≈ `~/.config/codeguide/config.yaml`) |
+| macOS   | `~/Library/Application Support/codeguide/config.yaml`  |
+| Windows | `%APPDATA%\codeguide\config.yaml`                      |
+
+Permissions are set to `0o600` on POSIX so the API key is not world-readable.
+Passing every flag (`--provider`, `--model-plan`, `--model-narrate`, `--api-key`)
+produces a zero-prompt run (US-003).
 
 ## CLI Reference
 
+`codeguide` is now a click group with two subcommands:
+
 ```
 $ codeguide --help
-Usage: codeguide [OPTIONS] REPO_PATH
+Usage: codeguide [OPTIONS] COMMAND [ARGS]...
+
+  CodeGuide — generate interactive HTML tutorials from local Git repositories.
+
+Commands:
+  generate  Generate an interactive HTML tutorial from a local Git repository.
+  init      Interactive wizard — write a user-level config.yaml (US-002).
+```
+
+### `codeguide generate`
+
+```
+$ codeguide generate --help
+Usage: codeguide generate [OPTIONS] REPO_PATH
 
   Generate an interactive HTML tutorial from a local Git repository.
 
@@ -69,6 +118,9 @@ Options:
   -V, --version                Show the version and exit.
   -h, --help                   Show this message and exit.
 ```
+
+**Backward compatibility**: `codeguide <repo>` (without an explicit `generate`) still works — a custom
+click group class rewrites an unknown first positional to `generate <positional>`.
 
 ### Output HTML reader (Sprint 5 / v0.0.5)
 
@@ -147,15 +199,61 @@ root) — pass `--root` to override.
 
 CodeGuide transmits the source code it narrates (symbol bodies, docstrings, selected file
 excerpts) to the configured LLM provider — Anthropic by default.  **No code leaves your machine
-until you accept the consent banner on the first run of a session.**  `--yes` and
-`--no-consent-prompt` bypass the prompt for CI / scripts; both flags are recorded in the run
-logs.  There is **zero telemetry** and **zero usage analytics** — the only outbound traffic is
-the LLM API call.
+until you accept the consent banner on the first run for that provider on this machine.**
+
+### Consent banner (Sprint 6 / v0.0.6)
+
+The first time you run `codeguide generate` against Anthropic or OpenAI (hosted), the CLI
+blocks and prints:
+
+> Your source code will be sent to `<provider>`. Continue? [y/N]
+
+Accepting writes `{granted: true, granted_at: <ISO>}` under that provider's key into
+`<user_config_dir>/codeguide/consent.yaml` (file permissions `0o600` on POSIX).  **Subsequent
+runs skip the banner** for any repo on the same machine.  Switching providers (e.g.
+`--provider=openai`) triggers the banner again.  To revoke consent: delete `consent.yaml` (or
+the relevant provider key).
+
+- `--no-consent-prompt` — suppress the banner on CI / scripts (documented, visible in `--help`).
+- `--yes` — auto-accept everything (stronger variant of `--no-consent-prompt`).
+- `--base-url` with `--provider=openai_compatible` / `custom` skips the banner entirely
+  — local inference means no code leaves the machine.
+
+### Hard-refuse secret list
+
+Files matching `.env`, `.env.*`, `*.pem`, `*_rsa`, `*_rsa.pub`, `*_ed25519`, `credentials.*`,
+`id_rsa`, `id_ed25519` are **silently excluded from ingestion before `.gitignore` and before
+`--include`/`--exclude` patterns**.  The only escape hatch is a project-level whitelist in
+`tutorial.config.yaml` — commit to repo + review on PR:
+
+```yaml
+security:
+  allow_secret_files:
+    - ".env.example"
+```
+
+### Log redaction (SecretFilter)
+
+API-key-shaped substrings (Anthropic `sk-ant-...`, OpenAI `sk-...` / `sk-proj-...`,
+HuggingFace `hf_...`, generic `Bearer ...`, `Authorization: ...` headers, 40+ char hex blobs)
+are replaced with `[REDACTED]` before structured logs reach stderr — on every log level, in
+both `--log-format=text` and `--log-format=json`.  A hidden `--no-log-redaction` flag disables
+redaction for local debugging only (not documented in `--help`).
+
+### Zero telemetry
+
+There is **zero telemetry** and **zero usage analytics** — the only outbound traffic is the
+LLM API call.  An integration test (`tests/integration/test_zero_telemetry.py`) asserts this
+on every CI run: `pytest-socket` disables outbound sockets during the CLI invocation
+(cross-platform), and on Linux a `@pytest.mark.netns` test runs the full pipeline inside an
+`unshare --user --net` namespace.
 
 For sensitive codebases use the **local-inference path** shipped in Sprint 4 / v0.0.4:
 `--provider custom --base-url http://localhost:11434/v1` (Ollama) or any OpenAI-compatible
-endpoint (LM Studio, vLLM).  Consent is **not** prompted when `--base-url` is set — no code
-leaves your machine.  See the *BYOK* section above for ready-to-paste examples.
+endpoint (LM Studio, vLLM).  See the *BYOK* section above for ready-to-paste examples.
+
+ADR-0010 captures the full secret-redaction + zero-telemetry contract
+(`docs/adr/0010-secret-redaction-zero-telemetry.md`).
 
 ## Configuration
 
@@ -190,6 +288,28 @@ target_audience: "mid-level Python developer"
 
 Full configuration reference and environment variables: see [docs/config-reference.md](docs/config-reference.md)
 (available from Sprint 1).
+
+## Configuration precedence
+
+CodeGuide resolves every configurable value through a strict chain:
+
+| Priority | Source                                                                                                              | Override mechanism                          |
+|---------:|---------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
+| 1 (top)  | CLI flags                                                                                                           | `--provider=openai`                         |
+| 2        | Environment variables (`CODEGUIDE_*`, `*_API_KEY`)                                                                  | `ANTHROPIC_API_KEY=...`                     |
+| 3        | `--config <path>` YAML                                                                                              | `--config ./custom.yaml`                    |
+| 4        | Project config `./tutorial.config.yaml`                                                                             | commit to repo                              |
+| 5        | User-level config (`~/.config/codeguide/config.yaml` on Linux/macOS, `%APPDATA%\codeguide\config.yaml` on Windows) | run `codeguide init`                        |
+| 6 (bottom)| Built-in defaults                                                                                                  | code constant                               |
+
+Run with `--log-format=json` and `DEBUG` level to see which source supplied each value:
+
+```
+ts=... level=debug msg="config resolved: llm_provider=openai from cli"
+ts=... level=debug msg="config resolved: llm_model_plan=claude-sonnet-4-6 from default"
+```
+
+Full precedence specification: [docs/config-precedence.md](docs/config-precedence.md).
 
 ## License
 
