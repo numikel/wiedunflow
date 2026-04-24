@@ -244,6 +244,9 @@ _PLAN_SYSTEM_PROMPT = """You are CodeGuide, a tutorial planner. Given a ranked c
 STRICT RULES:
 - Output ONLY JSON matching the schema (no prose, no markdown fences).
 - Every code_refs[*].symbol MUST appear in the allowed symbols list (provided in the user message).
+- Every code_refs[*].role MUST be EXACTLY one of: "primary", "referenced", "example".
+  Do NOT invent other values like "secondary", "supporting", "auxiliary", "tertiary", "supplementary".
+  If a symbol is supportive but not the focus, use "referenced". If it illustrates usage, use "example".
 - Order lessons leaves->roots (concepts before applications).
 - Max 30 lessons.
 - Each lesson teaches ONE concept not covered by earlier lessons.
