@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Structured logging helpers."""
 
 from tests.fixtures.medium_repo.config import get_setting

@@ -1,37 +1,42 @@
-# Pinned commits for release-gate eval (US-065). Git submodules added in Sprint 3.
+# Pinned commits for release-gate eval (US-065). Git submodules added in Sprint 7.
 version: 1
 repos:
   - name: click
     url: https://github.com/pallets/click.git
-    commit: "TBD"
+    commit: "874ca2bc1c30d93a4ac6e36a15ed685eafe89097"
+    tag: "8.1.7"
     reason: "Canonical CLI library, small enough for fast canary eval (Sprint 3)."
     canary: true
     max_cost_usd: 2.0
 
   - name: requests
     url: https://github.com/psf/requests.git
-    commit: "TBD"
+    commit: "111d2b77790bf49943c0dfa09b365371c24aec7e"
+    tag: "v2.33.1"
     reason: "Well-known stdlib-alt, tests HTTP domain narration quality."
     canary: false
     max_cost_usd: 4.0
 
   - name: starlette
     url: https://github.com/encode/starlette.git
-    commit: "TBD"
+    commit: "e5b8a5d200504a2608bed11fe6f66b1d20b9ae2c"
+    tag: "0.52.1"
     reason: "ASGI framework, tests async-heavy codebases."
     canary: false
     max_cost_usd: 4.0
 
   - name: python-sdk-mcp
     url: https://github.com/modelcontextprotocol/python-sdk.git
-    commit: "TBD"
+    commit: "3f0964dd14f3fa5eebcbb52bcc838f482dae85d1"
+    tag: "v1.10.1"
     reason: "Primary benchmark vs Anthropic Skilljar tutorial (US-066 rubric)."
     canary: false
     max_cost_usd: 6.0
 
   - name: dateutil
     url: https://github.com/dateutil/dateutil.git
-    commit: "TBD"
+    commit: "fc9b1625ebc729f01e449879b6b140abd12ae621"
+    tag: "2.8.1"
     reason: "Date/time library, tests narration on stateless utility code."
     canary: false
     max_cost_usd: 3.0

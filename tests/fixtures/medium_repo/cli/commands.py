@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """CLI command handlers that delegate to the service layer."""
 
 from tests.fixtures.medium_repo.cli.output import print_error, print_info

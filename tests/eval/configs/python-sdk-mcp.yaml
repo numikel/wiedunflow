@@ -1,0 +1,8 @@
+# Release-gate eval config for modelcontextprotocol/python-sdk (primary benchmark).
+# Decision D2: Opus-4-7 for MCP SDK narration to match quality gate rubric.
+llm:
+  narration_model: "claude-opus-4-7"
+  leaf_description_model: "claude-haiku-4-5"
+tutorial:
+  max_lessons: 30
+  target_audience: "mid-level Python developer"

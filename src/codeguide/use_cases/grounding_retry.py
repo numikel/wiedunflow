@@ -18,6 +18,11 @@ __all__ = [
     "truncate_at_sentence_boundary",
 ]
 
+# Type alias used by the orchestrator to receive per-run hallucination data.
+# A list[str] passed by the caller is mutated in-place so the orchestrator
+# accumulates across all lesson calls without changing the return type.
+HallucinationAccumulator = list[str]
+
 logger = structlog.get_logger(__name__)
 
 _MIN_WORDS = 150
@@ -175,6 +180,8 @@ def narrate_with_grounding_retry(
     allowed_symbols: frozenset[str],
     llm: LLMProvider,
     concepts_introduced: tuple[str, ...],
+    *,
+    hallucination_accumulator: HallucinationAccumulator | None = None,
 ) -> Lesson | SkippedLesson:
     """Narrate a single lesson spec with one grounding-reinforcement retry.
 
@@ -201,6 +208,11 @@ def narrate_with_grounding_retry(
         llm: Provider used to call :meth:`~codeguide.interfaces.ports.LLMProvider.narrate`.
         concepts_introduced: Concepts already taught; forwarded verbatim to
             each ``narrate`` call to prevent re-teaching.
+        hallucination_accumulator: Optional mutable list into which any invalid
+            symbol names discovered during either attempt are appended.  The
+            orchestrator passes a shared list to collect per-run hallucination
+            data without changing the return type of this function.  Duplicates
+            are intentionally preserved; deduplication is the caller's concern.
 
     Returns:
         A :class:`~codeguide.entities.lesson.Lesson` on success or a
@@ -226,6 +238,13 @@ def narrate_with_grounding_retry(
         logger.debug("lesson_grounded_first_attempt", lesson_id=spec.id)
         return lesson
 
+    # Push symbols from failed attempt 1 into the orchestrator accumulator so
+    # that even retried-and-recovered lessons contribute to hallucination tracking
+    # (US-065: hallucinated_symbols_count covers all invalid references, not only
+    # those from ultimately-skipped lessons).
+    if hallucination_accumulator is not None and invalid:
+        hallucination_accumulator.extend(invalid)
+
     logger.warning(
         "lesson_grounding_failed_attempt_1",
         lesson_id=spec.id,
@@ -247,8 +266,15 @@ def narrate_with_grounding_retry(
         logger.info("lesson_grounded_after_retry", lesson_id=spec.id)
         return lesson2
 
-    # Both attempts failed — produce SkippedLesson placeholder.
+    # Both attempts failed -- produce SkippedLesson placeholder.
     all_invalid = list({*invalid, *invalid2})
+
+    # Push any new symbols from attempt 2 not already recorded from attempt 1.
+    if hallucination_accumulator is not None:
+        seen_from_attempt1 = set(invalid)
+        for sym in invalid2:
+            if sym not in seen_from_attempt1:
+                hallucination_accumulator.append(sym)
     logger.error(
         "lesson_skipped_grounding_retry_exhausted",
         lesson_id=spec.id,

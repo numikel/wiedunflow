@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Top-level orchestration of the package public API."""
 
 from tests.fixtures.medium_repo.pkg.repositories import OrderRepository, UserRepository

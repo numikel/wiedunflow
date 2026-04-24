@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """In-memory repositories — stand-ins for a real DB layer."""
 
 from tests.fixtures.medium_repo.exceptions import NotFoundError

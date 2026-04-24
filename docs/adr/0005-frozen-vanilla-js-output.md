@@ -56,7 +56,7 @@ The frontend exposes the following module pattern (no ES modules, no imports):
     goToLesson: function(id) { /* ... */ },
     markFavorite: function(id) { /* ... */ }
   };
-  
+
   // Lifecycle
   document.addEventListener('DOMContentLoaded', () => {
     window.Tutorial.init();

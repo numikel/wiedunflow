@@ -1,0 +1,8 @@
+# Release-gate eval config for psf/requests.
+# Overrides: Sonnet narration for cost-optimised non-MCP eval run.
+llm:
+  narration_model: "claude-sonnet-4-6"
+  leaf_description_model: "claude-haiku-4-5"
+tutorial:
+  max_lessons: 30
+  target_audience: "mid-level Python developer"

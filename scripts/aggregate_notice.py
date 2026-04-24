@@ -6,7 +6,10 @@ Used by the release workflow to ensure the project NOTICE file contains
 attribution for every Apache-2.0 dependency we ship with.
 
 Usage:
-    # Write / refresh NOTICE
+    # Write / refresh NOTICE (explicit)
+    uv run python scripts/aggregate_notice.py --write
+
+    # Write / refresh NOTICE (legacy default — same as --write)
     uv run python scripts/aggregate_notice.py
 
     # Release gate: fail if NOTICE is out of date
@@ -24,7 +27,20 @@ _HEADER = """\
 CodeGuide
 Copyright 2026 Michał Kamiński
 
-This product includes software developed by third parties:
+This product includes software developed at Astral (https://astral.sh/)
+(uv, ruff — both licensed under MIT / Apache-2.0).
+
+This product includes the Inter typeface, licensed under SIL OFL 1.1.
+Copyright 2016-2024 The Inter Project Authors (https://github.com/rsms/inter).
+See src/codeguide/renderer/fonts/OFL-Inter.txt for the full license.
+
+This product includes the JetBrains Mono typeface, licensed under SIL OFL 1.1.
+Copyright 2020 The JetBrains Mono Project Authors
+(https://github.com/JetBrains/JetBrainsMono).
+See src/codeguide/renderer/fonts/OFL-JetBrainsMono.txt for the full license.
+
+This product includes software developed by third parties under the Apache-2.0
+license. Their NOTICE attribution blocks follow:
 
 """
 
@@ -34,6 +50,9 @@ def _find_apache_deps() -> list[tuple[str, str]]:
 
     A distribution is considered Apache-2.0 when its ``Classifier`` field
     contains the string ``"Apache"`` or its ``License`` field does.
+
+    The ``codeguide`` package itself is excluded — it is the project being
+    built, not a third-party runtime dependency.
     """
     apache_deps: list[tuple[str, str]] = []
     for dist in metadata.distributions():
@@ -45,11 +64,14 @@ def _find_apache_deps() -> list[tuple[str, str]]:
             continue
         if not name:
             continue
+        # Exclude the project itself — its NOTICE is the file we are writing,
+        # not a third-party attribution block.
+        if name.lower() == "codeguide":
+            continue
         classifiers = dist.metadata.get_all("Classifier") or []
-        try:
-            license_str = dist.metadata["License"] or ""
-        except KeyError:
-            license_str = ""
+        # Use .get() to avoid DeprecationWarning from implicit None returns
+        # on missing keys (importlib.metadata >= 3.12 behaviour change).
+        license_str = dist.metadata.get("License") or ""
         if any("Apache" in c for c in classifiers) or "Apache" in license_str:
             apache_deps.append((name, "Apache-2.0"))
     return sorted(set(apache_deps))
@@ -108,7 +130,10 @@ def aggregate(output_path: Path, *, check: bool = False) -> int:
         else:
             lines.append(f"## {name}\n{notice}\n\n")
 
-    new_content = "".join(lines)
+    # Strip trailing blank lines and ensure exactly one trailing LF so the
+    # file satisfies the `end-of-file-fixer` pre-commit hook (which requires
+    # exactly one newline at EOF) and stays byte-identical on re-runs.
+    new_content = "".join(lines).rstrip("\n") + "\n"
 
     if missing:
         print(
@@ -157,7 +182,17 @@ def main() -> int:
         action="store_true",
         help="Verify that NOTICE is up to date (release gate — exits 1 if not).",
     )
+    parser.add_argument(
+        "--write",
+        action="store_true",
+        help=(
+            "Explicitly regenerate NOTICE in place (same as the default behaviour, "
+            "but makes the intent clear in scripts and CI)."
+        ),
+    )
     args = parser.parse_args()
+    if args.check and args.write:
+        parser.error("--check and --write are mutually exclusive")
     return aggregate(args.output, check=args.check)
 
 

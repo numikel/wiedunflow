@@ -567,6 +567,7 @@ def _run_pipeline(
         skipped_count=len(result.skipped_lessons),
         retry_count=result.retry_count,
         degraded_ratio=result.degraded_ratio,
+        hallucinated_symbols=result.hallucinated_symbols,
     )
 
     click.echo(f"Tutorial written to: {result.output_path}")
@@ -594,10 +595,11 @@ def _write_final_report(
     degraded_ratio: float = 0.0,
     stack_trace: str | None = None,
     failed_at_lesson: str | None = None,
+    hallucinated_symbols: tuple[str, ...] = (),
 ) -> None:
     """Build a ``RunReport`` and write it under ``<repo>/.codeguide/``.
 
-    Silently swallows I/O failures — a crashing run-report writer must never
+    Silently swallows I/O failures -- a crashing run-report writer must never
     mask the underlying pipeline failure the CLI is trying to report.
     """
     try:
@@ -614,6 +616,8 @@ def _write_final_report(
             stack_trace=stack_trace,
             failed_at_lesson=failed_at_lesson,
             degraded_ratio=degraded_ratio,
+            hallucinated_symbols=hallucinated_symbols,
+            hallucinated_symbols_count=len(hallucinated_symbols),
         )
         write_run_report(report, repo_path)
     except Exception as exc:

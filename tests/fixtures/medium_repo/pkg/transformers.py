@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Pure-function transformers over the domain models."""
 
 from tests.fixtures.medium_repo.pkg.models import Order, User

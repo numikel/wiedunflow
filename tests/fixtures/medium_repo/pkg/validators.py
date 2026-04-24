@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Input validators for the service layer."""
 
 from tests.fixtures.medium_repo.exceptions import ValidationError

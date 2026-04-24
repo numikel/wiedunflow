@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Primary CLI dispatch — picks a command and forwards arguments."""
 
 from tests.fixtures.medium_repo.cli.commands import cmd_place_order, cmd_register_user

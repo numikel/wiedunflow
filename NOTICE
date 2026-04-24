@@ -1,18 +1,6 @@
 CodeGuide
 Copyright 2026 Michał Kamiński
 
-This product includes software developed by third parties:
-
-## codeguide
-CodeGuide
-Copyright 2026 Michał Kamiński
-
-This product includes software developed by third parties:
-
-## codeguide
-CodeGuide
-Copyright 2026 Michał Kamiński
-
 This product includes software developed at Astral (https://astral.sh/)
 (uv, ruff — both licensed under MIT / Apache-2.0).
 
@@ -25,102 +13,8 @@ Copyright 2020 The JetBrains Mono Project Authors
 (https://github.com/JetBrains/JetBrainsMono).
 See src/codeguide/renderer/fonts/OFL-JetBrainsMono.txt for the full license.
 
-[Auto-aggregated Apache-2.0 dependency notices will be appended here
- by the release workflow in Sprint 7 (per FR-72 / US-062).]
-
-
-## coverage
-(no NOTICE file found in distribution)
-
-## cyclonedx-python-lib
-CycloneDX Python Lib
-Copyright (c) OWASP Foundation
-
-This product includes software developed by the
-CycloneDX community (https://cyclonedx.org/).
-
-
-## distro
-(no NOTICE file found in distribution)
-
-## license-expression
-#
-
-# Copyright (c) nexB Inc. and others.
-
-# SPDX-License-Identifier: Apache-2.0
-
-#
-
-# Visit https://aboutcode.org and https://github.com/aboutcode-org/license-expression
-
-# for support and download.
-
-#
-
-# Licensed under the Apache License, Version 2.0 (the "License");
-
-# you may not use this file except in compliance with the License.
-
-# You may obtain a copy of the License at
-
-#
-
-# http://www.apache.org/licenses/LICENSE-2.0
-
-#
-
-# Unless required by applicable law or agreed to in writing, software
-
-# distributed under the License is distributed on an "AS IS" BASIS,
-
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-
-# See the License for the specific language governing permissions and
-
-# limitations under the License.
-
-#
-
-
-## openai
-(no NOTICE file found in distribution)
-
-## pip-api
-(no NOTICE file found in distribution)
-
-## pip_audit
-(no NOTICE file found in distribution)
-
-## py-serializable
-(no NOTICE file found in distribution)
-
-## pytest-playwright
-(no NOTICE file found in distribution)
-
-## rank-bm25
-(no NOTICE file found in distribution)
-
-## requests
-Requests
-Copyright 2019 Kenneth Reitz
-
-
-## sniffio
-(no NOTICE file found in distribution)
-
-## sortedcontainers
-(no NOTICE file found in distribution)
-
-## structlog
-structlog
-Copyright 2013 Hynek Schlawack and the structlog contributors
-
-
-## tenacity
-(no NOTICE file found in distribution)
-
-
+This product includes software developed by third parties under the Apache-2.0
+license. Their NOTICE attribution blocks follow:
 
 ## coverage
 (no NOTICE file found in distribution)
@@ -212,4 +106,3 @@ Copyright 2013 Hynek Schlawack and the structlog contributors
 
 ## tenacity
 (no NOTICE file found in distribution)
-

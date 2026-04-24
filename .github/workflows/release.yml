@@ -3,9 +3,11 @@
 # Triggered ONLY on semantic-version tags (v*.*.*) or manual dispatch.
 # It does NOT run on every push — CI coverage is handled by ci.yml.
 #
-# Jobs:
-#   pip-audit  — run pip-audit against OSV; block release on HIGH+ (no-fix) vulns.
-#   notice-check — verify NOTICE is up to date with aggregate_notice.py.
+# Jobs (in order):
+#   pip-audit        — run pip-audit against OSV; block on HIGH+ (no-fix) vulns.
+#   notice-check     — hard gate: NOTICE must match aggregate_notice.py output.
+#   build-artifacts  — uv build sdist+wheel; upload as GH artifact.
+#   create-release   — create GitHub Release with dist/* assets (tag-only).
 #
 # Note: jq is pre-installed on ubuntu-latest GitHub Actions runners.
 
@@ -24,6 +26,7 @@ jobs:
   pip-audit:
     name: pip-audit (OSV)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v6
@@ -74,15 +77,12 @@ jobs:
           fi
 
   notice-check:
-    name: NOTICE aggregation check
+    name: NOTICE aggregation check (hard gate)
     runs-on: ubuntu-latest
-    # Drift between the committed NOTICE and a CI-generated NOTICE is a
-    # soft signal for MVP: the committed file still reflects every runtime
-    # dep we ship, but metadata enumeration on ubuntu-latest can surface
-    # deps hidden by the developer's local Python interpreter. Treat as
-    # warning, not release blocker — Sprint 7 will switch to a uv-lock
-    # based generator that is deterministic across platforms.
-    continue-on-error: true
+    timeout-minutes: 15
+    # Hard gate per US-062 AC: the release is blocked if the committed NOTICE
+    # does not match what aggregate_notice.py --write would produce.
+    # Regenerate locally with: uv sync --no-dev && uv run python scripts/aggregate_notice.py --write
 
     steps:
       - uses: actions/checkout@v6
@@ -98,13 +98,71 @@ jobs:
         # are not shipped with end-user wheels.
         run: uv sync --no-dev
 
-      - name: Verify NOTICE is up to date
-        # Emits a warning (not a hard failure) on drift because importlib
-        # metadata enumeration can see slightly different Apache-2.0 deps
-        # on different Python interpreters / platforms. The committed
-        # NOTICE is the source of truth until Sprint 7 replaces this with
-        # a uv-lock based generator.
-        run: |
-          if ! uv run python scripts/aggregate_notice.py --check --output NOTICE; then
-            echo "::warning::NOTICE drift detected — regenerate with 'uv sync --no-dev && uv run python scripts/aggregate_notice.py' before release"
-          fi
+      - name: Verify NOTICE is up to date (hard gate)
+        # Exits 1 if the committed NOTICE differs from what the script would
+        # generate. Fix locally: uv sync --no-dev && uv run python scripts/aggregate_notice.py --write
+        run: uv run python scripts/aggregate_notice.py --check --output NOTICE
+
+  build-artifacts:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [pip-audit, notice-check]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version: "3.12"
+
+      - name: Install runtime dependencies only
+        run: uv sync --no-dev
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Verify dist artifacts exist
+        run: ls -lh dist/
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-dist
+          path: dist/
+          retention-days: 90
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-artifacts]
+    # Only create a release when this workflow was triggered by a version tag.
+    # workflow_dispatch without a tag will build artifacts but skip this job.
+    if: github.ref_type == 'tag'
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: release-dist
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
+          generate_release_notes: true
+          body_path: .github/release-notes-template.md

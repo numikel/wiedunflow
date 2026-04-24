@@ -362,12 +362,12 @@ TUTORIAL_LESSONS = [
     word_count: number,
     confidence: "HIGH" | "MEDIUM" | "LOW",
     status: "ok" | "skipped",
-    
+
     narration: [
       { kind: "p", text: string },  // HTML-safe; <code> and <em> allowed inline
       // more paragraph objects...
     ],
-    
+
     code: {
       file: string,              // e.g. "src/client/models.py"
       lang: string,              // "python" (for display)
@@ -555,7 +555,7 @@ Boxed panel using `rich.panel.Panel(box=rich.box.HEAVY)`:
 ┃ Runtime est. 18-26 min · 12 lessons across 4 clusters   ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-Proceed? [y/N] 
+Proceed? [y/N]
 ```
 
 **Logic:**
@@ -821,7 +821,7 @@ Report status: **failed**, left border color: red. Retain partial artefacts in `
 User types `n` or presses `<Enter>` at cost-gate prompt:
 
 ```
-Proceed? [y/N] 
+Proceed? [y/N]
 
 aborted by user. no API calls were made.
 total cost: $0.00 · elapsed 0:08

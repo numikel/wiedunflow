@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Application-wide configuration constants."""
 
 DEFAULT_TIMEOUT_SECONDS = 30

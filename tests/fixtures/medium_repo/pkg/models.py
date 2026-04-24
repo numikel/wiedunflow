@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Data models shared across the service layer."""
 
 from dataclasses import dataclass

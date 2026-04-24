@@ -40,7 +40,7 @@ class RunReport(BaseModel):
         skipped_lessons_count: Count of lessons that failed grounding retry
             and were rendered as placeholders (US-031).
         retry_count: Number of lessons that required a grounding retry
-            (regardless of final outcome — see US-030 AC2).
+            (regardless of final outcome -- see US-030 AC2).
         cache_hit_rate: Ratio ``cached / (cached + computed)`` for the S5/S6
             cache.  ``0.0`` on the first run for a given ``(repo, commit)``.
         total_cost_usd: Aggregate LLM cost in USD across all providers.
@@ -50,6 +50,12 @@ class RunReport(BaseModel):
             unless ``status == "failed"``.
         provider: ``"anthropic" | "openai" | "openai_compatible" | "fake"``.
         degraded_ratio: Exact ratio ``skipped / total_planned`` (0.0 to 1.0).
+        hallucinated_symbols_count: Total count of symbol names that appeared in
+            any LLM narration attempt but were absent from the AST snapshot.
+            Covers both attempt-1 failures (including those recovered after
+            retry) and attempt-2 failures.  The hard-pass gate is 0 (US-065).
+        hallucinated_symbols: Deduplicated, sorted list of the offending symbol
+            names.  Empty list when ``hallucinated_symbols_count == 0``.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -67,6 +73,8 @@ class RunReport(BaseModel):
     failed_at_lesson: str | None = None
     stack_trace: str | None = None
     degraded_ratio: float = Field(ge=0.0, le=1.0, default=0.0)
+    hallucinated_symbols_count: int = Field(ge=0, default=0)
+    hallucinated_symbols: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def _check_consistency(self) -> RunReport:
@@ -85,6 +93,11 @@ class RunReport(BaseModel):
             )
         if self.finished_at < self.started_at:
             raise ValueError("finished_at must be >= started_at")
+        if self.hallucinated_symbols_count != len(self.hallucinated_symbols):
+            raise ValueError(
+                "hallucinated_symbols_count must equal len(hallucinated_symbols) "
+                f"({self.hallucinated_symbols_count} != {len(self.hallucinated_symbols)})"
+            )
         return self
 
     def exit_code(self) -> int:
