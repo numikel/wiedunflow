@@ -86,8 +86,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      - name: Install project + dev dependencies
-        run: uv sync --all-extras --dev
+      - name: Install runtime dependencies only
+        # NOTICE aggregates Apache-2.0 *runtime* deps only — installing dev
+        # extras would surface pytest/ruff/pip-audit NOTICE requirements that
+        # are not shipped with end-user wheels.
+        run: uv sync --no-dev
 
       - name: Verify NOTICE is up to date
         # Fails with exit code 1 if the committed NOTICE does not match what
