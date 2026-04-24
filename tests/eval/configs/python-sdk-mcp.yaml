@@ -4,8 +4,11 @@ llm:
   narration_model: "claude-opus-4-7"
   leaf_description_model: "claude-haiku-4-5"
 tutorial:
-  # MCP SDK is large (187 .py files); cap lessons at 15 so the planning
-  # manifest fits comfortably under the Sonnet output budget and the
-  # tutorial reads as a curated tour rather than 30 shallow chapters.
-  max_lessons: 15
+  # MCP SDK is large (187 .py files). On Anthropic Tier 1 (8K OTPM cap on
+  # Sonnet), a planning response has to fit in a single 8K-token budget or
+  # the request trips rate limits. 10 curated lessons keep the manifest
+  # well under 8K output tokens (~300 tokens per lesson × 10 ≈ 3K) and
+  # still give reviewers a coherent tour during rubric sign-off.
+  # Accounts on Tier 2+ can raise this to 15-20.
+  max_lessons: 10
   target_audience: "mid-level Python developer"

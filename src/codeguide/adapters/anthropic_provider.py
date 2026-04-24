@@ -50,7 +50,7 @@ class AnthropicProvider:
         model_describe: str = "claude-haiku-4-5",
         max_retries: int = 5,
         max_wait_s: int = 60,
-        max_tokens_plan: int = 16000,
+        max_tokens_plan: int = 8000,
         max_tokens_narrate: int = 4000,
         max_tokens_describe: int = 300,
     ) -> None:
