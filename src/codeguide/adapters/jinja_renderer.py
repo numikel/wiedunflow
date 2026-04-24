@@ -24,9 +24,31 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from codeguide import __version__ as _codeguide_version
 from codeguide.adapters.pygments_highlighter import highlight_python
 
+
+class _OfflineHTMLRenderer(mistune.HTMLRenderer):
+    """Markdown HTML renderer that preserves the ``file://`` offline invariant.
+
+    CodeGuide tutorials must not contain any external URLs (FR-14 / US-040).
+    Opus narration occasionally cites external docs as markdown links; rendering
+    them as ``<a href="https://...">`` trips ``validate_offline_invariant``.
+    We strip the href and emit the link text only. Images are dropped entirely
+    (alt text kept so the reader still gets context).
+    """
+
+    def link(self, text: str, url: str, title: str | None = None) -> str:        # Drop href; keep visible text so narrative still reads naturally.
+        return text
+
+    def image(self, text: str, url: str, title: str | None = None) -> str:        # Replace with alt text in italics; no external resource fetch.
+        return f"<em>{text}</em>" if text else ""
+
+
 # Module-level markdown parser. `escape=True` prevents lesson authors (LLM) from
 # injecting raw HTML into the output; we only trust the markdown syntax itself.
-_markdown_to_html = mistune.create_markdown(escape=True, hard_wrap=False)
+# Default `plugins=None` keeps auto-linking disabled; our custom renderer also
+# strips any explicit `[text](url)` href.
+_markdown_to_html = mistune.create_markdown(
+    escape=True, hard_wrap=False, renderer=_OfflineHTMLRenderer()
+)
 
 if TYPE_CHECKING:
     from codeguide.entities.code_symbol import CodeSymbol
