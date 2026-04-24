@@ -114,7 +114,7 @@ def test_plan_uses_sonnet_model(mock_cls, monkeypatch):
     assert mock_client.messages.create.call_count == 1
     kwargs = mock_client.messages.create.call_args.kwargs
     assert kwargs["model"] == "claude-sonnet-4-6"
-    assert kwargs["max_tokens"] == 8000
+    assert kwargs["max_tokens"] == 16000
     assert kwargs["messages"] == [{"role": "user", "content": "some outline text"}]
     assert isinstance(manifest, LessonManifest)
     assert len(manifest.lessons) == 1

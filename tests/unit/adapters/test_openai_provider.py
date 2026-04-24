@@ -188,7 +188,7 @@ def test_plan_uses_model_plan(mock_cls, monkeypatch):
     assert mock_client.chat.completions.create.call_count == 1
     kwargs = mock_client.chat.completions.create.call_args.kwargs
     assert kwargs["model"] == "gpt-4o"
-    assert kwargs["max_tokens"] == 8000
+    assert kwargs["max_tokens"] == 16000
     assert kwargs["response_format"] == {"type": "json_object"}
     assert isinstance(manifest, LessonManifest)
     assert len(manifest.lessons) == 1

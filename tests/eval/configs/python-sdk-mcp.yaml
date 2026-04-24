@@ -4,5 +4,8 @@ llm:
   narration_model: "claude-opus-4-7"
   leaf_description_model: "claude-haiku-4-5"
 tutorial:
-  max_lessons: 30
+  # MCP SDK is large (187 .py files); cap lessons at 15 so the planning
+  # manifest fits comfortably under the Sonnet output budget and the
+  # tutorial reads as a curated tour rather than 30 shallow chapters.
+  max_lessons: 15
   target_audience: "mid-level Python developer"
