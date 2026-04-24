@@ -20,3 +20,10 @@ include_patterns: []
 # Planning
 max_lessons: 30                # hard cap per FR-35
 target_audience: "mid-level Python developer"
+
+# Security (Sprint 6 / v0.0.6)
+# Hard-refuse list (.env*, *.pem, id_rsa, credentials.*, ...) excludes matching
+# files from ingestion regardless of include/exclude. The only escape hatch is
+# this allow-list — add filenames explicitly to keep them in the tutorial.
+security:
+  allow_secret_files: []         # e.g. [".env.example"] to include dotenv docs
