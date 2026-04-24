@@ -191,6 +191,28 @@ target_audience: "mid-level Python developer"
 Full configuration reference and environment variables: see [docs/config-reference.md](docs/config-reference.md)
 (available from Sprint 1).
 
+## Configuration precedence
+
+CodeGuide resolves every configurable value through a strict chain:
+
+| Priority | Source                                                                                                              | Override mechanism                          |
+|---------:|---------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
+| 1 (top)  | CLI flags                                                                                                           | `--provider=openai`                         |
+| 2        | Environment variables (`CODEGUIDE_*`, `*_API_KEY`)                                                                  | `ANTHROPIC_API_KEY=...`                     |
+| 3        | `--config <path>` YAML                                                                                              | `--config ./custom.yaml`                    |
+| 4        | Project config `./tutorial.config.yaml`                                                                             | commit to repo                              |
+| 5        | User-level config (`~/.config/codeguide/config.yaml` on Linux/macOS, `%APPDATA%\codeguide\config.yaml` on Windows) | run `codeguide init`                        |
+| 6 (bottom)| Built-in defaults                                                                                                  | code constant                               |
+
+Run with `--log-format=json` and `DEBUG` level to see which source supplied each value:
+
+```
+ts=... level=debug msg="config resolved: llm_provider=openai from cli"
+ts=... level=debug msg="config resolved: llm_model_plan=claude-sonnet-4-6 from default"
+```
+
+Full precedence specification: [docs/config-precedence.md](docs/config-precedence.md).
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
