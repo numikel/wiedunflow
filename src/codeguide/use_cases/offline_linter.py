@@ -15,12 +15,32 @@ class OfflineLinterError(Exception):
         )
 
 
+# Offline invariant: the rendered HTML must not trigger any network request
+# when opened via `file://`. Plain-text mentions of a URL in narration or
+# inside a syntax-highlighted code block do NOT cause a fetch — only
+# resource-loading attributes (`src=`, `href=`, CSS `url(...)`, `@import`) do.
+# The earlier blanket `https?://` regex flagged legitimate prose citations
+# (e.g. "see https://docs.python.org/..." written by Opus) and broke builds.
 _DISALLOWED_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("fetch() call", re.compile(r"fetch\s*\(")),
     ("new Image() constructor", re.compile(r"new\s+Image\s*\(")),
     ("prefetch link", re.compile(r'<link[^>]+rel=["\']prefetch["\']')),
     ("preconnect link", re.compile(r'<link[^>]+rel=["\']preconnect["\']')),
-    ("external http/https URL", re.compile(r"https?://(?!localhost)(?!127\.0\.0\.1)")),
+    (
+        "external http/https URL",
+        re.compile(
+            r"""(?:src|href|action|formaction|background|cite|poster|manifest|"""
+            r"""ping|preload|xmlns|srcset)\s*=\s*["']?https?://(?!localhost)(?!127\.0\.0\.1)""",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "external CSS resource URL",
+        re.compile(
+            r"""(?:url|@import)\s*\(?\s*["']?https?://(?!localhost)(?!127\.0\.0\.1)""",
+            re.IGNORECASE,
+        ),
+    ),
 ]
 
 

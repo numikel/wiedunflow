@@ -35,3 +35,24 @@ def test_clean_html_passes() -> None:
 def test_localhost_url_allowed() -> None:
     html = '<html><body><a href="http://localhost:8080">local</a></body></html>'
     validate_offline_invariant(html)  # localhost is whitelisted
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        # Plain-text URL in narration — no fetch, should NOT raise.
+        "<p>See https://docs.python.org/3/library/functions.html for details.</p>",
+        # URL inside a syntax-highlighted code block — pedagogical example.
+        '<pre><code>url = "https://api.example.com"</code></pre>',
+        # URL in a blockquote quoting external docs.
+        "<blockquote>From https://example.com: Python is a language.</blockquote>",
+    ],
+)
+def test_plain_text_url_allowed(snippet: str) -> None:
+    """Plain-text URL mentions must not trip the offline invariant (FR-14).
+
+    Only resource-loading attributes (`src=`, `href=`, CSS `url(...)`) cause
+    network requests; narration and code examples are safe.
+    """
+    html = f"<html><body>{snippet}</body></html>"
+    validate_offline_invariant(html)  # should not raise
