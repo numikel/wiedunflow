@@ -155,6 +155,27 @@
     return -1;
   }
 
+  function scrollHighlightIntoView() {
+    // After renderCode, bring the first highlighted row into view so nav
+    // feels responsive (US-040/045 spirit — lesson switch must move focus).
+    var codePane = document.getElementById("tutorial-code");
+    var first = codePane && codePane.querySelector(".code-row.hl");
+    if (first && typeof first.scrollIntoView === "function") {
+      first.scrollIntoView({ block: "center", behavior: "auto" });
+    } else if (codePane) {
+      codePane.scrollTop = 0;
+    }
+  }
+
+  function updateNavButtons(idx, total) {
+    var prev = document.getElementById("tutorial-prev");
+    var next = document.getElementById("tutorial-next");
+    var label = document.getElementById("tutorial-progress-label");
+    if (prev) { prev.disabled = idx <= 0; }
+    if (next) { next.disabled = idx >= total - 1; }
+    if (label) { label.textContent = (idx + 1) + "/" + total; }
+  }
+
   function navigateTo(lessons, repoId, id, options) {
     options = options || {};
     var idx = indexOfLesson(lessons, id);
@@ -164,9 +185,30 @@
     }
     var lesson = lessons[idx];
     renderNarration(lesson); renderCode(lesson); setActiveLink(id); updateProgress(idx, lessons.length);
+    updateNavButtons(idx, lessons.length);
+    scrollHighlightIntoView();
     if (!options.fromHash) { location.hash = "#/lesson/" + id; }
     writeStorage("codeguide:" + repoId + ":last-lesson", id);
     CodeGuide._activeIndex = idx; CodeGuide._activeId = id;
+  }
+
+  function initNavButtons(lessons, repoId) {
+    var prev = document.getElementById("tutorial-prev");
+    var next = document.getElementById("tutorial-next");
+    if (prev) {
+      prev.addEventListener("click", function () {
+        if (CodeGuide._activeIndex > 0) {
+          navigateTo(lessons, repoId, lessonIdFromIndex(lessons, CodeGuide._activeIndex - 1), {});
+        }
+      });
+    }
+    if (next) {
+      next.addEventListener("click", function () {
+        if (CodeGuide._activeIndex < lessons.length - 1) {
+          navigateTo(lessons, repoId, lessonIdFromIndex(lessons, CodeGuide._activeIndex + 1), {});
+        }
+      });
+    }
   }
 
   function initTOC(clusters, lessons, repoId) {
@@ -307,6 +349,7 @@
     initSplitter();
     initScrollSync();
     initArrowNav(lessons, repoId);
+    initNavButtons(lessons, repoId);
     initHashRouting(lessons, repoId);
     initTweaksPanel();
 

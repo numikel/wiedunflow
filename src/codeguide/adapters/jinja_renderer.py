@@ -56,9 +56,9 @@ if TYPE_CHECKING:
     from codeguide.entities.lesson import Lesson
     from codeguide.entities.lesson_plan import LessonPlan
 
-# Max lines shown in the code panel per lesson. Start at symbol.lineno-1 and slice
-# forward; keeps the panel readable without needing full end_lineno tracking.
-_CODE_SNIPPET_MAX_LINES = 40
+# Hard ceiling for a single code-panel render (very large files can inflate HTML
+# size past the 8 MB PERFORMANCE_BUDGETS target; clamp here as a safety net).
+_CODE_SNIPPET_FILE_LINE_CAP = 2000
 
 
 _RENDERER_DIR = Path(__file__).parent.parent / "renderer"
@@ -112,21 +112,24 @@ def _build_code_snippet(
             text = file_abs.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        all_lines = text.splitlines()
-        start_idx = max(symbol.lineno - 1, 0)
-        slice_lines = all_lines[start_idx : start_idx + _CODE_SNIPPET_MAX_LINES]
-        if not slice_lines:
+        all_lines = text.splitlines()[:_CODE_SNIPPET_FILE_LINE_CAP]
+        if not all_lines:
             continue
         lang = "python" if symbol.file_path.suffix == ".py" else "text"
         highlighted_lines = [
-            highlight_python(line) if lang == "python" else line for line in slice_lines
+            highlight_python(line) if lang == "python" else line for line in all_lines
         ]
+        # Highlight the full symbol body (decl line … end_lineno inclusive).
+        # Falls back to a single-line highlight when the parser did not report
+        # an end position (e.g. Jedi-only resolution for dynamic imports).
+        end = symbol.end_lineno if symbol.end_lineno is not None else symbol.lineno
+        highlight_range = list(range(symbol.lineno, min(end, len(all_lines)) + 1))
         return {
             "file": str(symbol.file_path).replace("\\", "/"),
             "lang": lang,
             "lines": highlighted_lines,
-            "highlight": [1],  # first line = declaration, visually anchor it
-            "start_line": symbol.lineno,
+            "highlight": highlight_range,
+            "start_line": 1,  # full file — gutter starts at line 1
         }
     return None
 

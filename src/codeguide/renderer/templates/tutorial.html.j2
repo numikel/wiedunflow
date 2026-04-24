@@ -32,6 +32,11 @@
     <div class="breadcrumb">{{ repo_name }}
       {%- if run_status == "degraded" %} · <span>DEGRADED</span>{% endif -%}
     </div>
+    <div class="nav-group" role="group" aria-label="Lesson navigation">
+      <button id="tutorial-prev" class="nav-btn" type="button" aria-label="Previous lesson" disabled>&#8592; Prev</button>
+      <span id="tutorial-progress-label" class="progress-label" aria-live="polite"></span>
+      <button id="tutorial-next" class="nav-btn" type="button" aria-label="Next lesson" disabled>Next &#8594;</button>
+    </div>
     <button id="tweaks-open" class="icon-btn" aria-label="Tutorial tweaks" type="button">&#9881;</button>
   </header>
 

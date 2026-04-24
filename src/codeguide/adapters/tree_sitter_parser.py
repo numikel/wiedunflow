@@ -229,6 +229,7 @@ def _walk_defs(
             docstring = _extract_docstring(child, source)
             kind = _node_kind(child_type)
             row, _ = child.start_point
+            end_row, _ = child.end_point
 
             out.append(
                 CodeSymbol(
@@ -236,6 +237,7 @@ def _walk_defs(
                     kind=kind,
                     file_path=rel_path,
                     lineno=row + 1,
+                    end_lineno=end_row + 1,
                     docstring=docstring,
                     is_dynamic_import=False,
                     is_uncertain=False,

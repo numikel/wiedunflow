@@ -19,6 +19,7 @@ class CodeSymbol(BaseModel):
     kind: SymbolKind
     file_path: Path  # relative to repo root
     lineno: int  # 1-indexed
+    end_lineno: int | None = None  # 1-indexed; None for parsers that do not report span
     docstring: str | None = None
     is_uncertain: bool = False  # True for dynamic imports, reflection, runtime polymorphism
     is_dynamic_import: bool = False  # subset of is_uncertain — specifically importlib/__import__
