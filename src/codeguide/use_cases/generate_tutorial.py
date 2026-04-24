@@ -118,6 +118,7 @@ class GenerationResult(BaseModel):
     degraded_ratio: float
     total_planned: int
     retry_count: int
+    hallucinated_symbols: tuple[str, ...] = ()
 
 
 @dataclass
@@ -128,6 +129,7 @@ class _StageGenerationOutput:
     skipped: list[SkippedLesson] = field(default_factory=list)
     retry_count: int = 0
     concepts_introduced: tuple[str, ...] = ()
+    hallucinated_symbols: list[str] = field(default_factory=list)
 
 
 def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally long
@@ -367,6 +369,8 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
     )
     output_path.write_text(html, encoding="utf-8")
     _std_logger.info("Tutorial written to %s", output_path)
+    # Deduplicate and sort hallucinated symbols for deterministic output.
+    deduped_hallucinations = tuple(sorted(set(generation_result.hallucinated_symbols)))
     return GenerationResult(
         output_path=output_path,
         skipped_lessons=tuple(skipped_lessons),
@@ -374,6 +378,7 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         degraded_ratio=degraded_ratio,
         total_planned=total_planned,
         retry_count=generation_result.retry_count,
+        hallucinated_symbols=deduped_hallucinations,
     )
 
 
@@ -559,7 +564,11 @@ def _stage_generation(
             # before re-raising KeyboardInterrupt.
             raise KeyboardInterrupt("SIGINT received during generation stage")
         result = narrate_with_grounding_retry(
-            spec, allowed_symbols, llm, output.concepts_introduced
+            spec,
+            allowed_symbols,
+            llm,
+            output.concepts_introduced,
+            hallucination_accumulator=output.hallucinated_symbols,
         )
 
         if isinstance(result, SkippedLesson):
@@ -586,9 +595,14 @@ def _stage_generation(
 
     # --- Closing lesson (US-049) — always +1 beyond cap ---
     closing_spec = _build_closing_spec(manifest, ingestion, repo_path, ranked)
-    # Closing lesson: empty allowed_symbols → grounding validation skipped.
+    # Closing lesson: empty allowed_symbols -> grounding validation skipped.
+    # Still thread the accumulator so word-count retries are visible.
     closing_result = narrate_with_grounding_retry(
-        closing_spec, frozenset(), llm, output.concepts_introduced
+        closing_spec,
+        frozenset(),
+        llm,
+        output.concepts_introduced,
+        hallucination_accumulator=output.hallucinated_symbols,
     )
     if isinstance(closing_result, SkippedLesson):
         # Closing lesson failed — render placeholder (still append, no DEGRADED impact).

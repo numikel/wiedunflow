@@ -6,6 +6,33 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-04-24 — Release Candidate + Release Gate (Sprint 7)
+
+### Added
+- Full eval corpus pinned as git submodules (5 repos: requests, click, starlette, MCP Python SDK, dateutil) — `tests/eval/corpus/repos/`.
+- `tests/eval/test_release_gate.py` — release-gate suite gated by `pytest -m eval` (US-064, US-065).
+- `hallucinated_symbols_count` and `hallucinated_symbols` fields in `run-report.json` (backward-compatible addition per ADR-0009).
+- `docs/rubric/RUBRIC.md` + `docs/rubric/v0.1.0/` — rubric scoring template, reviewer kit, author + 2 trusted-friends sign-off archive (US-066, FR-76).
+- `scripts/aggregate_rubric.py` — rubric gate enforcement (exit 1 if avg <3.0 or <3 reviewers).
+- `tests/eval/configs/*.yaml` — per-repo model routing overrides (MCP → Opus-4-7, others → Sonnet-4-6).
+- Release workflow: `uv build` → sdist + wheel uploaded as GitHub Release assets (US-062, US-067).
+- `.github/release-notes-template.md` — structured release notes placeholder.
+
+### Changed
+- PRD `.ai/prd.md` 0.1.2-draft → 0.1.0 (MVP specification locked; subsequent changes bump to 0.1.1-draft).
+- Tech stack `.ai/tech-stack.md` 0.1.2-draft → 0.1.0 (aligned with product version).
+- `pyproject.toml` version 0.0.6 → 0.1.0.
+- Release workflow: NOTICE check promoted from soft warning to hard gate (US-062).
+- CI matrix: `fail-fast: false`, `timeout-minutes: 15` per job.
+
+### Security
+- `pip-audit` runs on every tag push and blocks release on HIGH+ unfixed vulnerabilities (US-067).
+- NOTICE auto-aggregation gate enforces Apache-2.0 dependency attribution at release time (US-062).
+
+### Migration notes
+- Install: `uv pip install git+https://github.com/numikel/codeguide@v0.1.0` (no PyPI publish in MVP per FR-03; see roadmap for v0.2.0).
+- Existing `run-report.json` consumers: new fields are additive. Schema version remains 1.0.0.
+
 ## [0.0.6] - 2026-04-24 — Privacy + Config + Hardening (Sprint 6)
 
 ### BREAKING
@@ -86,7 +113,7 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`ensure_gitignore_entry`** (`cli.main`) — idempotent `.codeguide/` append on every run, creates `.gitignore` when absent (US-057).
 - **`rotate_run_report_history`** (`cli.main`) — bridges the CLI into the history rotator; failure is logged at `warning` and never blocks the pipeline (US-058).
 - **ADR-0009** — Output JSON schema v1.0.0 with DOM-ID contract, JS namespace (`window.CodeGuide.init()` / `_errors`), localStorage keys, and forward-compat strategy.
-- **Sprint 5 test suites (Track A + B + C)**: 
+- **Sprint 5 test suites (Track A + B + C)**:
   - `tests/unit/cli/` — `test_output_color_roles`, `test_logging_json_format`, `test_no_rich_outside_output` (decision #6 lint), `test_cost_estimator`, `test_cost_gate_panel`, `test_run_card_rendering`, `test_osc8_hyperlink`, `test_editor_resolver`, `test_history_rotation`, `test_gitignore_append`.
   - `tests/unit/adapters/` — `test_html_external_deps_linter`, `test_html_size_validator`, `test_pygments_noclasses` (retargeted at `.tok-*` output).
   - `tests/unit/entities/` — `test_narration_segments`.

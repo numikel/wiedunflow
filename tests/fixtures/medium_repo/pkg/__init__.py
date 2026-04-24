@@ -1,1 +1,3 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Core business-logic package."""

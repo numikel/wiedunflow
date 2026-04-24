@@ -1,0 +1,8 @@
+# Release-gate eval config for pallets/click (canary repo).
+# Overrides: use Sonnet (cost-optimised) for non-MCP repos.
+llm:
+  narration_model: "claude-sonnet-4-6"
+  leaf_description_model: "claude-haiku-4-5"
+tutorial:
+  max_lessons: 30
+  target_audience: "mid-level Python developer"

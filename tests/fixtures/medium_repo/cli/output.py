@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Terminal output helpers for the CLI."""
 
 from tests.fixtures.medium_repo.utils.logging_helpers import log_line

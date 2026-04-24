@@ -1,9 +1,11 @@
 # Tech Stack - CodeGuide
 
-Wersja dokumentu: 0.1.2-draft
-Ostatnia aktualizacja: 2026-04-19
+Wersja dokumentu: 0.1.0
+Ostatnia aktualizacja: 2026-04-24
 Właściciel: Michał Kamiński
-Wydanie docelowe: CodeGuide v0.1.0 (MVP)
+Wydanie docelowe: CodeGuide v0.1.0 (MVP) — zamknięty
+
+> **Lock wersji (2026-04-24)**: Tech-stack MVP zamknięty na v0.1.0. Późniejsze doprecyzowania jako `0.1.1-draft` (patch), większe zmiany technologiczne na `0.2.0-draft` (roadmap).
 
 Dokument opisuje proponowany stos technologiczny dla CodeGuide v0.1.0 zgodnie z wymaganiami `.ai/prd.md`. Każdy wybór jest zakotwiczony w konkretnym wymaganiu funkcjonalnym (FR-XX) lub ograniczeniu produktu.
 

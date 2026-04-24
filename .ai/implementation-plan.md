@@ -79,7 +79,7 @@ Nie są to US z PRD, to infrastruktura pre-dev (wymuszona przez FR-02, FR-04, FR
 - **T-000.11** `.gitignore` update: `.codeguide/`, `.venv/`, `__pycache__/`, `*.egg-info`, `dist/`, `build/`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`.
 - **T-000.12** ADR-0003 — Clean Architecture layering (entities/use_cases/interfaces/adapters/cli) — zrealizować w `docs/adr/`.
 - **T-000.13** ADR-0004 — UV-exclusive toolchain i wykluczenie pip/pipx/poetry/hatch.
-- **T-000.14** — Extract web fonts and design tokens stub  
+- **T-000.14** — Extract web fonts and design tokens stub
 _Owner: python-pro_
 
   - Download Inter 400/500/600/700 + JetBrains Mono 400/500/600 WOFF2 files (OFL-licensed, from Google Fonts or fontsource)
@@ -541,7 +541,7 @@ W każdym sprincie S2-S7 identyfikuję 2-3 niezależne tracks (A/B/C). Delegacja
 - `isolation: worktree` w Agent tool nie izoluje file writes — agents use Write/Edit na CWD
 
 ### Wnioski dla następnej sesji
-- Sprint 1: Walking Skeleton — `python-pro` + `test-automator`. Trigger: "Zaimplementuj Sprint 1" 
+- Sprint 1: Walking Skeleton — `python-pro` + `test-automator`. Trigger: "Zaimplementuj Sprint 1"
 - Przed pushem v0.0.0 tag: `git worktree remove -f -f D:/CodeGuide/.claude/worktrees/agent-*`
 - Commit flow: `git checkout -b chore/sprint-0-scaffold && git add ... && git commit -s -m "chore(config): ..."`
 - Pre-commit autoupdate po pierwszym commit (pin najnowsze rev)

@@ -1,9 +1,11 @@
 # Product Requirements Document (PRD) - CodeGuide
 
-Document version: 0.1.2-draft
-Last updated: 2026-04-19
+Document version: 0.1.0
+Last updated: 2026-04-24
 Owner: Michał Kamiński
-Target release: CodeGuide v0.1.0 (MVP)
+Target release: CodeGuide v0.1.0 (MVP) — locked
+
+> **Version lock note (2026-04-24)**: MVP specification is locked at v0.1.0. Subsequent refinements bump to `0.1.1-draft` and ship as patch releases; breaking spec changes move to `0.2.0-draft` on a roadmap branch.
 
 ## 1. Product Overview
 

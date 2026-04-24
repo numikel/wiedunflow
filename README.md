@@ -311,6 +311,16 @@ ts=... level=debug msg="config resolved: llm_model_plan=claude-sonnet-4-6 from d
 
 Full precedence specification: [docs/config-precedence.md](docs/config-precedence.md).
 
+## Known limitations
+
+The following limitations are acknowledged in v0.1.0 and prioritized for v0.2.0:
+
+- **Language support**: Python only. TypeScript, JavaScript, Go, and other languages are planned for v0.2.0.
+- **Narration language**: English only. Non-English language support and i18n infrastructure are deferred to v0.2.0.
+- **Dynamic constructs**: Dynamic imports, runtime polymorphism, reflection, and metaclass-based dispatch are detected and flagged as `uncertain` in the output HTML. Symbol resolution does not attempt to trace these patterns — see the code directly for runtime behavior.
+- **Lesson capacity**: Hard cap at 30 regular lessons per tutorial (configurable via `tutorial.max_lessons`). Very large repositories are aggressively pruned to maintain narrative coherence. A synthetic "Where to go next" lesson is always appended as lesson 31.
+- **Installation channel**: v0.1.0 ships as a Git-installable package only. PyPI release is explicitly deferred to v0.2.0 per FR-03.
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

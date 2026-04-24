@@ -1,0 +1,15 @@
+[submodule "tests/eval/corpus/repos/click"]
+	path = tests/eval/corpus/repos/click
+	url = https://github.com/pallets/click.git
+[submodule "tests/eval/corpus/repos/requests"]
+	path = tests/eval/corpus/repos/requests
+	url = https://github.com/psf/requests.git
+[submodule "tests/eval/corpus/repos/starlette"]
+	path = tests/eval/corpus/repos/starlette
+	url = https://github.com/encode/starlette.git
+[submodule "tests/eval/corpus/repos/python-sdk-mcp"]
+	path = tests/eval/corpus/repos/python-sdk-mcp
+	url = https://github.com/modelcontextprotocol/python-sdk.git
+[submodule "tests/eval/corpus/repos/dateutil"]
+	path = tests/eval/corpus/repos/dateutil
+	url = https://github.com/dateutil/dateutil.git

@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
+# SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michal Kaminski
 
 from __future__ import annotations

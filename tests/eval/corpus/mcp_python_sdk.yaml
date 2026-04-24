@@ -1,0 +1,220 @@
+# MCP Python SDK concept checklist for release-gate eval (US-066).
+# Source: modelcontextprotocol/python-sdk v1.10.1 AST inspection + Anthropic Skilljar
+# "Building MCP Clients" tutorial coverage list.
+#
+# Each entry has:
+#   id            — machine-readable slug (kebab-case)
+#   name          — exact Python symbol name (must match AST in the submodule)
+#   category      — transport | session | server | client | protocol | tools |
+#                   prompts | resources | sampling | roots | auth
+#   weight        — importance (1.0 = must-cover, 0.5 = nice-to-have)
+#   expected_lesson_pattern — regex matched against lesson title or teaches field
+#
+# coverage_target: fraction of weight-1.0 concepts that must appear in generated output.
+
+reference_source: "modelcontextprotocol/python-sdk v1.10.1 + Anthropic Skilljar Building MCP Clients"
+coverage_target: 0.70
+
+expected_concepts:
+  # Transport layer — stdio
+  - id: "mcp-transport-stdio"
+    name: "stdio_server"
+    category: "transport"
+    weight: 1.0
+    expected_lesson_pattern: "transport|stdio|server.startup"
+
+  # Transport layer — SSE
+  - id: "mcp-transport-sse"
+    name: "SseServerTransport"
+    category: "transport"
+    weight: 1.0
+    expected_lesson_pattern: "transport|sse|http"
+
+  # Transport layer — streamable HTTP
+  - id: "mcp-transport-streamable-http"
+    name: "streamable_http_manager"
+    category: "transport"
+    weight: 0.5
+    expected_lesson_pattern: "transport|http|streamable"
+
+  # Transport layer — WebSocket client
+  - id: "mcp-transport-websocket"
+    name: "websocket"
+    category: "transport"
+    weight: 0.5
+    expected_lesson_pattern: "transport|websocket|client"
+
+  # Low-level server
+  - id: "mcp-server-lowlevel"
+    name: "Server"
+    category: "server"
+    weight: 1.0
+    expected_lesson_pattern: "server|handler|request"
+
+  # FastMCP high-level wrapper
+  - id: "mcp-fastmcp-server"
+    name: "FastMCP"
+    category: "server"
+    weight: 1.0
+    expected_lesson_pattern: "fastmcp|server|decorator"
+
+  # Server session
+  - id: "mcp-server-session"
+    name: "ServerSession"
+    category: "session"
+    weight: 1.0
+    expected_lesson_pattern: "session|lifecycle|initialization"
+
+  # Client session
+  - id: "mcp-client-session"
+    name: "ClientSession"
+    category: "session"
+    weight: 1.0
+    expected_lesson_pattern: "client|session|connect"
+
+  # Base session abstraction
+  - id: "mcp-base-session"
+    name: "BaseSession"
+    category: "session"
+    weight: 0.5
+    expected_lesson_pattern: "session|jsonrpc|message"
+
+  # Request/response lifecycle
+  - id: "mcp-request-responder"
+    name: "RequestResponder"
+    category: "protocol"
+    weight: 1.0
+    expected_lesson_pattern: "request|response|handler"
+
+  # Tools — Tool entity
+  - id: "mcp-tool-entity"
+    name: "Tool"
+    category: "tools"
+    weight: 1.0
+    expected_lesson_pattern: "tool|register|call"
+
+  # Tools — ToolManager
+  - id: "mcp-tool-manager"
+    name: "tool_manager"
+    category: "tools"
+    weight: 0.5
+    expected_lesson_pattern: "tool|manager|registry"
+
+  # Prompts — Prompt entity
+  - id: "mcp-prompt-entity"
+    name: "Prompt"
+    category: "prompts"
+    weight: 1.0
+    expected_lesson_pattern: "prompt|template|message"
+
+  # Prompts — PromptArgument
+  - id: "mcp-prompt-argument"
+    name: "PromptArgument"
+    category: "prompts"
+    weight: 0.5
+    expected_lesson_pattern: "prompt|argument|parameter"
+
+  # Prompts — UserMessage / AssistantMessage
+  - id: "mcp-prompt-messages"
+    name: "UserMessage"
+    category: "prompts"
+    weight: 0.5
+    expected_lesson_pattern: "message|user|assistant"
+
+  # Resources — Resource base
+  - id: "mcp-resource-entity"
+    name: "Resource"
+    category: "resources"
+    weight: 1.0
+    expected_lesson_pattern: "resource|uri|content"
+
+  # Resources — ResourceTemplate
+  - id: "mcp-resource-template"
+    name: "ResourceTemplate"
+    category: "resources"
+    weight: 1.0
+    expected_lesson_pattern: "resource|template|uri"
+
+  # Sampling — protocol callback
+  - id: "mcp-sampling-protocol"
+    name: "SamplingFnT"
+    category: "sampling"
+    weight: 1.0
+    expected_lesson_pattern: "sampling|llm|callback"
+
+  # Roots — callback protocol
+  - id: "mcp-roots-protocol"
+    name: "ListRootsFnT"
+    category: "roots"
+    weight: 1.0
+    expected_lesson_pattern: "roots|filesystem|list"
+
+  # Capabilities — server caps negotiation
+  - id: "mcp-server-capabilities"
+    name: "ServerCapabilities"
+    category: "protocol"
+    weight: 1.0
+    expected_lesson_pattern: "capabilities|negotiation|initialize"
+
+  # Capabilities — client caps
+  - id: "mcp-client-capabilities"
+    name: "ClientCapabilities"
+    category: "protocol"
+    weight: 0.5
+    expected_lesson_pattern: "capabilities|client|negotiation"
+
+  # Protocol — initialization handshake
+  - id: "mcp-initialization"
+    name: "InitializeRequest"
+    category: "protocol"
+    weight: 1.0
+    expected_lesson_pattern: "initialize|handshake|protocol"
+
+  # Protocol — JSONRPCMessage envelope
+  - id: "mcp-jsonrpc-message"
+    name: "JSONRPCMessage"
+    category: "protocol"
+    weight: 0.5
+    expected_lesson_pattern: "jsonrpc|message|envelope"
+
+  # Context — per-request context injection
+  - id: "mcp-context"
+    name: "Context"
+    category: "server"
+    weight: 1.0
+    expected_lesson_pattern: "context|request|injection"
+
+  # Auth — OAuth provider
+  - id: "mcp-auth-provider"
+    name: "provider"
+    category: "auth"
+    weight: 0.5
+    expected_lesson_pattern: "auth|oauth|token"
+
+  # Lifespan — server lifespan pattern
+  - id: "mcp-server-lifespan"
+    name: "lifespan"
+    category: "server"
+    weight: 0.5
+    expected_lesson_pattern: "lifespan|startup|shutdown"
+
+  # Shared memory transport (testing/in-process)
+  - id: "mcp-memory-transport"
+    name: "memory"
+    category: "transport"
+    weight: 0.5
+    expected_lesson_pattern: "memory|in.process|testing"
+
+  # Progress notifications
+  - id: "mcp-progress"
+    name: "progress"
+    category: "protocol"
+    weight: 0.5
+    expected_lesson_pattern: "progress|notification|streaming"
+
+  # Logging callback
+  - id: "mcp-logging"
+    name: "LoggingFnT"
+    category: "protocol"
+    weight: 0.5
+    expected_lesson_pattern: "logging|notification|server"

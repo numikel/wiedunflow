@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
 """Application services coordinating validators, models, and repositories."""
 
 from tests.fixtures.medium_repo.pkg.models import Order, User, build_order, build_user

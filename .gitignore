@@ -108,5 +108,7 @@ langgraph_checkpoints/
 
 # CodeGuide project-specific (Sprint 0 additions)
 .codeguide/
-tests/eval/corpus/*/
+# eval corpus: submodules are tracked; only local run artifacts are ignored
+tests/eval/corpus/repos/*/.cache/
+tests/eval/corpus/repos/*/__pycache__/
 dist/

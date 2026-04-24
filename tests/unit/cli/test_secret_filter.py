@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
+# SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michal Kaminski
 """US-069: SecretFilter pattern coverage + edge cases."""
 

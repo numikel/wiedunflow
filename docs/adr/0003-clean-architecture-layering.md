@@ -111,7 +111,7 @@ import anthropic
 class AnthropicProvider(LLMProvider):
     def __init__(self, api_key: str):
         self.client = anthropic.Anthropic(api_key=api_key)
-    
+
     def complete(self, messages: list, model: str, max_tokens: int) -> str:
         response = self.client.messages.create(
             messages=messages, model=model, max_tokens=max_tokens
@@ -137,7 +137,7 @@ def main(repo_path: Path, api_key: str):
     parser = TreeSitterParser()
     vector_store = Bm25VectorStore()
     cache = SqliteCache()
-    
+
     use_case = GenerateTutorial(llm, parser, vector_store, cache)
     use_case.execute(repo_path)
 ```

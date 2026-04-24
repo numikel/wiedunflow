@@ -78,3 +78,22 @@ def test_second_write_overwrites_first(tmp_path: Path) -> None:
     write_run_report(_mk_report(status="interrupted"), tmp_path)
     payload = json.loads((tmp_path / ".codeguide" / "run-report.json").read_text(encoding="utf-8"))
     assert payload["status"] == "interrupted"
+
+
+def test_hallucinated_field_emitted(tmp_path: Path) -> None:
+    """hallucinated_symbols_count and hallucinated_symbols appear in run-report.json.
+
+    US-065 acceptance criterion: the JSON must carry both fields at the top level,
+    count must equal len(list), and the list must be deduplicated and sorted.
+    """
+    # The orchestrator (generate_tutorial) sorts and deduplicates before storing;
+    # here we pass pre-sorted to test only the serialisation layer.
+    report = _mk_report(
+        hallucinated_symbols=("bar_undefined", "foo_ghost"),
+        hallucinated_symbols_count=2,
+    )
+    write_run_report(report, tmp_path)
+    payload = json.loads((tmp_path / ".codeguide" / "run-report.json").read_text(encoding="utf-8"))
+
+    assert payload["hallucinated_symbols_count"] == 2
+    assert payload["hallucinated_symbols"] == ["bar_undefined", "foo_ghost"]
