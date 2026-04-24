@@ -11,6 +11,19 @@ from playwright.sync_api import ConsoleMessage, Request, Route, sync_playwright
 pytestmark = [pytest.mark.integration, pytest.mark.playwright]
 
 
+def _block_network(page: object) -> None:
+    """Route handler: allow only file:// and about: schemes — aborts any external request."""
+
+    def handle_route(route: Route, request: Request) -> None:
+        scheme = urlparse(request.url).scheme.lower()
+        if scheme in ("file", "about", "data"):
+            route.continue_()
+        else:
+            route.abort()
+
+    page.route("**/*", handle_route)  # type: ignore[attr-defined]
+
+
 def test_tutorial_opens_in_browser_no_console_errors(tutorial_html: Path) -> None:
     """US-040: tutorial.html opens via file:// with no external deps and no console.error."""
     console_errors: list[str] = []
@@ -18,18 +31,7 @@ def test_tutorial_opens_in_browser_no_console_errors(tutorial_html: Path) -> Non
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-
-        # Block all external network; allow only local file pages and about: URLs.
-        # Use urlparse: Chromium may emit file:/C:/... (two slashes) on Windows, which
-        # does not startswith("file://") and would otherwise be aborted by the route.
-        def handle_route(route: Route, request: Request) -> None:
-            scheme = urlparse(request.url).scheme.lower()
-            if scheme in ("file", "about"):
-                route.continue_()
-            else:
-                route.abort()
-
-        page.route("**/*", handle_route)
+        _block_network(page)
 
         def on_console(msg: ConsoleMessage) -> None:
             if msg.type == "error":
@@ -37,48 +39,56 @@ def test_tutorial_opens_in_browser_no_console_errors(tutorial_html: Path) -> Non
 
         page.on("console", on_console)
 
-        file_url = tutorial_html.as_uri()
-        page.goto(file_url, wait_until="load", timeout=30_000)
+        page.goto(tutorial_html.as_uri(), wait_until="load", timeout=30_000)
 
-        # Wait until inline boot script populated the title (avoids relying on
-        # Playwright "visible" heuristics for an empty <h1> on slow CI runners).
+        # Wait until the structured narration body has been populated by tutorial.js.
         page.wait_for_function(
             """() => {
-                const el = document.getElementById('lesson-title');
-                return Boolean(el && (el.textContent || '').trim().length > 0);
+                const el = document.getElementById('tutorial-narration-body');
+                return Boolean(el && el.children.length > 0);
             }""",
             timeout=30_000,
         )
-        title = page.locator("#lesson-title").text_content()
-        assert title is not None and len(title) > 0, "Lesson title should not be empty"
 
-        # Click Next button and verify second lesson loads
-        next_btn = page.locator("#btn-next")
-        assert next_btn.is_enabled(), "Next button should be enabled (more than 1 lesson)"
-        next_btn.click()
+        # First lesson should have rendered into the active link.
+        active_link = page.locator(".lesson-link.active")
+        first_title = active_link.text_content()
+        assert first_title, "Expected an active lesson link with a title"
 
-        # Wait for lesson content to update (JS is synchronous so near-immediate)
+        # US-045: arrow-right navigation moves to the next lesson.
+        page.keyboard.press("ArrowRight")
         page.wait_for_timeout(200)
-        second_title = page.locator("#lesson-title").text_content()
-        assert second_title != title, (
-            f"Expected second lesson title to differ from first, got: {second_title!r}"
+        second_title = page.locator(".lesson-link.active").text_content()
+        assert second_title != first_title, (
+            f"Expected arrow-right to change active lesson, got: {second_title!r}"
         )
 
-        # Assert no console errors
+        # US-044: hash updates to match the active lesson id.
+        hash_after = page.evaluate("() => location.hash")
+        assert hash_after.startswith("#/lesson/"), f"Expected hash routing, got: {hash_after!r}"
+
         assert console_errors == [], f"Browser console errors: {console_errors}"
 
         browser.close()
 
 
-def test_tutorial_prev_button_disabled_on_first_lesson(tutorial_html: Path) -> None:
-    """Prev button should be disabled on the first lesson."""
+def test_tutorial_first_lesson_left_arrow_is_boundary_noop(tutorial_html: Path) -> None:
+    """US-045: on the first lesson, ArrowLeft must be a no-op (no error, stays on lesson)."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.goto(tutorial_html.as_uri(), wait_until="load", timeout=30_000)
-        page.wait_for_selector("#btn-prev", state="attached", timeout=30_000)
+        _block_network(page)
 
-        prev_btn = page.locator("#btn-prev")
-        assert not prev_btn.is_enabled(), "Prev button should be disabled on first lesson"
+        page.goto(tutorial_html.as_uri(), wait_until="load", timeout=30_000)
+        page.wait_for_function(
+            """() => document.querySelector('.lesson-link.active') !== null""",
+            timeout=30_000,
+        )
+
+        first_title = page.locator(".lesson-link.active").text_content()
+        page.keyboard.press("ArrowLeft")
+        page.wait_for_timeout(150)
+        after_title = page.locator(".lesson-link.active").text_content()
+        assert after_title == first_title, "Boundary ArrowLeft should be a no-op on first lesson"
 
         browser.close()

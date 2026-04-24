@@ -63,11 +63,32 @@ Options:
   --regenerate-plan            Discard the cached lesson manifest and re-run Stage 4 (US-018).
   --cache-path FILE            Override the cache database location (US-020).
   --max-cost USD               Abort if the projected LLM cost exceeds this value (US-019).
+  --dry-run                    Run Stages 0..4 and emit a preview HTML without paying for narration (US-015).
+  --review-plan                Pause after Stage 4 and open the lesson manifest in $EDITOR (US-016).
+  --log-format [text|json]     Structured log output on stderr (US-022). Default: text.
   -V, --version                Show the version and exit.
   -h, --help                   Show this message and exit.
 ```
 
-### Exit codes (Sprint 4 / v0.0.4)
+### Output HTML reader (Sprint 5 / v0.0.5)
+
+The generated `tutorial.html` is a single self-contained file — open it with `file://` in any
+modern browser. No server, no CDN, no runtime network calls (US-040). Fonts (Inter + JetBrains
+Mono) are inlined as `data:` URIs, Pygments syntax classes are pre-rendered, and the three JSON
+payloads (`#tutorial-meta`, `#tutorial-clusters`, `#tutorial-lessons`) live inside `<script
+type="application/json">` blocks — contract locked in ADR-0009.
+
+Keyboard navigation: **←/→** switches lessons, **click in the TOC** jumps to any lesson, and
+`tutorial.html#/lesson/<id>` deep-links straight into a specific one. The splitter between the
+narration and code panels is resizable between 28 % and 72 %; your choice, along with the
+light/dark theme, persists in `localStorage`. On screens narrower than 1024 px the reader stacks
+narration and code inline.
+
+A **degraded** run (> 30 % of lessons skipped) is marked with an amber banner at the top of the
+page, and each skipped lesson is replaced by a dashed placeholder listing the unresolved symbols
+so you can see exactly what was dropped and why.
+
+### Exit codes (Sprint 5 / v0.0.5)
 
 - `0` — tutorial written, `run-report.status == "ok"`.
 - `1` — fatal error (config, planning, unhandled exception).  `run-report.status == "failed"`, `stack_trace` recorded.

@@ -49,7 +49,9 @@ def test_generate_tutorial_html_valid_utf8(all_providers: Providers, tmp_path: P
     generate_tutorial(_TINY_REPO, all_providers, output_path=output)
     content = output.read_text(encoding="utf-8")
     assert "<!DOCTYPE html>" in content
-    assert "tutorial-data" in content
+    # Sprint 5 ADR-0009: envelope uses three separate JSON scripts.
+    assert 'id="tutorial-meta"' in content
+    assert 'id="tutorial-lessons"' in content
 
 
 def test_generate_tutorial_produces_three_lessons(all_providers: Providers, tmp_path: Path) -> None:

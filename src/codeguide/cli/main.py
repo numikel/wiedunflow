@@ -31,11 +31,23 @@ from codeguide.cli.consent import (
     ConsentRequiredError,
     ensure_consent_granted,
 )
+from codeguide.cli.history_rotator import write_history_copy
+from codeguide.cli.logging import configure as configure_logging
+from codeguide.cli.logging import get_logger as get_structlog
+from codeguide.cli.output import (
+    init_console,
+    print_done_summary,
+)
 from codeguide.cli.run_report_writer import write_run_report
 from codeguide.cli.signals import SigintHandler
 from codeguide.entities.run_report import RunReport, RunStatus
 from codeguide.interfaces.ports import LLMProvider
-from codeguide.use_cases.generate_tutorial import GenerationResult, Providers, generate_tutorial
+from codeguide.use_cases.generate_tutorial import (
+    GenerationResult,
+    MaxCostExceededError,
+    Providers,
+    generate_tutorial,
+)
 from codeguide.use_cases.plan_lesson_manifest import PlanningFatalError
 
 logger = logging.getLogger(__name__)
@@ -151,6 +163,27 @@ logger = logging.getLogger(__name__)
     metavar="USD",
     help="Abort if projected LLM cost exceeds this value in USD (US-019).",
 )
+@click.option(
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    default=False,
+    help="Run Stages 0..4 and emit a preview HTML without paying for narration (US-015).",
+)
+@click.option(
+    "--review-plan",
+    "review_plan",
+    is_flag=True,
+    default=False,
+    help="Pause after Stage 4 and open the lesson manifest in $EDITOR (US-016).",
+)
+@click.option(
+    "--log-format",
+    "log_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Structured log output format on stderr (US-022).",
+)
 def main(
     repo_path: Path,
     excludes: tuple[str, ...],
@@ -167,11 +200,27 @@ def main(
     regenerate_plan: bool,
     cache_path: Path | None,
     max_cost_usd: float | None,
+    dry_run: bool,
+    review_plan: bool,
+    log_format: str,
 ) -> None:
     """Generate an interactive HTML tutorial from a local Git repository."""
+    json_mode = log_format == "json"
+    configure_logging(json_mode=json_mode)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    console = init_console(json_mode=json_mode)
+    structlog_logger = get_structlog(stage="cli")
+
+    ensure_gitignore_entry(repo_path)
 
     started_at = datetime.now(UTC)
+
+    if dry_run:
+        structlog_logger.info("dry_run_scheduled", msg="dry-run mode: stages 5-7 skipped")
+    if review_plan:
+        structlog_logger.info(
+            "review_plan_scheduled", msg="--review-plan: will pause after Stage 4"
+        )
 
     # Phase 3: flags accepted, but --resume / --regenerate-plan full wiring
     # into the cache-driven incremental pipeline arrives in Phase 4.  We log
@@ -236,10 +285,15 @@ def main(
             should_abort=sigint.should_finish.is_set,
             started_at=started_at,
             provider_label=provider_label,
+            console=console,
+            dry_run=dry_run,
+            review_plan=review_plan,
+            max_cost_usd=max_cost_usd,
         )
     finally:
         sigint.restore()
 
+    rotate_run_report_history(repo_path)
     sys.exit(exit_code)
 
 
@@ -317,6 +371,10 @@ def _run_pipeline(
     should_abort: Callable[[], bool],
     started_at: datetime,
     provider_label: str,
+    console: object,
+    dry_run: bool = False,
+    review_plan: bool = False,
+    max_cost_usd: float | None = None,
 ) -> int:
     """Run the generation pipeline, write the run report, return an exit code."""
     try:
@@ -328,6 +386,9 @@ def _run_pipeline(
             root_override=root,
             max_lessons=max_lessons,
             should_abort=should_abort,
+            dry_run=dry_run,
+            review_plan=review_plan,
+            max_cost_usd=max_cost_usd,
         )
     except KeyboardInterrupt:
         _write_final_report(
@@ -338,6 +399,21 @@ def _run_pipeline(
         )
         click.echo("Run interrupted by user. Partial state retained for --resume.", err=True)
         return 130
+    except MaxCostExceededError as exc:
+        _write_final_report(
+            repo_path=repo_path,
+            provider_label=provider_label,
+            started_at=started_at,
+            status="failed",
+            stack_trace=f"MaxCostExceededError: {exc}",
+            failed_at_lesson="<cost-gate>",
+        )
+        click.echo(
+            f"aborted: estimated cost ${exc.estimate_usd:.2f} exceeds --max-cost "
+            f"${exc.cap_usd:.2f}. No API calls were made.",
+            err=True,
+        )
+        return 1
     except PlanningFatalError as exc:
         _write_final_report(
             repo_path=repo_path,
@@ -374,7 +450,7 @@ def _run_pipeline(
     )
 
     click.echo(f"Tutorial written to: {result.output_path}")
-    click.echo(f"Open with: file://{result.output_path.as_posix()}")
+    print_done_summary(console, path=result.output_path)  # type: ignore[arg-type]
     if result.degraded:
         click.echo(
             f"warning: tutorial DEGRADED — "
@@ -422,6 +498,49 @@ def _write_final_report(
         write_run_report(report, repo_path)
     except Exception as exc:
         logger.warning("run_report_write_failed: %s", exc)
+
+
+_GITIGNORE_ENTRY = ".codeguide/\n"
+
+
+def ensure_gitignore_entry(repo_path: Path) -> None:
+    """Append ``.codeguide/`` to ``.gitignore`` idempotently (US-057).
+
+    Creates ``.gitignore`` if absent. Preserves any existing content. If the
+    ``.codeguide/`` entry is already present (with or without trailing newline)
+    the file is left untouched.
+    """
+    gitignore_path = repo_path / ".gitignore"
+    if not gitignore_path.exists():
+        gitignore_path.write_text(_GITIGNORE_ENTRY, encoding="utf-8")
+        return
+    existing = gitignore_path.read_text(encoding="utf-8")
+    if any(
+        line.strip() == ".codeguide/" or line.strip() == ".codeguide"
+        for line in existing.splitlines()
+    ):
+        return
+    prefix = "" if existing.endswith("\n") else "\n"
+    gitignore_path.write_text(existing + prefix + _GITIGNORE_ENTRY, encoding="utf-8")
+
+
+def rotate_run_report_history(repo_path: Path) -> None:
+    """Copy the current run-report into the history folder (US-058).
+
+    Silent-safe: any I/O error is logged via structlog but must not surface to
+    the user — failure to rotate is a non-fatal observability concern.
+    """
+    current = repo_path / ".codeguide" / "run-report.json"
+    if not current.is_file():
+        return
+    try:
+        write_history_copy(
+            current_report=current,
+            history_dir=repo_path / ".codeguide" / "history",
+            keep_latest=10,
+        )
+    except OSError as exc:
+        logger.warning("run_report_history_failed: %s", exc)
 
 
 if __name__ == "__main__":  # pragma: no cover

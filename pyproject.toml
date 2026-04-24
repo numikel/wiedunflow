@@ -1,6 +1,6 @@
 [project]
 name = "codeguide"
-version = "0.0.4"
+version = "0.0.5"
 description = "Generate interactive, self-contained HTML tutorials from local Git repositories"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -40,6 +40,7 @@ dependencies = [
     "platformdirs>=4.3.0",
     "pyyaml>=6.0",
     "numpy>=1.24",
+    "rich>=13.7",
 ]
 
 [project.urls]
@@ -62,6 +63,7 @@ dev = [
     "pre-commit>=3.8",
     "pyyaml>=6.0",
     "types-pyyaml>=6.0",
+    "pillow>=10.0",
 ]
 
 [build-system]
