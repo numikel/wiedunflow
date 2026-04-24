@@ -26,7 +26,7 @@ import pytest
 
 pytestmark = pytest.mark.eval
 
-_CLICK_SUBMODULE = Path(__file__).parent / "corpus" / "click"
+_CLICK_SUBMODULE = Path(__file__).parent / "corpus" / "repos" / "click"
 _BASELINE_PATH = Path(__file__).parent / "results" / "s3-click-baseline.json"
 
 
@@ -53,7 +53,7 @@ def click_repo_path() -> Path:
     if not _CLICK_SUBMODULE.is_dir() or not (_CLICK_SUBMODULE / "src").is_dir():
         pytest.skip(
             f"click submodule not found at {_CLICK_SUBMODULE}. "
-            "Run: git submodule update --init tests/eval/corpus/click"
+            "Run: git submodule update --init tests/eval/corpus/repos/click"
         )
     return _CLICK_SUBMODULE
 
