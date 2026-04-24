@@ -7,7 +7,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, model_validator
 
 LessonStatus = Literal["generated", "skipped"]
-SegmentKind = Literal["p", "code"]
+SegmentKind = Literal["p", "code", "html"]
 Confidence = Literal["HIGH", "MEDIUM", "LOW"]
 
 

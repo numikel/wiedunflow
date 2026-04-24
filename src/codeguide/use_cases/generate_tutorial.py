@@ -280,6 +280,8 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
             skipped_lessons=[],
             degraded=False,
             total_planned=len(preview_lessons),
+            symbols=symbols,
+            repo_root=repo_path,
         )
         preview_output = output_path
         if preview_output.name == "tutorial.html":
@@ -366,6 +368,8 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         skipped_lessons=skipped_lessons,
         degraded=degraded,
         total_planned=total_planned,
+        symbols=symbols,
+        repo_root=repo_path,
     )
     output_path.write_text(html, encoding="utf-8")
     _std_logger.info("Tutorial written to %s", output_path)
@@ -633,6 +637,8 @@ def _stage_build(
     skipped_lessons: list[SkippedLesson] | None = None,
     degraded: bool = False,
     total_planned: int = 0,
+    symbols: list[CodeSymbol] | None = None,
+    repo_root: Path | None = None,
 ) -> str:
     """Stage 7: Render to self-contained HTML and validate the offline invariant.
 
@@ -666,6 +672,8 @@ def _stage_build(
         skipped_count=len(_skipped),
         degraded=degraded,
         total_planned=total_planned,
+        symbols=symbols,
+        repo_root=repo_root,
     )
     validate_offline_invariant(html)
     return html

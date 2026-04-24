@@ -78,7 +78,14 @@
       return;
     }
     segments.forEach(function (seg) {
-      if (seg.kind === "p") {
+      if (seg.kind === "html") {
+        // Pre-rendered HTML from server-side markdown parser (mistune). Append
+        // as a document fragment so block elements (h1/h2/pre/ol/ul) land at
+        // the top level of the narration column, not wrapped in <p>.
+        var tmpl = document.createElement("template");
+        tmpl.innerHTML = seg.text;
+        root.appendChild(tmpl.content);
+      } else if (seg.kind === "p") {
         var p = document.createElement("p"); p.innerHTML = seg.text; root.appendChild(p);
         if (seg.code_ref) {
           var inline = document.createElement("pre");
@@ -104,13 +111,18 @@
         if (lesson.segments[i].code_ref) { ref = lesson.segments[i].code_ref; break; }
       }
     }
+    // Fallback: server builds `code_snippet` from lesson.code_refs when no
+    // segment-level code_ref exists (common path — Stage 5 emits markdown only).
+    if (!ref && lesson.code_snippet) { ref = lesson.code_snippet; }
     if (!ref) { head.textContent = "(no code reference)"; return; }
     head.textContent = ref.file + " · " + (ref.lang || "python");
     var highlight = new Set((ref.highlight || []));
+    var startLine = typeof ref.start_line === "number" ? ref.start_line : 1;
     (ref.lines || []).forEach(function (line, idx) {
       var row = document.createElement("div");
       row.className = "code-row" + (highlight.has(idx + 1) ? " hl" : "");
-      var ln = document.createElement("span"); ln.className = "ln"; ln.textContent = String(idx + 1);
+      var ln = document.createElement("span"); ln.className = "ln";
+      ln.textContent = String(startLine + idx);
       var pre = document.createElement("pre"); pre.innerHTML = line || "&nbsp;";
       row.appendChild(ln); row.appendChild(pre); root.appendChild(row);
     });

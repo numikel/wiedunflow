@@ -18,15 +18,25 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import mistune
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from codeguide import __version__ as _codeguide_version
 from codeguide.adapters.pygments_highlighter import highlight_python
 
+# Module-level markdown parser. `escape=True` prevents lesson authors (LLM) from
+# injecting raw HTML into the output; we only trust the markdown syntax itself.
+_markdown_to_html = mistune.create_markdown(escape=True, hard_wrap=False)
+
 if TYPE_CHECKING:
+    from codeguide.entities.code_symbol import CodeSymbol
     from codeguide.entities.doc_coverage import DocCoverage
     from codeguide.entities.lesson import Lesson
     from codeguide.entities.lesson_plan import LessonPlan
+
+# Max lines shown in the code panel per lesson. Start at symbol.lineno-1 and slice
+# forward; keeps the panel readable without needing full end_lineno tracking.
+_CODE_SNIPPET_MAX_LINES = 40
 
 
 _RENDERER_DIR = Path(__file__).parent.parent / "renderer"
@@ -58,7 +68,52 @@ def _load_tokens_css_with_inline_fonts() -> str:
     return _FONT_URL_PATTERN.sub(replace, css_text)
 
 
-def _lesson_to_payload(lesson: Lesson) -> dict[str, Any]:
+def _build_code_snippet(
+    lesson: Lesson,
+    symbol_lookup: dict[str, CodeSymbol],
+    repo_root: Path,
+) -> dict[str, Any] | None:
+    """Build a code-panel snippet for ``lesson`` from its primary ``code_refs``.
+
+    Walks ``lesson.code_refs`` (symbol names emitted by Stage 5), picks the first
+    that resolves via ``symbol_lookup``, reads the containing file, and returns
+    the file path plus a slice of up to :data:`_CODE_SNIPPET_MAX_LINES` lines
+    starting at the symbol's declaration. Returns ``None`` if no reference
+    resolves (e.g. uncertain dynamic symbols) — caller emits a placeholder.
+    """
+    for ref_name in lesson.code_refs:
+        symbol = symbol_lookup.get(ref_name)
+        if symbol is None:
+            continue
+        file_abs = (repo_root / symbol.file_path).resolve()
+        try:
+            text = file_abs.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        all_lines = text.splitlines()
+        start_idx = max(symbol.lineno - 1, 0)
+        slice_lines = all_lines[start_idx : start_idx + _CODE_SNIPPET_MAX_LINES]
+        if not slice_lines:
+            continue
+        lang = "python" if symbol.file_path.suffix == ".py" else "text"
+        highlighted_lines = [
+            highlight_python(line) if lang == "python" else line for line in slice_lines
+        ]
+        return {
+            "file": str(symbol.file_path).replace("\\", "/"),
+            "lang": lang,
+            "lines": highlighted_lines,
+            "highlight": [1],  # first line = declaration, visually anchor it
+            "start_line": symbol.lineno,
+        }
+    return None
+
+
+def _lesson_to_payload(
+    lesson: Lesson,
+    symbol_lookup: dict[str, CodeSymbol] | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
     """Serialize a ``Lesson`` entity into the JSON payload expected by tutorial.js."""
     segments: list[dict[str, Any]] = []
     for seg in lesson.segments:
@@ -76,10 +131,16 @@ def _lesson_to_payload(lesson: Lesson) -> dict[str, Any]:
         segments.append(entry)
 
     if not segments:
-        paragraphs = [p.strip() for p in lesson.narrative.split("\n\n") if p.strip()]
-        segments = [{"kind": "p", "text": p} for p in paragraphs]
+        # Narrative is markdown emitted by Stage 5 (Opus). Parse to HTML so the
+        # browser receives rendered headings/code fences/lists instead of raw
+        # markdown syntax. `escape=True` sanitises any stray HTML from the LLM.
+        # `mistune.create_markdown()` with default renderer returns str, but the
+        # type stub exposes `str | list[...]` (to cover AST renderers). Cast for mypy.
+        rendered = _markdown_to_html(lesson.narrative)
+        narrative_html = rendered.strip() if isinstance(rendered, str) else ""
+        segments = [{"kind": "html", "text": narrative_html}]
 
-    return {
+    payload: dict[str, Any] = {
         "id": lesson.id,
         "cluster_id": _DEFAULT_CLUSTER_ID,
         "title": lesson.title,
@@ -89,6 +150,18 @@ def _lesson_to_payload(lesson: Lesson) -> dict[str, Any]:
         "segments": segments,
         "code_refs": list(lesson.code_refs),
     }
+
+    # Attach a lookup-based code snippet when the lesson has no inline
+    # segment-level `code_ref` (the common Stage 5 output today). The browser
+    # uses this to populate the right-hand code panel; without it the panel
+    # shows "(no code reference)".
+    has_inline_ref = any("code_ref" in seg for seg in segments)
+    if not has_inline_ref and symbol_lookup is not None and repo_root is not None:
+        snippet = _build_code_snippet(lesson, symbol_lookup, repo_root)
+        if snippet is not None:
+            payload["code_snippet"] = snippet
+
+    return payload
 
 
 def _build_meta(
@@ -171,6 +244,8 @@ class JinjaRenderer:
         degraded: bool = False,
         total_planned: int = 0,
         clusters: list[dict[str, Any]] | None = None,
+        symbols: list[CodeSymbol] | None = None,
+        repo_root: Path | None = None,
     ) -> str:
         """Return the rendered HTML string.
 
@@ -191,7 +266,11 @@ class JinjaRenderer:
         run_status = "degraded" if degraded else "ok"
         version = codeguide_version or _codeguide_version
 
-        lessons_payload = [_lesson_to_payload(lesson) for lesson in lesson_plan.lessons]
+        symbol_lookup = {s.name: s for s in symbols} if symbols else None
+        lessons_payload = [
+            _lesson_to_payload(lesson, symbol_lookup, repo_root)
+            for lesson in lesson_plan.lessons
+        ]
         clusters_payload = (
             clusters if clusters is not None else _default_clusters(len(lessons_payload))
         )
