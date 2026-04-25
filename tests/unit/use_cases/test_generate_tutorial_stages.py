@@ -54,6 +54,17 @@ def test_generate_tutorial_html_valid_utf8(all_providers: Providers, tmp_path: P
     assert 'id="tutorial-lessons"' in content
 
 
+def test_generate_tutorial_creates_output_parent_directory(
+    all_providers: Providers, tmp_path: Path
+) -> None:
+    output = tmp_path / "reports" / "test_tutorial.html"
+
+    result = generate_tutorial(_TINY_REPO, all_providers, output_path=output)
+
+    assert result.output_path == output
+    assert output.exists()
+
+
 def test_generate_tutorial_produces_three_lessons(all_providers: Providers, tmp_path: Path) -> None:
     output = tmp_path / "test_tutorial.html"
     generate_tutorial(_TINY_REPO, all_providers, output_path=output)

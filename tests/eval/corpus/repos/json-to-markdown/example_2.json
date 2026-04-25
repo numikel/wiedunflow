@@ -1,0 +1,5 @@
+{
+    "hostname": "server01",
+    "port": 8080,
+    "active": true
+  }

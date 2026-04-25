@@ -11,6 +11,7 @@ from codeguide.entities.lesson import Lesson
 from codeguide.entities.lesson_manifest import LessonSpec
 from codeguide.entities.skipped_lesson import SkippedLesson
 from codeguide.interfaces.ports import LLMProvider
+from codeguide.use_cases.snippet_validator import validate_narrative_snippets
 
 __all__ = [
     "count_words",
@@ -25,7 +26,20 @@ HallucinationAccumulator = list[str]
 
 logger = structlog.get_logger(__name__)
 
-_MIN_WORDS = 150
+# v0.2.1: per-tier word count floors (replaces hard-coded _MIN_WORDS = 150).
+_MIN_WORDS_DEFAULT = 150  # legacy fallback (no primary code_ref)
+_MIN_WORDS_TRIVIAL = 80  # 2-9 lines
+_MIN_WORDS_MODERATE = 220  # 10-30 lines
+_MIN_WORDS_COMPLEX = 350  # >30 lines
+# Kept for backward-compat — validators still use the tier logic, but
+# callers may still reference this name in tests written before v0.2.1.
+_MIN_WORDS = _MIN_WORDS_DEFAULT
+
+# Span thresholds for word-count tier selection.
+_SPAN_SINGLE_LINE = 1
+_SPAN_TRIVIAL_MAX = 9  # inclusive upper bound for "trivial" tier (< 10 lines)
+_SPAN_MODERATE_MAX = 30  # inclusive upper bound for "moderate" tier (<= 30 lines)
+
 _MAX_WORDS = 1200
 
 # Markdown constructs to strip before word counting.
@@ -97,8 +111,37 @@ def truncate_at_sentence_boundary(text: str, max_words: int = _MAX_WORDS) -> str
     return " ".join(words[:max_words])
 
 
+def _floor_for_lesson(spec: LessonSpec, *, min_words_trivial: int) -> int:
+    """Determine the minimum word count for a lesson based on its primary code_ref body span.
+
+    Args:
+        spec: The lesson spec to inspect for a primary code_ref.
+        min_words_trivial: Configurable floor for 1-line spans (from
+            ``config.narration_min_words_trivial``; default 50 per plan).
+
+    Returns:
+        Minimum word count integer.  Falls back to :data:`_MIN_WORDS_DEFAULT`
+        when the spec has no primary code_ref.
+    """
+    primary = next((r for r in spec.code_refs if r.role == "primary"), None)
+    if primary is None:
+        return _MIN_WORDS_DEFAULT
+    span = primary.line_end - primary.line_start + 1
+    if span <= _SPAN_SINGLE_LINE:
+        return min_words_trivial
+    if span <= _SPAN_TRIVIAL_MAX:
+        return _MIN_WORDS_TRIVIAL
+    if span <= _SPAN_MODERATE_MAX:
+        return _MIN_WORDS_MODERATE
+    return _MIN_WORDS_COMPLEX
+
+
 def _spec_to_json(spec: LessonSpec) -> str:
-    """Serialise *spec* to the JSON string expected by ``LLMProvider.narrate``."""
+    """Serialise *spec* to the JSON string expected by ``LLMProvider.narrate``.
+
+    Includes ``source_excerpt`` when populated so the narration LLM can quote
+    exact signatures rather than inventing them (v0.2.1 anti-hallucination fix).
+    """
     return json.dumps(
         {
             "id": spec.id,
@@ -112,6 +155,7 @@ def _spec_to_json(spec: LessonSpec) -> str:
                     "line_start": ref.line_start,
                     "line_end": ref.line_end,
                     "role": ref.role,
+                    "source_excerpt": ref.source_excerpt,
                 }
                 for ref in spec.code_refs
             ],
@@ -154,6 +198,8 @@ def _build_reinforcement_spec_json(
 def _validate_lesson(
     lesson: Lesson,
     allowed_symbols: frozenset[str],
+    *,
+    min_words: int = _MIN_WORDS_DEFAULT,
 ) -> tuple[bool, list[str], bool]:
     """Check a lesson for grounding validity and word count.
 
@@ -161,40 +207,51 @@ def _validate_lesson(
         lesson: The generated lesson to validate.
         allowed_symbols: Set of permitted symbol names; empty set means no grounding
             constraint (closing lesson).
+        min_words: Minimum word count floor for this lesson (computed per-tier by
+            :func:`_floor_for_lesson`).  Defaults to :data:`_MIN_WORDS_DEFAULT` (150).
 
     Returns:
         ``(ok, invalid_symbols, word_count_low)`` where *ok* is ``True`` when
         the lesson passes all checks, *invalid_symbols* is the list of failing
         symbol names, and *word_count_low* is ``True`` when the word count is
-        below :data:`_MIN_WORDS`.
+        below *min_words*.
     """
     wc = count_words(lesson.narrative)
-    word_count_low = wc < _MIN_WORDS
+    word_count_low = wc < min_words
     invalid = _validate_grounding(lesson, allowed_symbols)
     ok = not word_count_low and not invalid
     return ok, invalid, word_count_low
 
 
-def narrate_with_grounding_retry(
+def narrate_with_grounding_retry(  # noqa: PLR0912 — grounding+snippet validation requires multiple branches
     spec: LessonSpec,
     allowed_symbols: frozenset[str],
     llm: LLMProvider,
     concepts_introduced: tuple[str, ...],
     *,
     hallucination_accumulator: HallucinationAccumulator | None = None,
+    min_words_trivial: int = 50,
+    snippet_validation: bool = True,
 ) -> Lesson | SkippedLesson:
     """Narrate a single lesson spec with one grounding-reinforcement retry.
 
-    Algorithm (US-030 / US-031 / US-034):
+    Algorithm (US-030 / US-031 / US-034 / v0.2.1):
 
     1. Call ``llm.narrate(spec_json, concepts_introduced)`` → ``lesson``.
-    2. Word-count validate (US-034):
-       - ``> 1200`` words → truncate at sentence boundary → return.
-       - ``< 150`` words → treat as failure, proceed to retry.
+    2. Word-count validate (US-034, v0.2.1 tiers):
+       - ``> 1200`` words → truncate at sentence boundary → continue.
+       - ``< floor`` words → treat as failure, proceed to retry.
+         ``floor`` is determined per lesson by :func:`_floor_for_lesson` using
+         the primary code_ref body span (1-liner=50, trivial=80, moderate=220,
+         complex=350).
     3. Grounding validate (US-030):
-       - All ``lesson.code_refs`` ⊆ ``allowed_symbols`` → return.
-    4. On any failure: build reinforcement prompt; call ``llm.narrate`` once more.
-    5. Validate again.  Pass → return ``lesson``.  Fail → return
+       - All ``lesson.code_refs`` ⊆ ``allowed_symbols`` → continue.
+    4. Snippet validation (v0.2.1, when *snippet_validation* is True):
+       - Parse ```python fenced blocks; compare ``def`` signatures against
+         ``source_excerpt`` in code_refs.  Mismatches trigger a retry with
+         an explicit hint containing the real signature.
+    5. On any failure: build reinforcement prompt; call ``llm.narrate`` once more.
+    6. Validate again.  Pass → return ``lesson``.  Fail → return
        ``SkippedLesson(reason="grounding_retry_exhausted")``.
 
     Closing lessons (``spec.is_closing=True``) are narrated with an empty
@@ -213,12 +270,20 @@ def narrate_with_grounding_retry(
             orchestrator passes a shared list to collect per-run hallucination
             data without changing the return type of this function.  Duplicates
             are intentionally preserved; deduplication is the caller's concern.
+        min_words_trivial: Minimum word count for 1-line-body lessons (configurable
+            via ``config.narration_min_words_trivial``; default 50).
+        snippet_validation: When ``True`` (default), validate ``def`` signatures
+            in fenced code blocks against ``source_excerpt``.  When ``False``,
+            skip snippet validation entirely (bypass for debugging / rollback).
 
     Returns:
         A :class:`~codeguide.entities.lesson.Lesson` on success or a
         :class:`~codeguide.entities.skipped_lesson.SkippedLesson` on double failure.
     """
     spec_json = _spec_to_json(spec)
+
+    # Compute per-lesson minimum word count floor.
+    min_words_floor = _floor_for_lesson(spec, min_words_trivial=min_words_trivial)
 
     # --- Attempt 1 ---
     lesson = llm.narrate(spec_json, concepts_introduced)
@@ -233,7 +298,22 @@ def narrate_with_grounding_retry(
             original_words=count_words(lesson.narrative),
         )
 
-    ok, invalid, word_count_low = _validate_lesson(lesson, allowed_symbols)
+    ok, invalid, word_count_low = _validate_lesson(
+        lesson, allowed_symbols, min_words=min_words_floor
+    )
+
+    # Snippet validation (v0.2.1): check fenced def signatures against source_excerpt.
+    snippet_errors: list[str] = []
+    if ok and snippet_validation:
+        snippet_errors = validate_narrative_snippets(lesson.narrative, spec.code_refs)
+        if snippet_errors:
+            ok = False
+            logger.warning(
+                "lesson_snippet_validation_failed_attempt_1",
+                lesson_id=spec.id,
+                errors=snippet_errors[:5],
+            )
+
     if ok:
         logger.debug("lesson_grounded_first_attempt", lesson_id=spec.id)
         return lesson
@@ -253,7 +333,12 @@ def narrate_with_grounding_retry(
     )
 
     # --- Attempt 2 (reinforcement retry) ---
-    reinforced_json = _build_reinforcement_spec_json(spec, invalid, allowed_symbols)
+    # Build reinforcement prompt — include snippet hints when relevant.
+    if snippet_errors and not invalid and not word_count_low:
+        reinforced_json = _build_snippet_reinforcement_json(spec, snippet_errors)
+    else:
+        reinforced_json = _build_reinforcement_spec_json(spec, invalid, allowed_symbols)
+
     lesson2 = llm.narrate(reinforced_json, concepts_introduced)
 
     # Word-count upper bound on retry.
@@ -261,7 +346,21 @@ def narrate_with_grounding_retry(
         truncated_narrative2 = truncate_at_sentence_boundary(lesson2.narrative)
         lesson2 = lesson2.model_copy(update={"narrative": truncated_narrative2})
 
-    ok2, invalid2, word_count_low2 = _validate_lesson(lesson2, allowed_symbols)
+    ok2, invalid2, word_count_low2 = _validate_lesson(
+        lesson2, allowed_symbols, min_words=min_words_floor
+    )
+
+    # Snippet validation on retry.
+    if ok2 and snippet_validation:
+        snippet_errors2 = validate_narrative_snippets(lesson2.narrative, spec.code_refs)
+        if snippet_errors2:
+            ok2 = False
+            logger.warning(
+                "lesson_snippet_validation_failed_attempt_2",
+                lesson_id=spec.id,
+                errors=snippet_errors2[:5],
+            )
+
     if ok2:
         logger.info("lesson_grounded_after_retry", lesson_id=spec.id)
         return lesson2
@@ -287,3 +386,31 @@ def narrate_with_grounding_retry(
         missing_symbols=tuple(all_invalid),
         reason="grounding_retry_exhausted",
     )
+
+
+def _build_snippet_reinforcement_json(
+    spec: LessonSpec,
+    snippet_errors: list[str],
+) -> str:
+    """Build a reinforcement prompt focused on correcting misquoted function signatures.
+
+    Used when the only failure reason is snippet-signature mismatch (grounding
+    and word-count passed but the LLM paraphrased a ``def`` line incorrectly).
+
+    Args:
+        spec: The original lesson spec (with ``source_excerpt`` attached).
+        snippet_errors: Human-readable error messages from :func:`validate_narrative_snippets`.
+
+    Returns:
+        JSON string with a ``snippet_validation_error`` field appended to the
+        serialised spec.
+    """
+    error_block = "\n".join(snippet_errors)
+    base = json.loads(_spec_to_json(spec))
+    base["snippet_validation_error"] = (
+        f"Snippet validation failed:\n{error_block}\n"
+        "Rewrite the affected ```python code blocks using the EXACT signatures "
+        "from the source_excerpt fields in code_refs. "
+        "Do NOT invent parameter names or change their order."
+    )
+    return json.dumps(base)

@@ -75,29 +75,59 @@
         if (!chunk.trim()) { return; }
         var p = document.createElement("p"); p.textContent = chunk; root.appendChild(p);
       });
-      return;
-    }
-    segments.forEach(function (seg) {
-      if (seg.kind === "html") {
-        // Pre-rendered HTML from server-side markdown parser (mistune). Append
-        // as a document fragment so block elements (h1/h2/pre/ol/ul) land at
-        // the top level of the narration column, not wrapped in <p>.
-        var tmpl = document.createElement("template");
-        tmpl.innerHTML = seg.text;
-        root.appendChild(tmpl.content);
-      } else if (seg.kind === "p") {
-        var p = document.createElement("p"); p.innerHTML = seg.text; root.appendChild(p);
-        if (seg.code_ref) {
-          var inline = document.createElement("pre");
-          inline.className = "mobile-inline-code";
-          inline.textContent = (seg.code_ref.lines || []).join("\n");
-          root.appendChild(inline);
+    } else {
+      segments.forEach(function (seg) {
+        if (seg.kind === "html") {
+          // Pre-rendered HTML from server-side markdown parser (mistune). Append
+          // as a document fragment so block elements (h1/h2/pre/ol/ul) land at
+          // the top level of the narration column, not wrapped in <p>.
+          var tmpl = document.createElement("template");
+          tmpl.innerHTML = seg.text;
+          root.appendChild(tmpl.content);
+        } else if (seg.kind === "p") {
+          var p = document.createElement("p"); p.innerHTML = seg.text; root.appendChild(p);
+          if (seg.code_ref) {
+            var inline = document.createElement("pre");
+            inline.className = "mobile-inline-code";
+            inline.textContent = (seg.code_ref.lines || []).join("\n");
+            root.appendChild(inline);
+          }
+        } else if (seg.kind === "code") {
+          var pre = document.createElement("pre"); pre.className = "mobile-inline-code";
+          pre.textContent = seg.text; root.appendChild(pre);
         }
-      } else if (seg.kind === "code") {
-        var pre = document.createElement("pre"); pre.className = "mobile-inline-code";
-        pre.textContent = seg.text; root.appendChild(pre);
-      }
-    });
+      });
+    }
+
+    // B7: helper appendix — rendered when Track A emits meta.helper_appendix
+    // Checks both lesson.meta.helper_appendix and top-level lesson.helper_appendix.
+    // TODO: remove guard + TODO comment once Track A ships meta.helper_appendix.
+    var helpers = lesson.meta && Array.isArray(lesson.meta.helper_appendix)
+      ? lesson.meta.helper_appendix
+      : (Array.isArray(lesson.helper_appendix) ? lesson.helper_appendix : null);
+    if (helpers && helpers.length) {
+      var appendix = document.createElement("div");
+      appendix.className = "helper-appendix";
+      var heading = document.createElement("h3");
+      heading.textContent = "Helper functions you’ll see along the way";
+      appendix.appendChild(heading);
+      var ul = document.createElement("ul");
+      helpers.forEach(function (ref) {
+        var li = document.createElement("li");
+        var code = document.createElement("code");
+        code.textContent = ref.symbol || "";
+        li.appendChild(code);
+        if (ref.file_path) {
+          var refMeta = document.createElement("span");
+          refMeta.className = "meta";
+          refMeta.textContent = " — " + ref.file_path + (ref.line_start ? ":" + ref.line_start : "");
+          li.appendChild(refMeta);
+        }
+        ul.appendChild(li);
+      });
+      appendix.appendChild(ul);
+      root.appendChild(appendix);
+    }
   }
 
   function renderCode(lesson) {
@@ -212,7 +242,8 @@
     var label = document.getElementById("tutorial-progress-label");
     if (prev) { prev.disabled = idx <= 0; }
     if (next) { next.disabled = idx >= total - 1; }
-    if (label) { label.textContent = (idx + 1) + "/" + total; }
+    // B4: "Lesson N / M" chip — English for multi-audience HTML output
+    if (label) { label.textContent = "Lesson " + (idx + 1) + " / " + total; }
   }
 
   function navigateTo(lessons, repoId, id, options) {
@@ -230,6 +261,8 @@
     if (!options.fromHash) { location.hash = "#/lesson/" + id; }
     writeStorage("codeguide:" + repoId + ":last-lesson", id);
     CodeGuide._activeIndex = idx; CodeGuide._activeId = id;
+    // B6: schedule visited after 5s of dwell (reading signal)
+    scheduleVisited(repoId, id);
   }
 
   function initNavButtons(lessons, repoId) {
@@ -245,6 +278,8 @@
     if (next) {
       next.addEventListener("click", function () {
         if (CodeGuide._activeIndex < lessons.length - 1) {
+          // B6: intentional Next click = mark current lesson visited immediately
+          if (CodeGuide._activeId) { markVisited(repoId, CodeGuide._activeId); }
           navigateTo(lessons, repoId, lessonIdFromIndex(lessons, CodeGuide._activeIndex + 1), {});
         }
       });
@@ -266,8 +301,20 @@
         var btn = document.createElement("button");
         btn.className = "lesson-link" + (l.status === "skipped" ? " skipped" : "");
         btn.setAttribute("data-lesson-id", l.id);
-        btn.textContent = l.title;
-        btn.addEventListener("click", function () { navigateTo(lessons, repoId, l.id, {}); });
+        // B5: prepend checkmark indicator (visited state painted separately)
+        var check = document.createElement("span");
+        check.className = "lesson-check";
+        check.setAttribute("aria-hidden", "true");
+        btn.appendChild(check);
+        var label = document.createElement("span");
+        label.className = "lesson-link-text";
+        label.textContent = l.title;
+        btn.appendChild(label);
+        btn.addEventListener("click", function () {
+          // B6: intentional click = mark visited immediately (no 5s wait)
+          markVisited(repoId, l.id);
+          navigateTo(lessons, repoId, l.id, {});
+        });
         wrap.appendChild(btn);
       });
       sidebar.appendChild(wrap);
@@ -295,14 +342,15 @@
   }
 
   function initScrollSync() {
-    // Jednokierunkowy scroll-sync (decision #3): narration scroll drives code panel.
-    var narr = document.getElementById("tutorial-narration");
-    var code = document.getElementById("tutorial-code");
-    if (!narr || !code) { return; }
-    narr.addEventListener("scroll", function () {
-      var ratio = narr.scrollTop / Math.max(1, narr.scrollHeight - narr.clientHeight);
-      code.scrollTop = ratio * Math.max(1, code.scrollHeight - code.clientHeight);
-    });
+    // v0.2.0: scroll-sync disabled by user request. Earlier "decision #3"
+    // mirrored narration scroll into the code panel; users found it
+    // disorienting because moving narration *also* moved the code, even
+    // when they wanted to read both independently. Per-panel scroll is
+    // now achieved purely by CSS (each column has its own ``overflow-y:
+    // auto`` inside an ``overflow: hidden`` parent — see tutorial.css
+    // ``#tutorial-content``). The function is kept as a placeholder so
+    // a future opt-in toggle can re-enable it from the Tweaks panel.
+    return;
   }
 
   function initSplitter() {
@@ -370,6 +418,59 @@
     });
   }
 
+  // ── Visited-lesson tracking (B6: Track B v0.2.1) ─────────────────────────
+  // A lesson is marked visited either:
+  //   (a) 5 seconds after navigation (reading signal), or
+  //   (b) immediately when the user explicitly clicks Next/TOC link.
+  // State persisted to localStorage under "codeguide:<repoId>:visited-lessons:v1".
+
+  var VISITED_TIMEOUT_MS = 5000;
+  var _visitedTimer = null;
+
+  function visitedKey(repoId) {
+    return "codeguide:" + repoId + ":visited-lessons:v1";
+  }
+
+  function readVisited(repoId) {
+    try {
+      var raw = localStorage.getItem(visitedKey(repoId));
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+
+  function markVisited(repoId, lessonId) {
+    try {
+      var current = readVisited(repoId);
+      if (current.indexOf(lessonId) === -1) {
+        current.push(lessonId);
+        localStorage.setItem(visitedKey(repoId), JSON.stringify(current));
+      }
+    } catch (e) { /* private mode — silent */ }
+    paintVisited(repoId);
+  }
+
+  function paintVisited(repoId) {
+    var visited = readVisited(repoId);
+    var links = document.querySelectorAll(".lesson-link");
+    for (var i = 0; i < links.length; i++) {
+      var lid = links[i].getAttribute("data-lesson-id");
+      if (lid && visited.indexOf(lid) !== -1) {
+        links[i].classList.add("visited");
+      } else {
+        links[i].classList.remove("visited");
+      }
+    }
+  }
+
+  function scheduleVisited(repoId, lessonId) {
+    if (_visitedTimer) { clearTimeout(_visitedTimer); }
+    _visitedTimer = setTimeout(function () {
+      markVisited(repoId, lessonId);
+    }, VISITED_TIMEOUT_MS);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   CodeGuide.init = function () {
     var meta = safeJSON("tutorial-meta");
     var clusters = safeJSON("tutorial-clusters") || [];
@@ -386,6 +487,7 @@
     if (currentBtn) { currentBtn.classList.add("on"); }
 
     initTOC(clusters, lessons, repoId);
+    paintVisited(repoId); // B6: restore visited checkmarks from previous sessions
     initSplitter();
     initScrollSync();
     initArrowNav(lessons, repoId);

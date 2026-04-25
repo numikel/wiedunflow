@@ -180,6 +180,20 @@ def _lesson_to_payload(
         "code_refs": list(lesson.code_refs),
     }
 
+    # v0.2.1 A6 — closing lesson "Helper functions you'll see along the way"
+    # appendix; populated by use_cases.skip_trivial when planning_skip_trivial_helpers
+    # is enabled. Track B JS reads `lesson.helper_appendix` from the JSON envelope.
+    if lesson.helper_appendix:
+        payload["helper_appendix"] = [
+            {
+                "symbol": h.symbol,
+                "file_path": h.file_path,
+                "line_start": h.line_start,
+                "line_end": h.line_end,
+            }
+            for h in lesson.helper_appendix
+        ]
+
     # Attach a lookup-based code snippet when the lesson has no inline
     # segment-level `code_ref` (the common Stage 5 output today). The browser
     # uses this to populate the right-hand code panel; without it the panel

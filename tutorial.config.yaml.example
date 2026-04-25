@@ -21,9 +21,35 @@ include_patterns: []
 max_lessons: 30                # hard cap per FR-35
 target_audience: "mid-level Python developer"
 
+# Output (optional — default `./tutorial.html` in the current directory)
+# Relative paths resolve against the cwd at runtime; absolute paths are used
+# verbatim. Override at the CLI with `--output PATH` / `-o PATH`.
+# output_path: ./tutorial.html
+# output_path: ./reports/codeguide-${repo}.html   # any path you like
+
 # Security (Sprint 6 / v0.0.6)
 # Hard-refuse list (.env*, *.pem, id_rsa, credentials.*, ...) excludes matching
 # files from ingestion regardless of include/exclude. The only escape hatch is
 # this allow-list — add filenames explicitly to keep them in the tutorial.
 security:
   allow_secret_files: []         # e.g. [".env.example"] to include dotenv docs
+
+# Tutorial quality (v0.2.1) — opt-in controls; defaults preserve v0.2.0 behaviour.
+planning:
+  # auto = move entry-point lesson to position 1 if detected (main/CLI/__main__/@click.command)
+  # always = enforce; raise if no entry point detected
+  # never = preserve raw leaves->roots ordering from the LLM planner
+  entry_point_first: auto
+  # When true, lessons whose primary code_ref is <3 lines AND not cited as primary
+  # elsewhere AND not an entry point AND not in top-5% PageRank are dropped from
+  # the manifest and folded into a "Helper functions" appendix on the closing lesson.
+  skip_trivial_helpers: false
+
+narration:
+  # Word-count floor for 1-line primary code refs (other tiers stay at 80/220/350).
+  # Lower this to allow tighter narration for one-liner helpers.
+  min_words_trivial: 50
+  # When true, narration markdown ```python code blocks are validated against the
+  # source_excerpt of each code_ref; signature mismatches trigger a 1-shot retry
+  # with an explicit hint. Set to false to bypass validation entirely.
+  snippet_validation: true

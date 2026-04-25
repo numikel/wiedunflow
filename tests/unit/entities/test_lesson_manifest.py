@@ -109,6 +109,53 @@ def test_code_ref_equal_start_end_valid() -> None:
 
 
 # ---------------------------------------------------------------------------
+# v0.2.1 — CodeRef.source_excerpt backward-compat (additive optional field)
+# ---------------------------------------------------------------------------
+
+
+def test_code_ref_source_excerpt_default_none() -> None:
+    """Without `source_excerpt`, the field defaults to None — compatible with v1 cache."""
+    ref = CodeRef(file_path=Path("a.py"), symbol="a.fn", line_start=1, line_end=5)
+    assert ref.source_excerpt is None
+
+
+def test_code_ref_source_excerpt_string_value() -> None:
+    """Populated `source_excerpt` round-trips intact."""
+    body = "def fn(x):\n    return x + 1"
+    ref = CodeRef(
+        file_path=Path("a.py"),
+        symbol="a.fn",
+        line_start=1,
+        line_end=2,
+        source_excerpt=body,
+    )
+    assert ref.source_excerpt == body
+
+
+def test_code_ref_legacy_json_without_source_excerpt_deserializes() -> None:
+    """v0.2.0 cache JSON (no source_excerpt key) deserialises into v0.2.1 schema."""
+    legacy_json = (
+        '{"file_path": "a.py", "symbol": "a.fn", "line_start": 1, "line_end": 5, "role": "primary"}'
+    )
+    ref = CodeRef.model_validate_json(legacy_json)
+    assert ref.symbol == "a.fn"
+    assert ref.source_excerpt is None
+
+
+def test_code_ref_source_excerpt_max_length_enforced() -> None:
+    """source_excerpt has a 4000-char ceiling (Field(max_length=4000)) per ADR-0012 budget."""
+    too_long = "x" * 4001
+    with pytest.raises(ValidationError):
+        CodeRef(
+            file_path=Path("a.py"),
+            symbol="a.fn",
+            line_start=1,
+            line_end=2,
+            source_excerpt=too_long,
+        )
+
+
+# ---------------------------------------------------------------------------
 # LessonManifest construction and validators
 # ---------------------------------------------------------------------------
 

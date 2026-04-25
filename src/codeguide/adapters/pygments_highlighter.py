@@ -17,17 +17,24 @@ from pygments.token import Token  # type: ignore[import-untyped]
 
 # Mapping: ordered from most-specific to most-general so the first matching
 # parent token wins. Pygments tokens use class inheritance via `in` operator.
+#
+# v0.2.0 contrast bump: split builtins from classes (``tok-builtin``), split
+# decorators from function names (``tok-deco``), add ``tok-op`` for arithmetic
+# / comparison operators. Pre-v0.2.0 mapping folded all of these together,
+# producing a near-monochrome rendering that the user reported as illegible.
 _TOKEN_TO_CLASS: tuple[tuple[object, str], ...] = (
     (Token.Comment, "tok-com"),
     (Token.Keyword, "tok-kw"),
     (Token.Operator.Word, "tok-kw"),
+    (Token.Name.Decorator, "tok-deco"),
     (Token.Name.Function, "tok-fn"),
-    (Token.Name.Decorator, "tok-fn"),
     (Token.Name.Class, "tok-cls"),
-    (Token.Name.Builtin, "tok-cls"),
     (Token.Name.Exception, "tok-cls"),
+    (Token.Name.Builtin.Pseudo, "tok-builtin"),  # self, cls, True, False, None
+    (Token.Name.Builtin, "tok-builtin"),
     (Token.Literal.String, "tok-str"),
     (Token.Literal.Number, "tok-num"),
+    (Token.Operator, "tok-op"),
 )
 
 

@@ -1,0 +1,44 @@
+{
+  "project": "Apollo Dashboard",
+  "version": "2.4.1",
+  "is_active": true,
+  "is_deprecated": false,
+  "score": 98.6,
+  "budget_usd": 150000,
+  "notes": null,
+  "description": "Multi-line description:\nLine 1\nLine 2\tTabbed\nLine 3",
+  "unicode_label": "Status: ✅ Aktywny — Café — 日本語",
+  "empty_config": {},
+  "empty_tags": [],
+  "tags": ["backend", "realtime", "cloud"],
+  "allowed_roles": ["admin", "editor", "viewer"],
+  "team": [
+    { "name": "Anna Kowalska",  "role": "Lead",     "seniority": "senior", "remote": true  },
+    { "name": "Piotr Nowak",    "role": "Backend",  "seniority": "mid",    "remote": false },
+    { "name": "Maria Wiśniewska","role": "Frontend", "seniority": "senior", "remote": true  },
+    { "name": "Tomasz Wróbel",  "role": "DevOps",   "seniority": "junior", "remote": true  }
+  ],
+  "milestones": [
+    { "phase": "Discovery", "due": "2025-01-15", "done": true  },
+    { "phase": "MVP",       "due": "2025-04-01", "done": true  },
+    { "phase": "Beta",      "due": "2025-07-01", "done": false },
+    { "phase": "GA",        "due": "2025-10-01", "done": false }
+  ],
+  "mixed_list": [42, "hello", true, null, {"key": "value"}, [1, 2, 3]],
+  "infrastructure": {
+    "cloud": "AWS",
+    "region": "eu-central-1",
+    "replicas": 3,
+    "autoscaling": true,
+    "database": {
+      "engine": "PostgreSQL",
+      "version": "16",
+      "storage_gb": 500
+    }
+  },
+  "sla": {
+    "uptime_pct": 99.95,
+    "max_response_ms": 200,
+    "support_tier": "enterprise"
+  }
+}

@@ -162,7 +162,12 @@ The generator has 7 ordered stages; conventional-commit scopes mirror them 1:1:
 ## GROUNDING_AND_COHERENCE
 
 - **Hybrid grounding (hard rule)**: every function/class/module name referenced in an LLM-generated lesson must exist in the AST snapshot from Stage 1. Post-hoc validation in the `entities` layer rejects any lesson that references a non-existent symbol; the generator retries with a grounding-focused prompt. Target: **0 hallucinated symbols** in output.
+- **Source-excerpt injection (v0.2.1)**: for every primary `code_ref` whose body span is <30 lines, populate `source_excerpt` from the AST snapshot before sending to the narration LLM. This eliminates signature hallucinations (the v0.2.0 root cause: LLM received only `{symbol, file, line_start, line_end, role}` and had to guess bodies). See `use_cases/inject_source_excerpts.py`.
+- **Snippet validation (v0.2.1, gated by `narration.snippet_validation`)**: post-narration, parse ```python fenced blocks and compare regex-matched `def` lines against `source_excerpt`. Signature mismatches trigger a 1-shot retry with explicit hint `"You quoted: 'def {bad}' — actual signature is 'def {real}'"`. Lenient on body abbreviation, strict on function name + parameter token list. See `use_cases/snippet_validator.py`.
+- **Happy-path lesson ordering (v0.2.1, `planning.entry_point_first: auto`)**: post-planning reorder hook moves the entry-point lesson (`def main`/`def cli`/`__main__.py`/`@click.command`/`if __name__ == "__main__":` block) to position 1. Mode `auto` is a no-op when no entry point is detected; `never` preserves raw leaves→roots. See `use_cases/entry_point_detector.py` and `_apply_entry_point_first` in `plan_lesson_manifest.py`.
 - **Narrative coherence**: lesson N must not re-teach what lessons 1..N-1 already covered. Enforced via `concepts_introduced` — correctness invariant, not polish.
+- **Word-count tiers (v0.2.1)**: narration floor scales with primary `code_ref` body span — 1 line = `narration.min_words_trivial` (default 50), 2-9 lines = 80, 10-30 = 220, >30 = 350. Replaces the v0.2.0 hardcoded 150 that forced bloated narration for one-liners.
+- **Skip trivial helpers (v0.2.1, opt-in via `planning.skip_trivial_helpers: true`)**: drop lessons whose primary ref is <3 lines AND not cited as primary elsewhere AND not entry point AND not top-5% PageRank. Skipped helpers folded into closing-lesson "Helper functions you'll see along the way" appendix.
 - **Uncertainty markers**: dynamic imports, reflection, runtime polymorphism, and unresolved Jedi references must be flagged `uncertain` in AST metadata and narrated as such (e.g. "this dispatch happens at runtime — see actual callers"). Do not guess resolution.
 
 ## EDGE_CASES
@@ -254,7 +259,8 @@ Aktualne architectural decision records (w `docs/adr/`):
 - **ADR-0004** — UV-exclusive toolchain: pip/pipx/poetry/hatch wykluczone (2026-04-20).
 - **ADR-0005** — Frozen vanilla JS output: zero Preact/React/Astro/bundlera w HTML (2026-04-20).
 - **ADR-0006** — AST snapshot schema: `(IngestionResult, CallGraph, RankedGraph)` triple z invariantami Pydantic jako grounding contract dla Stage 1-3 (2026-04-20).
-- **ADR-0007** — Planning prompt contract (Stage 4): Sonnet 4.6 single call, grounding invariant, 1-retry, fatal fail (2026-04-20).
+- **ADR-0007** — Planning prompt contract (Stage 4): Sonnet 4.6 single call, grounding invariant, 1-retry, fatal fail (2026-04-20; revised 2026-04-25 for v0.2.1 — additive `source_excerpt` + happy-path heuristic).
 - **ADR-0008** — Cache schema v1: SQLite + WAL, `(repo_abs, commit, lesson_id)` key bez modelu, checkpoint row per lekcja, no-JSON1 design (2026-04-21).
 - **ADR-0010** — Secret redaction policy + zero-telemetry contract: 7 binary decisions (pattern-only regex, structlog processor scope, separate `consent.yaml`, per-provider persistence, 9-pattern hard-refuse list, dual-layer zero-telemetry test, editor resolver shlex+which+metachar validation) (2026-04-22).
 - **ADR-0011** — UX design system: A1 Paper only, Inter only, Direction A only, Modern CLI only (2026-04-19; +decisions 8 (CLI animation strategy) and 9 (cost-gate default ON for TTY) added Sprint 8 / 2026-04-25).
+- **ADR-0012** — Tutorial quality enforcement: `source_excerpt` injection, snippet validator, happy-path ordering, per-tier word counts, skip-trivial helpers (2026-04-25, v0.2.1).

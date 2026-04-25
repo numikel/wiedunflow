@@ -63,9 +63,23 @@ class CodeguideConfig(BaseSettings):
     include_patterns: list[str] = Field(default_factory=list)
     max_lessons: int = 30
     target_audience: str = "mid-level Python developer"
+    # v0.2.0: Override the tutorial output path. Relative paths resolve against
+    # cwd at runtime; absolute paths are used verbatim. ``None`` keeps the
+    # default ``./tutorial.html``. CLI flag ``--output``/``-o`` takes precedence.
+    output_path: Path | None = None
     # US-008: exact file names exempted from the hard-refuse secret blocklist.
     # YAML path: security.allow_secret_files: [".env.example"]
     security_allow_secret_files: frozenset[str] = Field(default_factory=frozenset)
+
+    # v0.2.1: tutorial quality controls (opt-in; defaults preserve v0.2.0 behaviour).
+    # YAML path: planning.entry_point_first
+    planning_entry_point_first: Literal["auto", "always", "never"] = "auto"
+    # YAML path: planning.skip_trivial_helpers
+    planning_skip_trivial_helpers: bool = False
+    # YAML path: narration.min_words_trivial
+    narration_min_words_trivial: int = 50
+    # YAML path: narration.snippet_validation
+    narration_snippet_validation: bool = True
 
     model_config = SettingsConfigDict(
         env_prefix="CODEGUIDE_",
@@ -147,35 +161,68 @@ def _log_resolved_config(
         logger.debug("config resolved: %s=%s from %s", field, value, source)
 
 
+_LLM_BLOCK_MAP: dict[str, str] = {
+    "provider": "llm_provider",
+    "model_plan": "llm_model_plan",
+    "model_narrate": "llm_model_narrate",
+    "api_key": "llm_api_key",
+    "base_url": "llm_base_url",
+    "api_key_env": "llm_api_key_env",
+    "concurrency": "llm_concurrency",
+    "max_retries": "llm_max_retries",
+    "max_wait_s": "llm_max_wait_s",
+}
+
+_PLANNING_BLOCK_MAP: dict[str, str] = {
+    "entry_point_first": "planning_entry_point_first",
+    "skip_trivial_helpers": "planning_skip_trivial_helpers",
+}
+
+_NARRATION_BLOCK_MAP: dict[str, str] = {
+    "min_words_trivial": "narration_min_words_trivial",
+    "snippet_validation": "narration_snippet_validation",
+}
+
+_TOP_LEVEL_KEYS: tuple[str, ...] = (
+    "exclude_patterns",
+    "include_patterns",
+    "max_lessons",
+    "target_audience",
+    "output_path",
+)
+
+
+def _apply_block(
+    data: dict[str, Any],
+    block_name: str,
+    key_to_field: dict[str, str],
+    flat: dict[str, Any],
+) -> None:
+    """Copy nested block keys (``data[block_name][k]``) to flat field names."""
+    block = data.get(block_name)
+    if not isinstance(block, dict):
+        return
+    for yaml_key, field_name in key_to_field.items():
+        if yaml_key in block:
+            flat[field_name] = block[yaml_key]
+
+
 def _load_yaml_flat(path: Path) -> dict[str, Any]:
-    """Load a YAML config file and flatten nested ``llm:`` block to field names."""
+    """Load a YAML config file and flatten nested blocks to field names."""
     with path.open("r", encoding="utf-8") as fh:
         data: dict[str, Any] = yaml.safe_load(fh) or {}
 
     flat: dict[str, Any] = {}
 
-    llm = data.get("llm")
-    if isinstance(llm, dict):
-        _map = {
-            "provider": "llm_provider",
-            "model_plan": "llm_model_plan",
-            "model_narrate": "llm_model_narrate",
-            "api_key": "llm_api_key",
-            "base_url": "llm_base_url",
-            "api_key_env": "llm_api_key_env",
-            "concurrency": "llm_concurrency",
-            "max_retries": "llm_max_retries",
-            "max_wait_s": "llm_max_wait_s",
-        }
-        for yaml_key, field_name in _map.items():
-            if yaml_key in llm:
-                flat[field_name] = llm[yaml_key]
+    _apply_block(data, "llm", _LLM_BLOCK_MAP, flat)
+    _apply_block(data, "planning", _PLANNING_BLOCK_MAP, flat)
+    _apply_block(data, "narration", _NARRATION_BLOCK_MAP, flat)
 
-    for key in ("exclude_patterns", "include_patterns", "max_lessons", "target_audience"):
+    for key in _TOP_LEVEL_KEYS:
         if key in data:
             flat[key] = data[key]
 
-    # security.allow_secret_files → frozenset[str]
+    # security.allow_secret_files → frozenset[str] (special-case: type coercion).
     security = data.get("security")
     if isinstance(security, dict):
         allow_list = security.get("allow_secret_files")

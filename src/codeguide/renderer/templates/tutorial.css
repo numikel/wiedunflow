@@ -22,16 +22,24 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Progress bar — 3px fixed top, accent fill */
+/* Progress bar — 4px fixed strip below topbar (B1: Track B v0.2.1) */
 #tutorial-progress {
-  position: fixed; top: 0; left: 0; right: 0;
-  height: 3px; background: transparent; z-index: 50;
+  position: fixed;
+  top: 52px; /* matches #tutorial-topbar height */
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--border);
+  z-index: 45;
+  pointer-events: none;
 }
 #tutorial-progress > span {
-  display: block; height: 100%;
+  display: block;
+  height: 100%;
   background: var(--accent);
   width: 0%;
-  transition: width 220ms ease;
+  transition: width 220ms ease-out;
+  will-change: width;
 }
 
 /* Topbar — 52px sticky, darkest surface */
@@ -74,9 +82,11 @@ body {
 #tutorial-topbar .nav-btn:hover:not(:disabled) { background: oklch(0.28 0.01 250); }
 #tutorial-topbar .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 #tutorial-topbar .progress-label {
-  font-size: 12px; color: oklch(0.70 0.01 250);
-  min-width: 44px; text-align: center;
+  font-size: 13px; color: oklch(0.70 0.01 250);
+  min-width: 64px; text-align: center;
   font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+  user-select: none;
 }
 
 /* Degraded banner (US-079) */
@@ -118,8 +128,9 @@ body {
   text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--ink-dim); margin-bottom: 6px;
 }
+/* B3 (Track B v0.2.1): display:flex allows checkmark span + text label to sit inline */
 #tutorial-sidebar .lesson-link {
-  display: block; padding: 6px 8px; margin: 0 -8px;
+  display: flex; align-items: flex-start; padding: 6px 8px; margin: 0 -8px;
   font-size: 13px; font-weight: 400; line-height: 1.4;
   color: var(--ink-2); border-radius: 4px; cursor: pointer;
   border: none; background: transparent; width: calc(100% + 16px); text-align: left;
@@ -132,12 +143,42 @@ body {
   border-left: 3px solid var(--accent); padding-left: 5px;
 }
 #tutorial-sidebar .lesson-link.skipped { color: var(--ink-dim); font-style: italic; }
+.lesson-link .lesson-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  margin-top: 2px; /* optical alignment with first text line */
+  border: 1.5px solid var(--border-2);
+  border-radius: 50%;
+  position: relative;
+  font-size: 0;
+}
+.lesson-link.visited .lesson-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.lesson-link.visited .lesson-check::after {
+  content: "\2713"; /* ✓ checkmark */
+  color: var(--bg);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
 
-/* Content wrapper — narration + splitter + code */
+/* Content wrapper — narration + splitter + code.
+ * v0.2.0 fix: ``height`` + ``overflow: hidden`` constrain the grid to the
+ * viewport so each child panel scrolls independently via its own
+ * ``overflow-y: auto``. Pre-fix used ``min-height`` which let the grid
+ * grow with content and coupled both panels into a single outer scroll. */
 #tutorial-content {
   display: grid;
   grid-template-columns: 1fr 10px 1fr;
-  min-height: calc(100vh - 52px);
+  height: calc(100vh - 52px);
+  overflow: hidden;
 }
 
 /* Narration panel — lightest surface */
@@ -145,7 +186,7 @@ body {
   background: var(--bg);
   padding: 56px 48px 80px;
   overflow-y: auto;
-  max-height: calc(100vh - 52px);
+  height: 100%;
   scroll-behavior: smooth;
 }
 #tutorial-narration .lesson-meta {
@@ -176,6 +217,79 @@ body {
   background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
 }
 #tutorial-narration .prose em { color: var(--ink-2); }
+#tutorial-narration .prose strong { font-weight: 600; color: var(--ink); }
+
+/* v0.2.0 (Sprint 8 follow-up): narration hierarchy + block-level prose elements.
+ * Mistune renders `## H2` / `### H3` / `> quote` / fenced code blocks; without
+ * these rules they fall through to browser defaults and look "like a notepad". */
+#tutorial-narration .prose h2 {
+  font-size: 24px; font-weight: 600; line-height: 1.25;
+  color: var(--ink); margin: 36px 0 14px;
+  max-width: 62ch;
+}
+#tutorial-narration .prose h3 {
+  font-size: 18.5px; font-weight: 600; line-height: 1.3;
+  color: var(--ink); margin: 28px 0 10px;
+  max-width: 62ch;
+}
+#tutorial-narration .prose h4 {
+  font-size: 15.5px; font-weight: 600; line-height: 1.35;
+  color: var(--ink-2); margin: 22px 0 8px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  max-width: 62ch;
+}
+#tutorial-narration .prose ul,
+#tutorial-narration .prose ol {
+  font-size: 16.5px; line-height: 1.7;
+  margin: 0 0 20px 0; padding-left: 26px;
+  color: var(--ink); max-width: 62ch;
+}
+#tutorial-narration .prose li {
+  margin-bottom: 6px;
+}
+#tutorial-narration .prose li > p { margin-bottom: 6px; }
+#tutorial-narration .prose blockquote {
+  margin: 20px 0; padding: 12px 18px;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  border-radius: 0 6px 6px 0;
+  color: var(--ink-2); font-size: 15.5px; line-height: 1.65;
+  max-width: 62ch;
+}
+#tutorial-narration .prose blockquote p:last-child { margin-bottom: 0; }
+#tutorial-narration .prose blockquote strong:first-child { color: var(--accent); }
+#tutorial-narration .prose pre {
+  margin: 22px 0; padding: 16px 18px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.55;
+  color: var(--ink); overflow-x: auto;
+  max-width: 62ch;
+}
+#tutorial-narration .prose pre code {
+  background: transparent; padding: 0; font-size: 1em;
+}
+#tutorial-narration .prose hr {
+  border: none; border-top: 1px solid var(--border);
+  margin: 32px 0; max-width: 62ch;
+}
+#tutorial-narration .prose a {
+  color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+}
+#tutorial-narration .prose a:hover { text-decoration-thickness: 2px; }
+#tutorial-narration .prose table {
+  border-collapse: collapse; margin: 20px 0;
+  font-size: 14.5px; max-width: 62ch;
+}
+#tutorial-narration .prose table th,
+#tutorial-narration .prose table td {
+  border: 1px solid var(--border);
+  padding: 6px 12px; text-align: left;
+}
+#tutorial-narration .prose table th {
+  background: var(--panel); font-weight: 600;
+}
 
 /* Inline end-of-lesson navigation (US-040) */
 .lesson-footer {
@@ -238,13 +352,16 @@ body {
   border-right-color: var(--accent);
 }
 
-/* Code panel — sticky, Pygments pre-rendered */
+/* Code panel — Pygments pre-rendered.
+ * v0.2.0 fix: dropped ``position: sticky`` which conflicted with the new
+ * ``overflow: hidden`` parent (sticky elements need a non-overflowing
+ * ancestor). The grid track is height-bounded by ``#tutorial-content``,
+ * so ``height: 100%`` + ``overflow-y: auto`` gives independent scrolling. */
 #tutorial-code {
   background: var(--surface);
   padding: 0;
   overflow-y: auto;
-  max-height: calc(100vh - 52px);
-  position: sticky; top: 52px;
+  height: 100%;
 }
 #tutorial-code .code-head {
   display: flex; align-items: center; gap: 10px;
@@ -278,13 +395,19 @@ body {
   white-space: pre; margin: 0;
 }
 
-/* Pygments token classes (decision #4) */
-.tok-kw  { color: var(--tok-kw); font-weight: 500; }
-.tok-str { color: var(--tok-str); }
-.tok-com { color: var(--tok-com); font-style: italic; }
-.tok-fn  { color: var(--tok-fn); }
-.tok-cls { color: var(--tok-cls); }
-.tok-num { color: var(--tok-num); }
+/* Pygments token classes (decision #4 + v0.2.0 contrast bump).
+ * v0.2.0 added ``tok-builtin``, ``tok-deco``, ``tok-op`` so Python code
+ * doesn't render as a wall of dark gray. Builtins were previously folded
+ * into ``tok-cls`` (orange) and decorators into ``tok-fn`` (blue). */
+.tok-kw      { color: var(--tok-kw); font-weight: 500; }
+.tok-str     { color: var(--tok-str); }
+.tok-com     { color: var(--tok-com); font-style: italic; }
+.tok-fn      { color: var(--tok-fn); font-weight: 500; }
+.tok-cls     { color: var(--tok-cls); font-weight: 500; }
+.tok-builtin { color: var(--tok-builtin); }
+.tok-deco    { color: var(--tok-deco); font-weight: 500; font-style: italic; }
+.tok-num     { color: var(--tok-num); }
+.tok-op      { color: var(--tok-op); }
 
 /* Skipped lesson placeholder (US-078) */
 .lesson-skipped {
@@ -350,6 +473,40 @@ body {
   font-family: inherit;
 }
 #tweaks-panel .seg button.on { background: var(--accent); color: #fff; }
+
+/* Helper appendix (B7: Track B v0.2.1 — rendered when Track A emits meta.helper_appendix) */
+.helper-appendix {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  max-width: 62ch;
+}
+.helper-appendix h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.helper-appendix ul {
+  list-style: none;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.helper-appendix li { margin-bottom: 4px; }
+.helper-appendix code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.helper-appendix .meta {
+  color: var(--ink-dim);
+  font-size: 12px;
+}
 
 /* Mobile (<1024px) — stacked interleaved (US-042, decision #5) */
 @media (max-width: 1023px) {

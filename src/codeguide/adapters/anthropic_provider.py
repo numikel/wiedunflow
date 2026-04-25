@@ -247,7 +247,9 @@ STRICT RULES:
 - Every code_refs[*].role MUST be EXACTLY one of: "primary", "referenced", "example".
   Do NOT invent other values like "secondary", "supporting", "auxiliary", "tertiary", "supplementary".
   If a symbol is supportive but not the focus, use "referenced". If it illustrates usage, use "example".
-- Order lessons leaves->roots (concepts before applications).
+- Order lessons: lesson 1 = entry point (main/CLI orchestrator); lessons 2..N-2 =
+  leaves->roots building blocks; lesson N-1 = top-level orchestration; lesson N = closing.
+- If no clear entry point exists, fall back to leaves->roots throughout.
 - Max 30 lessons.
 - Each lesson teaches ONE concept not covered by earlier lessons.
 
@@ -275,6 +277,30 @@ CONSTRAINTS:
 - Audience: mid-level Python developer.
 - Do NOT re-teach these already-covered concepts: {concepts_introduced}.
 - Ground every claim in the provided code references; do not invent function names.
+
+GROUNDING (signature accuracy):
+- For every code_refs entry where source_excerpt is not null, narration MUST quote
+  the function signature EXACTLY as it appears in source_excerpt.
+- Do NOT invent parameter names or return types not present in source_excerpt.
+- ```python fenced blocks MUST contain code copied verbatim from source_excerpt
+  (you may abbreviate the body with `# ...` comments, but signatures stay exact).
+
+STRUCTURE — use real Markdown, not a wall of paragraphs. The reader sees the
+output rendered with proper headings, callouts, and code blocks; flat prose
+makes the lesson feel like a notepad. Apply these elements *when they fit the
+content* (do not force them):
+
+- `## Subheading` to split logical sections (e.g., one subhead per function or
+  per phase of the algorithm). Use `###` for nested points only if needed.
+- `> **Note:** …` / `> **Tip:** …` / `> **Warning:** …` blockquotes for
+  callouts: edge cases, gotchas, performance notes, version-specific quirks.
+- ```python fenced code blocks ``` for concrete examples (3-8 lines max,
+  illustrative only — they must NOT introduce new symbols beyond those in
+  the provided code references).
+- `**bold**` for the first mention of a key term; `*italic* ` for emphasis.
+- `- bullet` lists when enumerating ≥3 items; otherwise prefer prose.
+- A single `---` horizontal rule to separate "what" from "how" if it helps
+  the flow.
 
 LENGTH — narration MUST be proportional to code complexity. A 3-line function
 does not need 500 words. Aim for the shortest lesson that teaches what the code

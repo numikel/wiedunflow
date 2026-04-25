@@ -18,7 +18,7 @@ from codeguide.cli.cost_estimator import CostEstimate
 from codeguide.cli.cost_estimator import estimate as _estimate_cost
 from codeguide.cli.editor_resolver import open_in_editor as _open_in_editor
 from codeguide.cli.stage_reporter import NoOpReporter, StageReporter
-from codeguide.entities.lesson import Lesson
+from codeguide.entities.lesson import HelperAppendixEntry, Lesson
 from codeguide.entities.lesson_manifest import (
     LessonManifest,
     LessonSpec,
@@ -27,12 +27,15 @@ from codeguide.entities.lesson_manifest import (
 from codeguide.entities.lesson_plan import LessonPlan
 from codeguide.entities.skipped_lesson import SkippedLesson
 from codeguide.use_cases.doc_coverage import compute_doc_coverage
+from codeguide.use_cases.entry_point_detector import detect_entry_points
 from codeguide.use_cases.grounding_retry import narrate_with_grounding_retry
 from codeguide.use_cases.ingestion import ingest
+from codeguide.use_cases.inject_source_excerpts import inject_source_excerpts
 from codeguide.use_cases.offline_linter import validate_offline_invariant
 from codeguide.use_cases.outline_builder import build_outline
 from codeguide.use_cases.plan_lesson_manifest import PlanningFatalError, plan_with_retry
 from codeguide.use_cases.rag_corpus import build_and_index
+from codeguide.use_cases.skip_trivial import filter_trivial_helpers
 
 if TYPE_CHECKING:
     from codeguide.entities.code_symbol import CodeSymbol
@@ -151,7 +154,7 @@ class _StageGenerationOutput:
     hallucinated_symbols: list[str] = field(default_factory=list)
 
 
-def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally long
+def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is naturally long
     repo_path: Path,
     providers: Providers,
     output_path: Path | None = None,
@@ -165,6 +168,11 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
     max_cost_usd: float | None = None,
     progress: StageReporter | NoOpReporter | None = None,
     cost_gate_callback: Callable[[CostEstimate], bool] | None = None,
+    # v0.2.1 quality controls (passed through from CodeguideConfig):
+    planning_entry_point_first: str = "auto",
+    planning_skip_trivial_helpers: bool = False,
+    narration_min_words_trivial: int = 50,
+    narration_snippet_validation: bool = True,
 ) -> GenerationResult:
     """Run the 7-stage pipeline and write tutorial.html.
 
@@ -227,9 +235,13 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
     _check_abort()
 
     # Stage 2 — Analysis
+    # Use ``detail`` rather than ``progress_line`` because tree-sitter + Jedi
+    # parse the whole batch in one shot — there is no per-file callback to
+    # drive a replace-line region. A static line avoids ``rich.live`` rerendering
+    # when structlog warnings (e.g., low_jedi_resolution) are interleaved.
     progress.stage_start(2)
     logger.info("stage_start", stage=2, name="Analysis")
-    progress.progress_line(f"parsing AST + resolving call graph for {len(ingestion.files)} files")
+    progress.detail(f"parsing AST + resolving call graph for {len(ingestion.files)} files")
     symbols, raw_graph = providers.parser.parse(list(ingestion.files), ingestion.repo_root)
     resolved_graph = providers.resolver.resolve(symbols, raw_graph, ingestion.repo_root)
     progress.stage_done(f"{len(symbols)} symbols · {len(raw_graph.edges)} call edges")
@@ -255,8 +267,23 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
     progress.detail("generating lesson manifest…")
     outline = build_outline(symbols, resolved_graph, ranked)
     allowed_symbols = _collect_allowed_symbols(ranked, symbols)
+
+    # Detect entry points for happy-path ordering (v0.2.1).
+    # ingestion.files are absolute paths — relativise before passing to detector.
+    _ep_file_paths: tuple[Path, ...] = tuple(
+        p.relative_to(ingestion.repo_root) if p.is_absolute() else p for p in ingestion.files
+    )
+    entry_points = detect_entry_points(ingestion.repo_root, _ep_file_paths)
+    logger.debug("entry_points_detected", count=len(entry_points), symbols=sorted(entry_points))
+
     try:
-        manifest: LessonManifest = plan_with_retry(providers.llm, outline, allowed_symbols)
+        manifest: LessonManifest = plan_with_retry(
+            providers.llm,
+            outline,
+            allowed_symbols,
+            entry_points=entry_points,
+            entry_point_mode=planning_entry_point_first,  # type: ignore[arg-type]
+        )
     except PlanningFatalError as exc:
         logger.error(
             "planning_fatal",
@@ -265,6 +292,10 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         )
         raise
     progress.stage_done(f"manifest ready ({len(manifest.lessons)} lessons)")
+
+    # Post-planning: inject source excerpts for anti-hallucination (v0.2.1 A2).
+    manifest = inject_source_excerpts(manifest, ingestion.repo_root)
+    logger.debug("source_excerpts_injected")
 
     # Re-attach orchestrator-side metadata — the provider-level metadata is a
     # placeholder because only the orchestrator knows the real clock, version,
@@ -364,7 +395,7 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         preview_output = output_path
         if preview_output.name == "tutorial.html":
             preview_output = preview_output.with_name("tutorial-preview.html")
-        preview_output.write_text(html, encoding="utf-8")
+        _write_html_output(preview_output, html)
         _std_logger.info("[dry-run] Preview written to %s", preview_output)
         return GenerationResult(
             output_path=preview_output,
@@ -395,6 +426,20 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
             update={"lessons": truncated_lessons, "metadata": truncated_metadata}
         )
 
+    # Post-planning: filter trivial helpers (v0.2.1 A6).
+    manifest, helper_appendix_refs = filter_trivial_helpers(
+        manifest,
+        ranked,
+        entry_points,
+        enabled=planning_skip_trivial_helpers,
+    )
+    if helper_appendix_refs:
+        logger.info(
+            "trivial_helpers_filtered",
+            removed=len(helper_appendix_refs),
+            remaining_lessons=len(manifest.lessons),
+        )
+
     _check_abort()
 
     # Stage 6 — Generation
@@ -409,11 +454,51 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         ranked=ranked,
         should_abort=should_abort,
         progress=progress,
+        narration_min_words_trivial=narration_min_words_trivial,
+        narration_snippet_validation=narration_snippet_validation,
     )
     all_lessons: list[Lesson] = generation_result.lessons
     skipped_lessons: list[SkippedLesson] = generation_result.skipped
     # retry_count is logged by grounding_retry; future RunReport will expose it via Cross-cutting.
     concepts_introduced: tuple[str, ...] = generation_result.concepts_introduced
+
+    # v0.2.1 A6 — attach trivial-helper appendix to the closing lesson so
+    # Track B JS can render the "Helper functions you'll see along the way" list.
+    if helper_appendix_refs and all_lessons:
+        appendix_entries = tuple(
+            HelperAppendixEntry(
+                symbol=ref.symbol,
+                file_path=str(ref.file_path),
+                line_start=ref.line_start,
+                line_end=ref.line_end,
+            )
+            for ref in helper_appendix_refs
+        )
+        # Closing lesson is the last in the manifest order; locate it by id pattern.
+        closing_idx = next(
+            (i for i, lsn in enumerate(all_lessons) if lsn.id == "lesson-closing"),
+            len(all_lessons) - 1,
+        )
+        closing = all_lessons[closing_idx]
+        all_lessons[closing_idx] = closing.model_copy(update={"helper_appendix": appendix_entries})
+
+    # A8 bug fix: synchronise manifest.metadata.total_lessons with the ACTUAL
+    # lesson count after generation (which is manifest.lessons + 1 closing lesson).
+    # Before this fix, total_lessons was set to len(manifest.lessons) which
+    # excluded the closing lesson, causing the footer to show N-1 instead of N.
+    actual_total = len(all_lessons)
+    if manifest.metadata.total_lessons != actual_total:
+        _old_total = manifest.metadata.total_lessons
+        manifest = manifest.model_copy(
+            update={
+                "metadata": manifest.metadata.model_copy(update={"total_lessons": actual_total})
+            }
+        )
+        logger.debug(
+            "total_lessons_synced",
+            old=_old_total,
+            new=actual_total,
+        )
 
     # DEGRADED calculation (US-032).  Denominator = regular planned lessons only
     # (closing lesson excluded per spec decision).
@@ -457,7 +542,7 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         symbols=symbols,
         repo_root=repo_path,
     )
-    output_path.write_text(html, encoding="utf-8")
+    _write_html_output(output_path, html)
     progress.stage_done(f"tutorial.html written · {output_path.stat().st_size // 1024} KB")
     _std_logger.info("Tutorial written to %s", output_path)
     # Deduplicate and sort hallucinated symbols for deterministic output.
@@ -476,6 +561,12 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
 # ---------------------------------------------------------------------------
 # Private stage helpers
 # ---------------------------------------------------------------------------
+
+
+def _write_html_output(output_path: Path, html: str) -> None:
+    """Write rendered HTML, creating the configured output directory if needed."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(html, encoding="utf-8")
 
 
 def _build_preview_lessons(manifest: LessonManifest) -> list[Lesson]:
@@ -626,6 +717,8 @@ def _stage_generation(
     ranked: RankedGraph,
     should_abort: Callable[[], bool] | None = None,
     progress: StageReporter | NoOpReporter | None = None,
+    narration_min_words_trivial: int = 50,
+    narration_snippet_validation: bool = True,
 ) -> _StageGenerationOutput:
     """Stage 6: Narrate each lesson spec with grounding retry.
 
@@ -642,6 +735,10 @@ def _stage_generation(
         ingestion: Ingestion result used to build the closing lesson spec.
         repo_path: Repo root path (passed through to closing spec builder).
         ranked: RankedGraph used to find uncovered high-rank symbols.
+        narration_min_words_trivial: Minimum word count for 1-line-body lessons
+            (from ``config.narration_min_words_trivial``; default 50).
+        narration_snippet_validation: When ``True`` (default), validate ``def``
+            signatures in fenced code blocks against ``source_excerpt``.
 
     Returns:
         :class:`_StageGenerationOutput` with typed fields for lessons, skipped,
@@ -666,6 +763,8 @@ def _stage_generation(
             llm,
             output.concepts_introduced,
             hallucination_accumulator=output.hallucinated_symbols,
+            min_words_trivial=narration_min_words_trivial,
+            snippet_validation=narration_snippet_validation,
         )
 
         if isinstance(result, SkippedLesson):
@@ -700,6 +799,8 @@ def _stage_generation(
         llm,
         output.concepts_introduced,
         hallucination_accumulator=output.hallucinated_symbols,
+        min_words_trivial=narration_min_words_trivial,
+        snippet_validation=narration_snippet_validation,
     )
     if isinstance(closing_result, SkippedLesson):
         # Closing lesson failed — render placeholder (still append, no DEGRADED impact).

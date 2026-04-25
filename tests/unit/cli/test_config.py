@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError as _ValidationError
 
 from codeguide.cli.config import (
     CodeguideConfig,
@@ -333,3 +334,101 @@ def test_yaml_base_url_and_api_key_env(tmp_path, monkeypatch):
     assert cfg.llm_provider == "custom"
     assert cfg.llm_base_url == "http://localhost:11434/v1"
     assert cfg.llm_api_key_env == "OLLAMA_KEY"
+
+
+# ---------------------------------------------------------------------------
+# 11. v0.2.1 — planning.* and narration.* tutorial quality keys
+# ---------------------------------------------------------------------------
+
+
+def test_planning_block_defaults(monkeypatch):
+    """Without YAML planning block, defaults preserve v0.2.0 behaviour."""
+    monkeypatch.delenv("CODEGUIDE_PLANNING_ENTRY_POINT_FIRST", raising=False)
+    monkeypatch.delenv("CODEGUIDE_PLANNING_SKIP_TRIVIAL_HELPERS", raising=False)
+    cfg = CodeguideConfig()
+    assert cfg.planning_entry_point_first == "auto"
+    assert cfg.planning_skip_trivial_helpers is False
+
+
+def test_narration_block_defaults(monkeypatch):
+    """Without YAML narration block, defaults preserve v0.2.0 behaviour."""
+    monkeypatch.delenv("CODEGUIDE_NARRATION_MIN_WORDS_TRIVIAL", raising=False)
+    monkeypatch.delenv("CODEGUIDE_NARRATION_SNIPPET_VALIDATION", raising=False)
+    cfg = CodeguideConfig()
+    assert cfg.narration_min_words_trivial == 50
+    assert cfg.narration_snippet_validation is True
+
+
+def test_planning_block_from_yaml(tmp_path, monkeypatch):
+    """planning.entry_point_first and planning.skip_trivial_helpers load from YAML."""
+    monkeypatch.delenv("CODEGUIDE_PLANNING_ENTRY_POINT_FIRST", raising=False)
+    monkeypatch.delenv("CODEGUIDE_PLANNING_SKIP_TRIVIAL_HELPERS", raising=False)
+    cfg_file = tmp_path / "tutorial.config.yaml"
+    _write_yaml(
+        cfg_file,
+        {
+            "planning": {
+                "entry_point_first": "never",
+                "skip_trivial_helpers": True,
+            }
+        },
+    )
+    cfg = load_config(cli_config_path=cfg_file)
+    assert cfg.planning_entry_point_first == "never"
+    assert cfg.planning_skip_trivial_helpers is True
+
+
+def test_narration_block_from_yaml(tmp_path, monkeypatch):
+    """narration.min_words_trivial and narration.snippet_validation load from YAML."""
+    monkeypatch.delenv("CODEGUIDE_NARRATION_MIN_WORDS_TRIVIAL", raising=False)
+    monkeypatch.delenv("CODEGUIDE_NARRATION_SNIPPET_VALIDATION", raising=False)
+    cfg_file = tmp_path / "tutorial.config.yaml"
+    _write_yaml(
+        cfg_file,
+        {
+            "narration": {
+                "min_words_trivial": 30,
+                "snippet_validation": False,
+            }
+        },
+    )
+    cfg = load_config(cli_config_path=cfg_file)
+    assert cfg.narration_min_words_trivial == 30
+    assert cfg.narration_snippet_validation is False
+
+
+def test_planning_invalid_entry_point_first_raises(tmp_path, monkeypatch):
+    """planning.entry_point_first only accepts auto/always/never."""
+    monkeypatch.delenv("CODEGUIDE_PLANNING_ENTRY_POINT_FIRST", raising=False)
+    cfg_file = tmp_path / "tutorial.config.yaml"
+    _write_yaml(cfg_file, {"planning": {"entry_point_first": "bogus"}})
+    with pytest.raises(_ValidationError):
+        load_config(cli_config_path=cfg_file)
+
+
+def test_legacy_yaml_without_planning_or_narration_blocks(tmp_path, monkeypatch):
+    """Older configs (v0.2.0) without planning/narration blocks load with defaults."""
+    monkeypatch.delenv("CODEGUIDE_PLANNING_ENTRY_POINT_FIRST", raising=False)
+    monkeypatch.delenv("CODEGUIDE_NARRATION_SNIPPET_VALIDATION", raising=False)
+    cfg_file = tmp_path / "tutorial.config.yaml"
+    _write_yaml(
+        cfg_file,
+        {
+            "llm": {"provider": "anthropic"},
+            "max_lessons": 25,
+        },
+    )
+    cfg = load_config(cli_config_path=cfg_file)
+    assert cfg.planning_entry_point_first == "auto"
+    assert cfg.planning_skip_trivial_helpers is False
+    assert cfg.narration_min_words_trivial == 50
+    assert cfg.narration_snippet_validation is True
+
+
+def test_planning_env_var_overrides_yaml(tmp_path, monkeypatch):
+    """CODEGUIDE_PLANNING_ENTRY_POINT_FIRST env var beats YAML."""
+    cfg_file = tmp_path / "tutorial.config.yaml"
+    _write_yaml(cfg_file, {"planning": {"entry_point_first": "never"}})
+    monkeypatch.setenv("CODEGUIDE_PLANNING_ENTRY_POINT_FIRST", "always")
+    cfg = load_config(cli_config_path=cfg_file)
+    assert cfg.planning_entry_point_first == "always"

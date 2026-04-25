@@ -1,0 +1,39 @@
+{
+  "company": {
+    "name": "Acme Corp",
+    "founded": 2010,
+    "address": {
+      "street": "ul. Marszałkowska 1",
+      "city": "Warszawa",
+      "geo": {
+        "lat": 52.2297,
+        "lng": 21.0122,
+        "verified": true
+      }
+    },
+    "departments": [
+      {"name": "Engineering", "size": 40, "remote": true},
+      {"name": "Marketing",   "size": 15, "remote": false},
+      {"name": "Finance",     "size": 10, "remote": false}
+    ]
+  },
+  "servers": [
+    {"name": "web1", "tags": ["http", "nginx"], "config": {"port": 80,  "ssl": false}},
+    {"name": "web2", "tags": ["https", "nginx"], "config": {"port": 443, "ssl": true}}
+  ],
+  "pipeline": {
+    "stages": ["build", "test", "deploy"],
+    "notifications": {
+      "slack": "#dev-alerts",
+      "email": ["devops@acme.com", "cto@acme.com"]
+    },
+    "retry": {
+      "max_attempts": 3,
+      "backoff": {
+        "strategy": "exponential",
+        "base_seconds": 5,
+        "max_seconds": 60
+      }
+    }
+  }
+}

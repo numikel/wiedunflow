@@ -1,0 +1,47 @@
+{
+  "opalino": {
+    "chleb": 45,
+    "woda": 120,
+    "mlotek": 6
+  },
+  "domatowo": {
+    "makaron": 60,
+    "woda": 150,
+    "lopata": 8
+  },
+  "brudzewo": {
+    "ryz": 55,
+    "woda": 140,
+    "wiertarka": 5
+  },
+  "darzlubie": {
+    "wolowina": 25,
+    "woda": 130,
+    "kilof": 7
+  },
+  "celbowo": {
+    "kurczak": 40,
+    "woda": 125,
+    "mlotek": 6
+  },
+  "mechowo": {
+    "ziemniaki": 100,
+    "kapusta": 70,
+    "marchew": 65,
+    "woda": 165,
+    "lopata": 9
+  },
+  "puck": {
+    "chleb": 50,
+    "ryz": 45,
+    "woda": 175,
+    "wiertarka": 7
+  },
+  "karlinkowo": {
+    "makaron": 52,
+    "wolowina": 22,
+    "ziemniaki": 95,
+    "woda": 155,
+    "kilof": 6
+  }
+}

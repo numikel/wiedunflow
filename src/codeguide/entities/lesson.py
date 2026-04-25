@@ -36,6 +36,21 @@ class NarrationSegment(BaseModel):
     code_ref: CodeRef | None = None
 
 
+class HelperAppendixEntry(BaseModel):
+    """Lightweight reference to a trivial helper folded into the closing lesson.
+
+    Populated by ``use_cases.skip_trivial.filter_trivial_helpers`` and rendered
+    by Track B JS as a "Helper functions you'll see along the way" list.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    file_path: str
+    line_start: int
+    line_end: int
+
+
 class Lesson(BaseModel):
     """A single generated lesson within a tutorial."""
 
@@ -46,6 +61,7 @@ class Lesson(BaseModel):
     narrative: str  # markdown-formatted narration (backwards-compatible fallback)
     segments: tuple[NarrationSegment, ...] = ()  # S5 structured narration (optional)
     code_refs: tuple[str, ...] = ()  # CodeSymbol names referenced in this lesson
+    helper_appendix: tuple[HelperAppendixEntry, ...] = ()  # v0.2.1 closing-lesson appendix
     status: LessonStatus = "generated"
     confidence: Confidence = "MEDIUM"
 

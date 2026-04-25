@@ -6,6 +6,82 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-25 — Tutorial Quality Enforcement
+
+### Fixed
+- **Hallucinated function signatures** in narration prompts. The narration LLM
+  previously received only `{symbol, file, line_start, line_end, role}` per
+  code reference and had to guess function bodies — this produced fabricated
+  signatures (e.g. `load_json_content` → `return json.loads(content)` instead
+  of the actual `return {"content": content, "file_path": None}`, and
+  `write_markdown_file("README.md", "...")` with reversed parameter order).
+  Now `code_refs` carry an optional `source_excerpt` field populated from the
+  AST snapshot for any primary reference shorter than 30 lines, and the
+  narration prompt requires verbatim signature quoting from `source_excerpt`.
+  A post-narration snippet validator parses ```python fenced blocks, matches
+  signatures against `source_excerpt`, and triggers a 1-shot retry on
+  mismatch (`use_cases/snippet_validator.py`, gated by
+  `narration.snippet_validation`).
+- **Tutorial metadata `total_lessons` mismatch** — the count emitted in
+  `tutorial-meta` no longer drifts from the actual rendered lesson count
+  after skip-trivial filtering or post-planning reordering.
+
+### Added
+- **Happy-path lesson ordering**. New heuristic moves the entry-point lesson
+  (detected via `def main`/`def cli`/`def run_*`, `if __name__ == "__main__":`
+  blocks, `@click.command`/`@app.command` decorators, or `__main__.py` modules)
+  to position 1, preserves leaves→roots flow for lessons 2..N-2, top-level
+  orchestration at N-1, closing lesson at N. Configurable via
+  `planning.entry_point_first: auto|always|never` (default `auto`;
+  `auto` is a no-op when no entry point is detected). The planning prompt
+  was updated symmetrically in both Anthropic and OpenAI adapters
+  (`use_cases/entry_point_detector.py`, `use_cases/plan_lesson_manifest.py`).
+- **Per-tier word-count floors for narration**. Replaces the hardcoded
+  150-word minimum that forced verbose, watered-down narration for one-line
+  helpers. New floors: 1-line span = 50 (configurable via
+  `narration.min_words_trivial`), 2–9 lines = 80, 10–30 lines = 220, >30
+  lines = 350 (`use_cases/grounding_retry.py`).
+- **Skip-trivial helpers**. Optional pass that drops lessons whose primary
+  reference is <3 lines AND not cited as primary in any other lesson AND not
+  an entry point AND not in the top 5% by PageRank. Skipped helpers are
+  rolled up into a "Helper functions you'll see along the way" appendix on
+  the closing lesson. Enable with `planning.skip_trivial_helpers: true`
+  (`use_cases/skip_trivial.py`).
+- **Lesson progress UI in the generated tutorial.html**:
+  - Thin (4 px) horizontal progress bar pinned under the topbar that fills
+    as the reader advances through lessons.
+  - Textual chip "Lesson N / M" inside the topbar nav-group (already-present
+    `#tutorial-progress-label` element, ADR-0009 freeze respected).
+  - Sidebar TOC checkmarks marking visited lessons. A lesson is marked as
+    visited after 5 s of attention OR an explicit Next click. State is
+    persisted across sessions via
+    `localStorage["codeguide:<repo>:visited-lessons:v1"]` and gracefully
+    degrades in private-mode browsers.
+- **Four new opt-in config keys** in `tutorial.config.yaml`:
+  `planning.entry_point_first`, `planning.skip_trivial_helpers`,
+  `narration.min_words_trivial`, `narration.snippet_validation`. All
+  defaults preserve v0.2.0 behaviour.
+
+### Changed
+- `LessonManifest.code_refs[*]` gained an additive optional field
+  `source_excerpt: str | None` (max 4000 chars). Schema version remains
+  1.0.0 — older cache JSON deserialises without migration. ADR-0007 was
+  updated to document the additive change.
+
+### Internal
+- New use-case modules: `inject_source_excerpts.py`, `snippet_validator.py`,
+  `entry_point_detector.py`, `skip_trivial.py`. Symmetric updates to
+  `adapters/anthropic_provider.py` and `adapters/openai_provider.py`
+  prompt templates.
+- New ADR-0012 ("Tutorial quality enforcement") captures the binary
+  decisions for source-excerpt injection, post-hoc snippet validation,
+  per-tier word-count floors, and skip-trivial heuristics.
+- Test suite expanded: `test_snippet_validator.py`,
+  `test_entry_point_detector.py`, `test_skip_trivial.py`, extensions to
+  `test_grounding_retry.py` and `test_plan_lesson_manifest.py`,
+  Playwright coverage for progress bar UI under
+  `tests/unit/renderer/test_progress_bar.py`.
+
 ## [0.2.0] - 2026-04-25 — Animated CLI + Cost Gate Prompt (Sprint 8)
 
 ### BREAKING (perceptual, pre-1.0)
@@ -72,6 +148,41 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   on Windows code pages — fixes `UnicodeEncodeError` when printing
   `✓` / `─` / `┏` glyphs in PowerShell with cp1250/cp1252 default.
 - `pyproject.toml` and `__init__.py` version 0.1.0 → 0.2.0.
+
+### Fixed (renderer follow-up)
+- **Independent per-panel scroll** in `tutorial.html`. The narration column
+  and code panel are now bounded by the viewport (`#tutorial-content`
+  uses `height` + `overflow: hidden`, replacing the v0.1.0 `min-height` that
+  let the grid grow with content). Each child has its own
+  `overflow-y: auto`, so scrolling one panel no longer drags the other.
+- **Disabled cross-panel scroll sync** (`tutorial.js:initScrollSync`).
+  Earlier behaviour mirrored narration scroll into the code panel; users
+  found it disorienting. Function is kept as a placeholder for a future
+  opt-in toggle.
+- **Higher-contrast Pygments highlighting**. Added `tok-builtin`,
+  `tok-deco`, `tok-op` token classes (previously folded into `tok-cls` /
+  `tok-fn`), bumped chroma from 0.13–0.16 to 0.18–0.22 (light) / 0.16–0.18
+  (dark), added `font-weight: 500` to function and class tokens so they
+  visually separate from body text. `Token.Name.Builtin.Pseudo`
+  (`self`, `cls`, `True`, `False`, `None`) gets its own color.
+- **Narration block-level CSS hierarchy.** Added rules for
+  `#tutorial-narration .prose h2 / h3 / h4 / blockquote / pre / hr / a /
+  table / strong`. Pre-fix the LLM's `## Subheading` and `> **Note:** …`
+  Markdown rendered at browser defaults (tiny H2, no blockquote border),
+  making lessons feel like notepad output.
+- **Updated narration prompt** in both `AnthropicProvider` and
+  `OpenAIProvider` to instruct the LLM to use `## / ###` subheadings,
+  `> **Note:** / **Tip:** / **Warning:**` callout blockquotes, and
+  fenced ```python``` example blocks. Existing tutorials must be
+  regenerated to benefit from the richer Markdown structure.
+
+### Added (continued)
+- **`--output PATH` / `-o PATH`** flag for `codeguide generate`. Override
+  the tutorial output filename / location. Relative paths resolve against
+  cwd; absolute paths are used verbatim. Default remains `./tutorial.html`.
+- **`output_path:` field** in `tutorial.config.yaml` (top-level). CLI
+  flag wins; YAML provides per-project default. 9 new tests in
+  `tests/unit/cli/test_output_path_config.py`.
 
 ### Sprint 8 follow-up (deferred to Sprint 9)
 - Interactive repo picker (`codeguide` without arguments in TTY launches a

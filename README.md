@@ -113,6 +113,8 @@ Options:
   --cache-path FILE            Override the cache database location (US-020).
   --max-cost USD               Abort if the projected LLM cost exceeds this value (US-019).
   --no-cost-prompt             Skip the interactive cost-gate prompt (Sprint 8 / v0.2.0).
+  -o, --output FILE            Override the output path (default: ./tutorial.html). Configurable
+                               in tutorial.config.yaml as `output_path:`.
   --dry-run                    Run Stages 0..4 and emit a preview HTML without paying for narration (US-015).
   --review-plan                Pause after Stage 4 and open the lesson manifest in $EDITOR (US-016).
   --log-format [text|json]     Structured log output on stderr (US-022). Default: text.
@@ -347,7 +349,31 @@ include_patterns: []
 
 max_lessons: 30
 target_audience: "mid-level Python developer"
+
+# Tutorial quality (v0.2.1) — opt-in controls; defaults preserve v0.2.0 behaviour
+planning:
+  entry_point_first: auto       # auto | always | never
+  skip_trivial_helpers: false   # roll up sub-3-line non-primary helpers into a closing appendix
+narration:
+  min_words_trivial: 50         # word floor for 1-line primary code refs
+  snippet_validation: true      # validate ```python signatures against AST source_excerpt
 ```
+
+### Tutorial quality (v0.2.1)
+
+Four opt-in keys tune lesson selection, ordering, and narration length:
+
+| Key                                | Default | Effect                                                                                                                                                                              |
+|------------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `planning.entry_point_first`       | `auto`  | Move the entry-point lesson (`def main`/`def cli`/`__main__.py`/`@click.command`) to position 1. `auto` is a no-op when no entry point is detected; `never` preserves leaves→roots. |
+| `planning.skip_trivial_helpers`    | `false` | Drop lessons whose primary reference is <3 lines AND not cited as primary elsewhere AND not an entry point AND not in top-5% PageRank. Skipped helpers folded into a closing appendix. |
+| `narration.min_words_trivial`      | `50`    | Word-count floor for narration of 1-line primary code refs (other tiers stay at 80/220/350). Lower values allow tighter descriptions for one-liner helpers.                           |
+| `narration.snippet_validation`     | `true`  | Validate that ```python fenced blocks in narration quote the actual function signature from the AST snapshot. Mismatches trigger a 1-shot retry with an explicit hint.                |
+
+Source-excerpt injection (the underlying anti-hallucination mechanism for
+`snippet_validation`) is always on and bounded — the AST snippet is added
+to `code_refs[*].source_excerpt` only for primary references shorter than
+30 lines, keeping the prompt input under the per-run budget.
 
 Full configuration reference and environment variables: see [docs/config-reference.md](docs/config-reference.md)
 (available from Sprint 1).

@@ -12,10 +12,15 @@ from codeguide.entities.code_ref import CodeRef
 from codeguide.entities.lesson import Lesson
 from codeguide.entities.lesson_manifest import (
     LessonManifest,
+    LessonManifestValidationError,
     LessonSpec,
     ManifestMetadata,
 )
-from codeguide.use_cases.plan_lesson_manifest import PlanningFatalError, plan_with_retry
+from codeguide.use_cases.plan_lesson_manifest import (
+    PlanningFatalError,
+    _apply_entry_point_first,
+    plan_with_retry,
+)
 
 # ---------------------------------------------------------------------------
 # Stub LLM provider
@@ -175,3 +180,143 @@ def test_validation_error_from_pydantic_triggers_retry() -> None:
     result = plan_with_retry(stub, "outline", frozenset({"mod.add"}))
     assert result is good
     assert len(stub.calls) == 2
+
+
+# ---------------------------------------------------------------------------
+# v0.2.1 — _apply_entry_point_first
+# ---------------------------------------------------------------------------
+
+
+def _make_spec_with_symbols(lesson_id: str, symbols: tuple[str, ...]) -> LessonSpec:
+    refs = tuple(
+        CodeRef(file_path=Path("mod.py"), symbol=s, line_start=1, line_end=5) for s in symbols
+    )
+    return LessonSpec(id=lesson_id, title=lesson_id, teaches="t", code_refs=refs)
+
+
+def _make_manifest_from_specs(specs: tuple[LessonSpec, ...]) -> LessonManifest:
+    return LessonManifest(
+        schema_version="1.0.0",
+        lessons=specs,
+        metadata=_make_metadata(total_lessons=len(specs)),
+    )
+
+
+def test_apply_entry_point_first_auto_with_match_swaps_to_position_0() -> None:
+    """auto mode + entry-point lesson present → reorder to position 0."""
+    spec_a = _make_spec_with_symbols("lesson-001", ("mod.helper",))
+    spec_b = _make_spec_with_symbols("lesson-002", ("mod.main",))
+    spec_c = _make_spec_with_symbols("lesson-003", ("mod.other",))
+    manifest = _make_manifest_from_specs((spec_a, spec_b, spec_c))
+    entry_points = frozenset({"mod.main"})
+
+    result = _apply_entry_point_first(manifest, entry_points, mode="auto")
+
+    assert result.lessons[0].id == "lesson-002"
+    # Other lessons preserve relative order.
+    assert [lsn.id for lsn in result.lessons[1:]] == ["lesson-001", "lesson-003"]
+
+
+def test_apply_entry_point_first_auto_no_match_returns_manifest_unchanged() -> None:
+    """auto mode + no entry-point match → manifest returned unchanged."""
+    spec_a = _make_spec_with_symbols("lesson-001", ("mod.helper",))
+    spec_b = _make_spec_with_symbols("lesson-002", ("mod.utility",))
+    manifest = _make_manifest_from_specs((spec_a, spec_b))
+
+    result = _apply_entry_point_first(manifest, frozenset({"missing.entry"}), mode="auto")
+
+    assert result is manifest
+
+
+def test_apply_entry_point_first_auto_empty_entry_points_no_op() -> None:
+    """auto mode + empty entry_points → manifest unchanged."""
+    spec_a = _make_spec_with_symbols("lesson-001", ("mod.helper",))
+    manifest = _make_manifest_from_specs((spec_a,))
+
+    result = _apply_entry_point_first(manifest, frozenset(), mode="auto")
+
+    assert result is manifest
+
+
+def test_apply_entry_point_first_never_returns_manifest_unchanged() -> None:
+    """never mode → no reorder even if a match exists."""
+    spec_a = _make_spec_with_symbols("lesson-001", ("mod.helper",))
+    spec_b = _make_spec_with_symbols("lesson-002", ("mod.main",))
+    manifest = _make_manifest_from_specs((spec_a, spec_b))
+
+    result = _apply_entry_point_first(manifest, frozenset({"mod.main"}), mode="never")
+
+    assert result is manifest
+
+
+def test_apply_entry_point_first_always_no_match_raises() -> None:
+    """always mode + no match → LessonManifestValidationError."""
+    spec_a = _make_spec_with_symbols("lesson-001", ("mod.helper",))
+    manifest = _make_manifest_from_specs((spec_a,))
+
+    with pytest.raises(LessonManifestValidationError):
+        _apply_entry_point_first(manifest, frozenset({"missing.entry"}), mode="always")
+
+
+def test_apply_entry_point_first_always_with_match_reorders() -> None:
+    """always mode + match → reorder to position 0 (same as auto)."""
+    spec_a = _make_spec_with_symbols("lesson-001", ("mod.helper",))
+    spec_b = _make_spec_with_symbols("lesson-002", ("mod.main",))
+    manifest = _make_manifest_from_specs((spec_a, spec_b))
+
+    result = _apply_entry_point_first(manifest, frozenset({"mod.main"}), mode="always")
+
+    assert result.lessons[0].id == "lesson-002"
+
+
+def test_apply_entry_point_first_closing_lesson_stays_at_end() -> None:
+    """Closing lesson (is_closing=True) is anchored at the tail through reordering."""
+    spec_a = _make_spec_with_symbols("lesson-001", ("mod.helper",))
+    spec_b = _make_spec_with_symbols("lesson-002", ("mod.main",))
+    closing = LessonSpec(
+        id="lesson-closing",
+        title="Where to go next",
+        teaches="closing",
+        code_refs=(),
+        is_closing=True,
+    )
+    manifest = _make_manifest_from_specs((spec_a, spec_b, closing))
+
+    result = _apply_entry_point_first(manifest, frozenset({"mod.main"}), mode="auto")
+
+    assert result.lessons[0].id == "lesson-002"
+    assert result.lessons[-1].id == "lesson-closing"
+
+
+def test_apply_entry_point_first_matches_simple_name() -> None:
+    """The reorder hook matches both qualified ('mod.main') and simple ('main') names."""
+    spec_a = _make_spec_with_symbols("lesson-001", ("mod.helper",))
+    spec_b = _make_spec_with_symbols("lesson-002", ("mod.main",))
+    manifest = _make_manifest_from_specs((spec_a, spec_b))
+
+    # entry_points stores the *simple* name only — reorder hook must still match.
+    result = _apply_entry_point_first(manifest, frozenset({"main"}), mode="auto")
+
+    assert result.lessons[0].id == "lesson-002"
+
+
+def test_plan_with_retry_passes_entry_points_through_to_reorder() -> None:
+    """plan_with_retry receives entry_points and applies the reorder hook."""
+    spec_helper = _make_spec_with_symbols("lesson-001", ("mod.helper",))
+    spec_main = _make_spec_with_symbols("lesson-002", ("mod.main",))
+    manifest = LessonManifest(
+        schema_version="1.0.0",
+        lessons=(spec_helper, spec_main),
+        metadata=_make_metadata(total_lessons=2),
+    )
+    stub = StubPlanLLM([manifest])
+
+    result = plan_with_retry(
+        stub,
+        "outline",
+        frozenset({"mod.helper", "mod.main"}),
+        entry_points=frozenset({"mod.main"}),
+        entry_point_mode="auto",
+    )
+
+    assert result.lessons[0].id == "lesson-002"

@@ -11,6 +11,11 @@ from codeguide.entities.lesson_manifest import LessonSpec
 from codeguide.entities.skipped_lesson import SkippedLesson
 from codeguide.use_cases.grounding_retry import (
     _MAX_WORDS,
+    _MIN_WORDS_COMPLEX,
+    _MIN_WORDS_DEFAULT,
+    _MIN_WORDS_MODERATE,
+    _MIN_WORDS_TRIVIAL,
+    _floor_for_lesson,
     count_words,
     narrate_with_grounding_retry,
     truncate_at_sentence_boundary,
@@ -252,3 +257,79 @@ def test_closing_lesson_empty_allowed_symbols_always_passes_grounding() -> None:
     result = narrate_with_grounding_retry(spec, frozenset(), stub, ())
     assert isinstance(result, Lesson)
     assert len(stub.calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# v0.2.1 — _floor_for_lesson tier scaling
+# ---------------------------------------------------------------------------
+
+
+def _spec_with_span(span: int, *, role: str = "primary") -> LessonSpec:
+    """Build a LessonSpec whose primary code_ref covers *span* lines."""
+    return LessonSpec(
+        id="lesson-x",
+        title="t",
+        teaches="t",
+        code_refs=(
+            CodeRef(
+                file_path=Path("a.py"),
+                symbol="m.fn",
+                line_start=1,
+                line_end=span,  # span lines: 1..span inclusive
+                role=role,  # type: ignore[arg-type]
+            ),
+        ),
+    )
+
+
+def test_floor_for_lesson_one_line_uses_min_words_trivial() -> None:
+    """1-line span returns the configured min_words_trivial."""
+    spec = _spec_with_span(1)
+    assert _floor_for_lesson(spec, min_words_trivial=50) == 50
+    assert _floor_for_lesson(spec, min_words_trivial=20) == 20
+
+
+def test_floor_for_lesson_trivial_span_2_to_9() -> None:
+    """Spans 2-9 use _MIN_WORDS_TRIVIAL (80)."""
+    for span in (2, 5, 9):
+        spec = _spec_with_span(span)
+        assert _floor_for_lesson(spec, min_words_trivial=50) == _MIN_WORDS_TRIVIAL
+
+
+def test_floor_for_lesson_moderate_span_10_to_30() -> None:
+    """Spans 10-30 use _MIN_WORDS_MODERATE (220)."""
+    for span in (10, 20, 30):
+        spec = _spec_with_span(span)
+        assert _floor_for_lesson(spec, min_words_trivial=50) == _MIN_WORDS_MODERATE
+
+
+def test_floor_for_lesson_complex_span_above_30() -> None:
+    """Spans >30 use _MIN_WORDS_COMPLEX (350)."""
+    for span in (31, 50, 200):
+        spec = _spec_with_span(span)
+        assert _floor_for_lesson(spec, min_words_trivial=50) == _MIN_WORDS_COMPLEX
+
+
+def test_floor_for_lesson_no_primary_ref_returns_default() -> None:
+    """LessonSpec with only 'referenced' role refs returns the legacy 150 fallback."""
+    spec = LessonSpec(
+        id="lesson-y",
+        title="t",
+        teaches="t",
+        code_refs=(
+            CodeRef(
+                file_path=Path("a.py"),
+                symbol="m.fn",
+                line_start=1,
+                line_end=10,
+                role="referenced",
+            ),
+        ),
+    )
+    assert _floor_for_lesson(spec, min_words_trivial=50) == _MIN_WORDS_DEFAULT
+
+
+def test_floor_for_lesson_empty_code_refs_returns_default() -> None:
+    """Closing-style spec with empty code_refs returns the legacy 150 fallback."""
+    spec = LessonSpec(id="lesson-z", title="t", teaches="t", code_refs=(), is_closing=True)
+    assert _floor_for_lesson(spec, min_words_trivial=50) == _MIN_WORDS_DEFAULT

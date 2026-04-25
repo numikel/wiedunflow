@@ -306,6 +306,18 @@ def init_cmd(
     help="Skip the interactive cost-gate prompt (US-084 — Sprint 8 / v0.2.0).",
 )
 @click.option(
+    "--output",
+    "-o",
+    "output_path",
+    default=None,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help=(
+        "Override the tutorial output path. Relative paths resolve against the "
+        "current directory; default is ./tutorial.html. Configurable in "
+        "tutorial.config.yaml as `output_path`."
+    ),
+)
+@click.option(
     "--no-log-redaction",
     "no_log_redaction",
     is_flag=True,
@@ -333,6 +345,7 @@ def generate_cmd(
     review_plan: bool,
     log_format: str,
     no_cost_prompt: bool,
+    output_path: Path | None,
     no_log_redaction: bool,
 ) -> None:
     """Generate an interactive HTML tutorial from a local Git repository."""
@@ -379,6 +392,7 @@ def generate_cmd(
                 "llm_model_plan": model_plan,
                 "llm_model_narrate": model_narrate,
                 "llm_base_url": base_url,
+                "output_path": output_path,
             },
             cli_config_path=config_path,
         )
@@ -430,6 +444,7 @@ def generate_cmd(
             no_cost_prompt=no_cost_prompt,
             is_tty=is_tty,
             json_mode=json_mode,
+            output_path=_resolve_output_path(config.output_path),
         )
     finally:
         sigint.restore()
@@ -506,6 +521,19 @@ def _build_llm_provider(
     return FakeLLMProvider()  # pragma: no cover — exhaustive config Literal above
 
 
+def _resolve_output_path(configured: Path | None) -> Path | None:
+    """Return an absolute :class:`Path` for the user-configured output, or ``None``.
+
+    Sprint 8 / v0.2.0: relative paths in CLI / YAML resolve against ``cwd`` so
+    ``--output ./out/tutorial.html`` lands where the user expects regardless
+    of where the orchestrator's defaults point. ``None`` is propagated
+    unchanged so :func:`generate_tutorial` falls back to ``./tutorial.html``.
+    """
+    if configured is None:
+        return None
+    return configured if configured.is_absolute() else (Path.cwd() / configured).resolve()
+
+
 def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with many exception paths
     *,
     repo_path: Path,
@@ -525,6 +553,7 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
     no_cost_prompt: bool = False,
     is_tty: bool = False,
     json_mode: bool = False,
+    output_path: Path | None = None,
 ) -> int:
     """Run the generation pipeline, write the run report, return an exit code."""
     # Sprint 8: animated stage reporter (suppressed for JSON log mode where
@@ -545,6 +574,7 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
         result: GenerationResult = generate_tutorial(
             repo_path,
             providers,
+            output_path=output_path,
             excludes=excludes,
             includes=includes,
             root_override=root,
