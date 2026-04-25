@@ -25,7 +25,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from codeguide.adapters.jinja_renderer import _TEMPLATES_DIR, JinjaRenderer
 
-
 _TRIM_THRESHOLD = 60
 _TRIM_CONTEXT = 8
 

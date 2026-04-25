@@ -39,6 +39,7 @@ from codeguide.interfaces.model_catalog import ModelCatalog
 # into a single "Configuration" item — Show-config now bootstraps init when
 # no saved config exists, so two menu entries pointed at the same surface.
 MENU_GENERATE = "Generate tutorial"
+MENU_RECENT = "Recent runs"
 MENU_CONFIG = "Configuration"
 MENU_ESTIMATE = "Estimate cost"
 MENU_RESUME = "Resume last run"
@@ -47,6 +48,7 @@ MENU_EXIT = "Exit"
 
 _MENU_CHOICES: list[str] = [
     MENU_GENERATE,
+    MENU_RECENT,
     MENU_CONFIG,
     MENU_ESTIMATE,
     MENU_RESUME,
@@ -295,6 +297,8 @@ def _dispatch_action(
             anthropic_catalog=anthropic_catalog,
             openai_catalog=openai_catalog,
         )
+    elif choice == MENU_RECENT:
+        _run_recent_from_menu(io)
     elif choice == MENU_ESTIMATE:
         _run_estimate_from_menu(io)
     elif choice == MENU_RESUME:
@@ -820,7 +824,14 @@ def _run_estimate_from_menu(io: MenuIO) -> None:
     repo_path = Path(raw).expanduser()
     saved = _try_load_saved_config()
     max_lessons = saved.max_lessons if saved is not None else 30
-    estimate_obj = _heuristic_estimate(repo_path, max_lessons=max_lessons)
+    plan_model = saved.llm_model_plan if saved is not None else None
+    narrate_model = saved.llm_model_narrate if saved is not None else None
+    estimate_obj = _heuristic_estimate(
+        repo_path,
+        max_lessons=max_lessons,
+        plan_model=plan_model,
+        narrate_model=narrate_model,
+    )
 
     console = init_console()
     lines = [
@@ -904,11 +915,140 @@ def _wait_for_return_to_menu(io: MenuIO) -> None:
         io.text("(Press Enter to return to menu)", default="")
     except (KeyboardInterrupt, EOFError):
         return
-    except Exception:  # noqa: BLE001 — last-resort fallback for borked TTY state
+    except Exception:
         try:
             input("(Press Enter to return to menu) ")
         except (KeyboardInterrupt, EOFError):
             return
+
+
+# ---------------------------------------------------------------------------
+# Recent runs — JSON-backed history of past pipeline launches.
+# Stored as a small list of dicts in ``~/.cache/codeguide/recent-runs.json``.
+# Each entry: timestamp, repo_path, output_path, provider, models, exit_code.
+# ---------------------------------------------------------------------------
+
+
+_RECENT_RUNS_FILE = "recent-runs.json"
+_RECENT_RUNS_MAX = 20
+
+
+def _recent_runs_path() -> Path:
+    """Return the path to the recent-runs JSON history file."""
+    import platformdirs
+
+    return Path(platformdirs.user_cache_dir("codeguide")) / _RECENT_RUNS_FILE
+
+
+def _load_recent_runs() -> list[dict[str, Any]]:
+    """Load the recent-runs list, newest first. Empty list on any read error."""
+    import json
+
+    path = _recent_runs_path()
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [entry for entry in data if isinstance(entry, dict)]
+
+
+def _save_recent_runs(runs: list[dict[str, Any]]) -> None:
+    import json
+
+    path = _recent_runs_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(runs[:_RECENT_RUNS_MAX], indent=2), encoding="utf-8")
+
+
+def _append_to_recent_runs(payload: dict[str, Any], *, exit_code: int) -> None:
+    """Prepend a new entry to the recent-runs file (de-duplicated by repo+timestamp)."""
+    from datetime import UTC, datetime
+
+    entry = {
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "repo_path": str(payload.get("repo_path", "")),
+        "output_path": (
+            str(payload["output_path"]) if payload.get("output_path") else "./tutorial.html"
+        ),
+        "provider": payload.get("llm_provider", ""),
+        "model_plan": payload.get("llm_model_plan", ""),
+        "model_narrate": payload.get("llm_model_narrate", ""),
+        "exit_code": int(exit_code),
+        "status": "success" if exit_code == 0 else f"failed ({exit_code})",
+    }
+    runs = _load_recent_runs()
+    runs.insert(0, entry)
+    _save_recent_runs(runs)
+
+
+def _format_recent_choice(entry: dict[str, Any]) -> str:
+    """One-line label for the recent-runs picker."""
+    ts = str(entry.get("timestamp", "?"))[:19].replace("T", " ")
+    repo = str(entry.get("repo_path", "?"))
+    status = str(entry.get("status", "?"))
+    return f"{ts}  {status:<14}  {repo}"
+
+
+_RECENT_CLEAR = "[Clear history]"
+_RECENT_DONE = "[Done]"
+
+
+def _run_recent_from_menu(io: MenuIO) -> None:
+    """Show recent pipeline runs; selection re-renders the entry's details."""
+    from codeguide.cli.output import init_console, render_info_panel
+
+    while True:
+        _redraw_chrome("Recent runs")
+        runs = _load_recent_runs()
+        if not runs:
+            print("  No recent runs yet · launch a Generate first.")
+            _wait_for_return_to_menu(io)
+            return
+
+        choices = [_format_recent_choice(entry) for entry in runs]
+        choices.append(_RECENT_CLEAR)
+        choices.append(_RECENT_DONE)
+
+        pick = io.select("Select a run for details:", choices=choices)
+        if pick is None or pick == _RECENT_DONE:
+            return
+        if pick == _RECENT_CLEAR:
+            confirmed = io.confirm("Clear all recent-runs history?", default=False)
+            if confirmed:
+                _save_recent_runs([])
+            continue
+
+        # Find the chosen entry by index and render its details.
+        idx = choices.index(pick)
+        if idx >= len(runs):
+            continue
+        entry = runs[idx]
+        console = init_console()
+        lines = [
+            ("Timestamp", str(entry.get("timestamp", "?"))),
+            ("Repo path", str(entry.get("repo_path", "?"))),
+            ("Output path", str(entry.get("output_path", "?"))),
+            ("Provider", str(entry.get("provider", "?"))),
+            ("Plan model", str(entry.get("model_plan", "?"))),
+            ("Narrate model", str(entry.get("model_narrate", "?"))),
+            ("Status", str(entry.get("status", "?"))),
+            ("Exit code", str(entry.get("exit_code", "?"))),
+        ]
+        render_info_panel(console, title="RECENT RUN · DETAILS", lines=lines)
+        out_path = entry.get("output_path", "")
+        if out_path:
+            try:
+                from codeguide.cli.output import osc8_hyperlink as _osc8
+
+                console.print(f"  open  [link={Path(out_path).resolve().as_uri()}]{out_path}[/link]")
+                _ = _osc8  # silence unused-import linter — import gated for OSC8 fallback parity
+            except Exception:
+                print(f"  open  {out_path}")
+        _wait_for_return_to_menu(io)
 
 
 def _run_help_from_menu(io: MenuIO) -> None:
@@ -918,9 +1058,9 @@ def _run_help_from_menu(io: MenuIO) -> None:
     _redraw_chrome("Help")
     console = init_console()
     lines = [
-        ("Initialize config", "Set provider, models, API key — saves ~/.config/codeguide"),
         ("Generate tutorial", "5-section sub-wizard → 7-stage pipeline → tutorial.html"),
-        ("Show config", "Pretty-print the current saved config (editable)"),
+        ("Recent runs", "Re-open a previous run's tutorial.html (history of last 20)"),
+        ("Configuration", "Initialize or edit ~/.config/codeguide/config.yaml"),
         ("Estimate cost", "File-count heuristic estimate before launching"),
         ("Resume last run", "Re-launch with cached checkpoints (if any)"),
         ("Help", "This panel"),
@@ -1402,12 +1542,22 @@ def _count_python_files(repo_path: Path) -> int:
         return 0
 
 
-def _heuristic_estimate(repo_path: Path, max_lessons: int) -> Any:
+def _heuristic_estimate(
+    repo_path: Path,
+    max_lessons: int,
+    *,
+    plan_model: str | None = None,
+    narrate_model: str | None = None,
+) -> Any:
     """Build a ``CostEstimate`` from a file-count heuristic (no LLM calls).
 
     Conservative: assume 5 symbols per Python file, lessons = min(file_count,
     max_lessons), clusters = max(1, lessons / 5). The exact estimate fires
     inside ``_run_pipeline`` after stages 1-2; this one only powers §5 review.
+
+    ``plan_model`` / ``narrate_model``, when provided, drive per-model pricing
+    via ``cost_estimator.MODEL_PRICES`` so OpenAI configs surface GPT-4.1
+    pricing instead of the legacy Anthropic Haiku/Opus rates.
     """
     from codeguide.cli.cost_estimator import estimate
 
@@ -1415,7 +1565,13 @@ def _heuristic_estimate(repo_path: Path, max_lessons: int) -> Any:
     symbols = max(1, file_count * 5)
     lessons = min(max(file_count, 1), max_lessons)
     clusters = max(1, lessons // 5)
-    return estimate(symbols=symbols, lessons=lessons, clusters=clusters)
+    return estimate(
+        symbols=symbols,
+        lessons=lessons,
+        clusters=clusters,
+        plan_model=plan_model,
+        narrate_model=narrate_model,
+    )
 
 
 def _format_summary_lines(payload: dict[str, Any]) -> list[tuple[str, str]]:
@@ -1484,8 +1640,17 @@ def _subwizard_summary_and_launch(io: MenuIO, payload: dict[str, Any]) -> None:
     from codeguide.cli.output import init_console, render_generate_summary
 
     console = init_console()
-    estimate_obj = _heuristic_estimate(payload["repo_path"], payload["max_lessons"])
-    cost_rows, cost_total = _format_cost_lines(estimate_obj)
+    estimate_obj = _heuristic_estimate(
+        payload["repo_path"],
+        payload["max_lessons"],
+        plan_model=payload.get("llm_model_plan"),
+        narrate_model=payload.get("llm_model_narrate"),
+    )
+    cost_rows, cost_total = _format_cost_lines(
+        estimate_obj,
+        plan_model=str(payload.get("llm_model_plan") or "haiku"),
+        narrate_model=str(payload.get("llm_model_narrate") or "opus"),
+    )
 
     render_generate_summary(
         console,
@@ -1599,7 +1764,7 @@ def _launch_pipeline(payload: dict[str, Any]) -> None:
             json_mode=False,
             output_path=_resolve_output_path(config.output_path),
         )
-    except Exception as exc:  # noqa: BLE001 — graceful return-to-menu on pipeline crash
+    except Exception as exc:
         print(f"  ! pipeline crashed: {type(exc).__name__}: {exc}")
         exit_code = 1
     finally:
@@ -1608,10 +1773,10 @@ def _launch_pipeline(payload: dict[str, Any]) -> None:
     # Append the run to the recent-runs history so the menu's "Recent runs"
     # picker can offer one-click reopen / re-run later. Failures here are
     # non-fatal — history is best-effort.
-    try:
+    import contextlib
+
+    with contextlib.suppress(Exception):
         _append_to_recent_runs(payload, exit_code=exit_code)
-    except Exception:  # noqa: BLE001 — history is best-effort
-        pass
 
     # Modal pipeline complete — main_menu_loop redraws the top-level menu next.
     print()
