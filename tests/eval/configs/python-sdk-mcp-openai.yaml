@@ -1,0 +1,16 @@
+# Release-gate eval config for MCP SDK using the OpenAI provider.
+# For accounts hitting Anthropic Tier 1 rate limits (8K OTPM on Sonnet/Opus,
+# 30K ITPM, 50 RPM); OpenAI Tier 1 is far more permissive (gpt-4o-mini:
+# 200K TPM input, 60K TPM output) which lets the full pipeline finish
+# without rate-limit cascades.
+#
+# Cost note: roughly comparable to Anthropic Tier-1 paths (~$5-7 for 10
+# lessons on the MCP SDK with gpt-4o + gpt-4o-mini for descriptions).
+llm:
+  provider: "openai"
+  model_plan: "gpt-4o"
+  model_narrate: "gpt-4o"
+  concurrency: 8
+# Same lesson count rationale as Anthropic config (curated tour, 10 chapters).
+max_lessons: 10
+target_audience: "mid-level Python developer"
