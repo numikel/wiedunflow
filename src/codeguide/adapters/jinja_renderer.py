@@ -35,10 +35,14 @@ class _OfflineHTMLRenderer(mistune.HTMLRenderer):
     (alt text kept so the reader still gets context).
     """
 
-    def link(self, text: str, url: str, title: str | None = None) -> str:        # Drop href; keep visible text so narrative still reads naturally.
+    def link(
+        self, text: str, url: str, title: str | None = None
+    ) -> str:  # Drop href; keep visible text so narrative still reads naturally.
         return text
 
-    def image(self, text: str, url: str, title: str | None = None) -> str:        # Replace with alt text in italics; no external resource fetch.
+    def image(
+        self, text: str, url: str, title: str | None = None
+    ) -> str:  # Replace with alt text in italics; no external resource fetch.
         return f"<em>{text}</em>" if text else ""
 
 
@@ -293,8 +297,7 @@ class JinjaRenderer:
 
         symbol_lookup = {s.name: s for s in symbols} if symbols else None
         lessons_payload = [
-            _lesson_to_payload(lesson, symbol_lookup, repo_root)
-            for lesson in lesson_plan.lessons
+            _lesson_to_payload(lesson, symbol_lookup, repo_root) for lesson in lesson_plan.lessons
         ]
         clusters_payload = (
             clusters if clusters is not None else _default_clusters(len(lessons_payload))

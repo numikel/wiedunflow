@@ -14,8 +14,10 @@ from pydantic import BaseModel, ConfigDict
 from codeguide import __version__ as _codeguide_version
 from codeguide.adapters.jinja_renderer import JinjaRenderer
 from codeguide.adapters.pygments_highlighter import highlight_python as _highlight_python
+from codeguide.cli.cost_estimator import CostEstimate
 from codeguide.cli.cost_estimator import estimate as _estimate_cost
 from codeguide.cli.editor_resolver import open_in_editor as _open_in_editor
+from codeguide.cli.stage_reporter import NoOpReporter, StageReporter
 from codeguide.entities.lesson import Lesson
 from codeguide.entities.lesson_manifest import (
     LessonManifest,
@@ -78,6 +80,23 @@ class MaxCostExceededError(RuntimeError):
         )
         self.estimate_usd = estimate_usd
         self.cap_usd = cap_usd
+        self.lessons = lessons
+
+
+class CostGateAbortedError(RuntimeError):
+    """Raised when the user declines the interactive cost-gate prompt (US-084 — Sprint 8).
+
+    Distinguished from :class:`MaxCostExceededError` because this is a clean
+    user abort (exit code 0), not a failure (exit code 1). The CLI prints
+    the spec-mandated abort message and writes a ``status="ok"`` run-report
+    with zero cost.
+    """
+
+    def __init__(self, estimate_usd: float, lessons: int) -> None:
+        super().__init__(
+            f"User declined cost-gate prompt: estimate ${estimate_usd:.2f} for {lessons} lessons"
+        )
+        self.estimate_usd = estimate_usd
         self.lessons = lessons
 
 
@@ -144,6 +163,8 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
     dry_run: bool = False,
     review_plan: bool = False,
     max_cost_usd: float | None = None,
+    progress: StageReporter | NoOpReporter | None = None,
+    cost_gate_callback: Callable[[CostEstimate], bool] | None = None,
 ) -> GenerationResult:
     """Run the 7-stage pipeline and write tutorial.html.
 
@@ -162,6 +183,16 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         should_abort: Optional predicate polled between stages; when it
             returns ``True`` the pipeline raises :class:`KeyboardInterrupt`
             after flushing the current state (US-027 graceful SIGINT).
+        progress: Optional :class:`StageReporter` (or :class:`NoOpReporter`)
+            that receives stage lifecycle events for animated CLI output
+            (Sprint 8 / v0.2.0). Defaults to a :class:`NoOpReporter` when
+            ``None`` so headless callers (tests, ``--log-format=json``)
+            need not pass anything.
+        cost_gate_callback: Optional predicate invoked after Stage 5
+            (Planning) with the cost estimate. Returning ``False`` raises
+            :class:`CostGateAbortedError` (clean abort, exit 0). When
+            ``None`` the cost-gate prompt is skipped entirely (back-compat
+            with v0.1.0 behaviour where ``--max-cost`` was the only gate).
 
     Returns:
         :class:`GenerationResult` carrying the output path, DEGRADED flag,
@@ -170,11 +201,17 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
 
     Raises:
         PlanningFatalError: When the planning stage fails after all retries.
+        MaxCostExceededError: When the cost estimate exceeds ``--max-cost``.
+        CostGateAbortedError: When the user declines the interactive cost-gate
+            prompt (Sprint 8 / US-084).
         KeyboardInterrupt: When ``should_abort`` returns ``True`` between
             stages (graceful SIGINT — US-027).
     """
     if output_path is None:
         output_path = Path("tutorial.html").resolve()
+
+    if progress is None:
+        progress = NoOpReporter()
 
     repo_name = repo_path.name
 
@@ -183,26 +220,39 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
             raise KeyboardInterrupt("SIGINT received — aborting generation")
 
     # Stage 1 — Ingestion
-    _std_logger.info("[1/7] Ingestion — discovering source files")
+    progress.stage_start(1)
+    logger.info("stage_start", stage=1, name="Ingestion")
     ingestion = ingest(repo_path, excludes=excludes, includes=includes, root_override=root_override)
+    progress.stage_done(f"{len(ingestion.files)} python files discovered")
     _check_abort()
 
     # Stage 2 — Analysis
-    _std_logger.info("[2/7] Analysis — parsing AST and resolving call graph")
+    progress.stage_start(2)
+    logger.info("stage_start", stage=2, name="Analysis")
+    progress.progress_line(f"parsing AST + resolving call graph for {len(ingestion.files)} files")
     symbols, raw_graph = providers.parser.parse(list(ingestion.files), ingestion.repo_root)
     resolved_graph = providers.resolver.resolve(symbols, raw_graph, ingestion.repo_root)
+    progress.stage_done(f"{len(symbols)} symbols · {len(raw_graph.edges)} call edges")
 
     # Stage 3 — Graph
-    _std_logger.info("[3/7] Graph — PageRank + communities + topological sort")
+    progress.stage_start(3)
+    logger.info("stage_start", stage=3, name="Graph")
     ranked = providers.ranker.rank(resolved_graph)
+    progress.stage_done(
+        f"{len(ranked.ranked_symbols)} symbols ranked · {len(ranked.cycle_groups)} cycle groups"
+    )
 
     # Stage 4 — RAG
-    _std_logger.info("[4/7] RAG — indexing documentation")
+    progress.stage_start(4)
+    logger.info("stage_start", stage=4, name="RAG")
     build_and_index(repo_path, ingestion, symbols, providers.vector_store)
     doc_coverage = compute_doc_coverage(symbols)
+    progress.stage_done(f"BM25 index built · doc coverage {doc_coverage.ratio * 100:.0f}%")
 
     # Stage 5 — Planning  (renumbered in log vs. old code; stage numbering follows CLAUDE.md)
-    _std_logger.info("[5/7] Planning — generating lesson manifest")
+    progress.stage_start(5)
+    logger.info("stage_start", stage=5, name="Planning")
+    progress.detail("generating lesson manifest…")
     outline = build_outline(symbols, resolved_graph, ranked)
     allowed_symbols = _collect_allowed_symbols(ranked, symbols)
     try:
@@ -214,6 +264,7 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
             last_error=exc.last_error,
         )
         raise
+    progress.stage_done(f"manifest ready ({len(manifest.lessons)} lessons)")
 
     # Re-attach orchestrator-side metadata — the provider-level metadata is a
     # placeholder because only the orchestrator knows the real clock, version,
@@ -234,24 +285,51 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
 
     # --max-cost pre-flight (US-019 — Sprint 5 follow-up): short-circuit before any
     # Stage 5/6 LLM call if the heuristic estimate exceeds the user-supplied cap.
-    if max_cost_usd is not None:
-        est = _estimate_cost(
+    # Sprint 8 (US-084): also short-circuit if the user declines the interactive
+    # cost-gate prompt. Both checks share the same heuristic estimate.
+    pre_narration_estimate: CostEstimate | None = None
+    if max_cost_usd is not None or cost_gate_callback is not None:
+        pre_narration_estimate = _estimate_cost(
             symbols=len(symbols),
             lessons=len(manifest.lessons),
             clusters=1,
         )
-        if est.total_cost_usd > max_cost_usd:
-            logger.error(
-                "max_cost_exceeded",
-                estimate_usd=est.total_cost_usd,
-                cap_usd=max_cost_usd,
-                lessons=len(manifest.lessons),
-            )
-            raise MaxCostExceededError(
-                estimate_usd=est.total_cost_usd,
-                cap_usd=max_cost_usd,
-                lessons=len(manifest.lessons),
-            )
+
+    if (
+        max_cost_usd is not None
+        and pre_narration_estimate is not None
+        and pre_narration_estimate.total_cost_usd > max_cost_usd
+    ):
+        logger.error(
+            "max_cost_exceeded",
+            estimate_usd=pre_narration_estimate.total_cost_usd,
+            cap_usd=max_cost_usd,
+            lessons=len(manifest.lessons),
+        )
+        raise MaxCostExceededError(
+            estimate_usd=pre_narration_estimate.total_cost_usd,
+            cap_usd=max_cost_usd,
+            lessons=len(manifest.lessons),
+        )
+
+    # Sprint 8 (US-084): interactive cost-gate prompt. Skipped when the callback
+    # already short-circuits via bypass conditions (--yes / --no-cost-prompt /
+    # non-TTY), or when no callback was supplied (back-compat with v0.1.0).
+    if (
+        cost_gate_callback is not None
+        and pre_narration_estimate is not None
+        and not dry_run  # dry-run never reaches narration, no need to prompt
+        and not cost_gate_callback(pre_narration_estimate)
+    ):
+        logger.info(
+            "cost_gate_user_declined",
+            estimate_usd=pre_narration_estimate.total_cost_usd,
+            lessons=len(manifest.lessons),
+        )
+        raise CostGateAbortedError(
+            estimate_usd=pre_narration_estimate.total_cost_usd,
+            lessons=len(manifest.lessons),
+        )
 
     # --review-plan (US-016): write the manifest to .codeguide/manifest.json and
     # open it in the resolved editor.  On save, re-validate; an invalid manifest
@@ -320,7 +398,8 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
     _check_abort()
 
     # Stage 6 — Generation
-    _std_logger.info("[6/7] Generation — narrating lessons")
+    progress.stage_start(6)
+    logger.info("stage_start", stage=6, name="Generation")
     generation_result = _stage_generation(
         manifest,
         providers.llm,
@@ -329,6 +408,7 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         repo_path=repo_path,
         ranked=ranked,
         should_abort=should_abort,
+        progress=progress,
     )
     all_lessons: list[Lesson] = generation_result.lessons
     skipped_lessons: list[SkippedLesson] = generation_result.skipped
@@ -350,8 +430,14 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
             degraded_ratio,
         )
 
+    progress.stage_done(
+        f"{len(all_lessons)} lessons narrated"
+        + (f" · {skipped_count} skipped" if skipped_count else "")
+    )
+
     # Stage 7 — Build
-    _std_logger.info("[7/7] Build — rendering HTML")
+    progress.stage_start(7)
+    logger.info("stage_start", stage=7, name="Build")
     now_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     lesson_plan = LessonPlan(
         lessons=tuple(all_lessons),
@@ -372,6 +458,7 @@ def generate_tutorial(  # noqa: PLR0915 — 7-stage orchestrator is naturally lo
         repo_root=repo_path,
     )
     output_path.write_text(html, encoding="utf-8")
+    progress.stage_done(f"tutorial.html written · {output_path.stat().st_size // 1024} KB")
     _std_logger.info("Tutorial written to %s", output_path)
     # Deduplicate and sort hallucinated symbols for deterministic output.
     deduped_hallucinations = tuple(sorted(set(generation_result.hallucinated_symbols)))
@@ -538,6 +625,7 @@ def _stage_generation(
     repo_path: Path,
     ranked: RankedGraph,
     should_abort: Callable[[], bool] | None = None,
+    progress: StageReporter | NoOpReporter | None = None,
 ) -> _StageGenerationOutput:
     """Stage 6: Narrate each lesson spec with grounding retry.
 
@@ -561,12 +649,17 @@ def _stage_generation(
     """
     output = _StageGenerationOutput()
 
-    for spec in manifest.lessons:
+    if progress is None:
+        progress = NoOpReporter()
+
+    total_lessons = len(manifest.lessons)
+    for idx, spec in enumerate(manifest.lessons, start=1):
         if should_abort is not None and should_abort():
             # Graceful SIGINT between lessons (US-027).  Partially generated
             # lessons remain in ``output`` so the caller can flush a checkpoint
             # before re-raising KeyboardInterrupt.
             raise KeyboardInterrupt("SIGINT received during generation stage")
+        progress.lesson_event(idx, total_lessons, spec.title)
         result = narrate_with_grounding_retry(
             spec,
             allowed_symbols,

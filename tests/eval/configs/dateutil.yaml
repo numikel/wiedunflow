@@ -1,7 +1,9 @@
 # Release-gate eval config for dateutil/dateutil.
 # Overrides: Sonnet narration for cost-optimised non-MCP eval run.
 llm:
-  narration_model: "claude-sonnet-4-6"
+  provider: "openai"
+  model_plan: "gpt-5.4-mini"
+  model_narrate: "gpt-5.4"
   leaf_description_model: "claude-haiku-4-5"
 tutorial:
   max_lessons: 30

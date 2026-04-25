@@ -674,6 +674,33 @@ Or on degraded run:
      ✓ done · tutorial ready
 ```
 
+### §4.5.1 Animation strategy (Sprint 8 / v0.2.0)
+
+The §4.5 stage copy is silent on **how** per-file (`[42/47] analysing src/foo.py`)
+and per-lesson (`[1/12] narrating '…'`) lines should evolve over time. Sprint 8
+binds two distinct animation modes to the two stage classes:
+
+| Stage | Mode | Rationale |
+|-------|------|-----------|
+| Stage 2 (Analysis / Jedi) | **Replace-line** (`StageReporter.progress_line`) | Mass scan; no individual file is interesting on its own. One updating row keeps the transcript compact. The terminal shows a single `[N/M] analysing …` line that updates in place. |
+| Stage 6 (Generation / narration) | **Scrolling event log** (`StageReporter.lesson_event`) | Each lesson costs measurable money and time. Keeping every `[N/12] narrating '<title>'` line in the transcript makes failures auditable post-hoc. New events append below. |
+| Stages 1, 3, 4, 7 | **Static** (`StageReporter.detail`) | Short stages with no per-item progress. Header + ✓ done is enough. |
+| Stages 3, 4, 5, 6 (LLM stages) | **Live counters footer** (`StageReporter.tick_counters`) | The §4.6 footer renders below the active body region; it pins running cost / tokens / elapsed and refreshes on every LLM event. |
+
+Implementation lives in `src/codeguide/cli/stage_reporter.py` (orchestrator
+side) and `src/codeguide/cli/output.py` (Rich Live region helpers). The Live
+region is started lazily on the first `progress_line` / `lesson_event` /
+`tick_counters` call and closed by `stage_done`. On non-TTY consoles `rich.live.Live`
+falls back to per-update prints — CI and `--log-format=json` pipes still
+capture every state, just without the animated overdraw.
+
+Stages 1 and 2 names (`Ingestion`, `Analysis`) currently differ from the
+§4.5 spec text (which says `Clone`, `Static analyse (Jedi)`). The spec text
+describes a v0.5+ pipeline where ingestion will fetch URLs and where Stage 4
+(`Lesson outlining`) will be split from `Concept clustering`. Reconciliation
+is tracked for a later sprint; the current implementation matches CLAUDE.md
+§PIPELINE verbatim.
+
 ### §4.6 Live counters (during LLM stages)
 
 While stages 3, 4, 5, 6 are running (calling an LLM), display a footer or periodic update showing:

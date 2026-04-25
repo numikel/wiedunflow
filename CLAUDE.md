@@ -224,10 +224,12 @@ CodeGuide ma dwie user-facing surfaces: CLI (`codeguide init` terminal output) i
 
 **Core rules** (non-negotiable bez nowego ADR):
 - **Tutorial reader**: A1 Paper palette only (dove white + graphite), Inter body font only, JetBrains Mono for code, Direction A layout, topbar najciemniejszy / narration najjaśniejszy (~20% closer to white).
-- **CLI**: Modern direction, color roles `good/warn/err/accent/link/dim/default/prompt` mapowane na `rich.style.Style`. Stage headers `[N/7] <Name>`, detail lines indented 5 spaces, `✓ done · <summary>` na końcu stage.
+- **CLI**: Modern direction, color roles `good/warn/err/accent/link/dim/default/prompt` mapowane na `rich.style.Style`. Stage headers `[N/7] <Name>`, detail lines indented 5 spaces, `✓ done · <summary>` na końcu stage. **Animations wired in v0.2.0+** — Stage 2 = replace-line, Stage 6 = scrolling event log, LLM stages = live counters footer (`.ai/ux-spec.md §4.5.1`). Stage names używają obecnego pipeline (Ingestion / Analysis / Graph / RAG / Planning / Generation / Build), NIE spec'owych nazw §4.5 (które są wishful v0.5+).
+- **Cost-gate prompt**: domyślnie ON dla TTY w v0.2.0+. Bypass: `--yes`, `--no-cost-prompt`, non-TTY (`stdin.isatty() == False`). ADR-0011 decision 9.
 - **Offline HTML**: fonts WOFF2 self-hosted inline, Pygments pre-rendered, vanilla JS (no Preact), wszystko w jednym pliku HTML.
 - **Exact copy**: CLI stage output, cost gate text, error scenarios — literalnie per `.ai/ux-spec.md` §CLI (źródło: `.claude/skills/codeguide-ux-skill/reference/cli/design/cli-session-data.js`).
 - **localStorage keys**: `codeguide:<repo>:last-lesson`, `codeguide:tweak:theme:v2`, `codeguide:tweak:narr-frac:v2`. Namespace `codeguide:*` jest zarezerwowany.
+- **Two-sink rule (Sprint 5 #6)**: rich imports MUSZĄ być TYLKO w `cli/output.py`. `stage_reporter.py` używa opaque `LiveStageHandle`; `cost_gate.py`, `cli/main.py` traktują console jako `object`. Test `test_no_rich_outside_output.py` enforce'uje to.
 
 **Critical anti-patterns**:
 - ❌ Preact, React, Astro, bundler — vanilla JS binarnie (ADR-0005)
@@ -255,4 +257,4 @@ Aktualne architectural decision records (w `docs/adr/`):
 - **ADR-0007** — Planning prompt contract (Stage 4): Sonnet 4.6 single call, grounding invariant, 1-retry, fatal fail (2026-04-20).
 - **ADR-0008** — Cache schema v1: SQLite + WAL, `(repo_abs, commit, lesson_id)` key bez modelu, checkpoint row per lekcja, no-JSON1 design (2026-04-21).
 - **ADR-0010** — Secret redaction policy + zero-telemetry contract: 7 binary decisions (pattern-only regex, structlog processor scope, separate `consent.yaml`, per-provider persistence, 9-pattern hard-refuse list, dual-layer zero-telemetry test, editor resolver shlex+which+metachar validation) (2026-04-22).
-- **ADR-0011** — UX design system: A1 Paper only, Inter only, Direction A only, Modern CLI only (2026-04-19).
+- **ADR-0011** — UX design system: A1 Paper only, Inter only, Direction A only, Modern CLI only (2026-04-19; +decisions 8 (CLI animation strategy) and 9 (cost-gate default ON for TTY) added Sprint 8 / 2026-04-25).

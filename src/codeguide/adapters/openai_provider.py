@@ -201,6 +201,10 @@ class OpenAIProvider:
         authentication errors (openai.AuthenticationError) or other APIErrors.
         """
 
+        token_param = (
+            "max_completion_tokens" if _uses_max_completion_tokens(model) else "max_tokens"
+        )
+
         @retry(
             retry=retry_if_exception_type((openai.RateLimitError, openai.APITimeoutError)),
             wait=wait_exponential_jitter(initial=2, max=self._max_wait_s, jitter=1),
@@ -211,7 +215,7 @@ class OpenAIProvider:
         def _call() -> str:
             kwargs: dict[str, Any] = {
                 "model": model,
-                "max_tokens": max_tokens,
+                token_param: max_tokens,
                 "messages": [{"role": "system", "content": system}, *messages],
             }
             if response_format is not None:
@@ -252,6 +256,23 @@ def _parse_plan_response(raw: str) -> LessonManifest:
         schema_version="1.0.0",
         lessons=lessons,
         metadata=metadata,
+    )
+
+
+def _uses_max_completion_tokens(model: str) -> bool:
+    """Return True for OpenAI models that reject ``max_tokens``.
+
+    Reasoning models (o1/o3/o4) and the GPT-5 family require
+    ``max_completion_tokens``; older chat models (gpt-4o, gpt-3.5, gpt-4-turbo)
+    still accept ``max_tokens``. Detection is name-prefix based since OpenAI does
+    not expose this capability via the SDK.
+    """
+    name = model.strip().lower()
+    return (
+        name.startswith("o1")
+        or name.startswith("o3")
+        or name.startswith("o4")
+        or name.startswith("gpt-5")
     )
 
 

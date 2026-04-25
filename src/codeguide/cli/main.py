@@ -22,6 +22,7 @@ import traceback
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 import click
 
@@ -43,19 +44,26 @@ from codeguide.cli.consent import (
     ConsentRequiredError,
     ensure_consent_granted,
 )
+from codeguide.cli.cost_estimator import CostEstimate
+from codeguide.cli.cost_gate import prompt_cost_gate
 from codeguide.cli.history_rotator import write_history_copy
 from codeguide.cli.init_wizard import run_init_wizard
 from codeguide.cli.logging import configure as configure_logging
 from codeguide.cli.logging import get_logger as get_structlog
 from codeguide.cli.output import (
     init_console,
+    print_cost_abort,
     print_done_summary,
+    render_banner,
+    render_run_report,
 )
 from codeguide.cli.run_report_writer import write_run_report
 from codeguide.cli.signals import SigintHandler
+from codeguide.cli.stage_reporter import StageReporter
 from codeguide.entities.run_report import RunReport, RunStatus
 from codeguide.interfaces.ports import LLMProvider
 from codeguide.use_cases.generate_tutorial import (
+    CostGateAbortedError,
     GenerationResult,
     MaxCostExceededError,
     Providers,
@@ -291,6 +299,13 @@ def init_cmd(
     help="Structured log output format on stderr (US-022).",
 )
 @click.option(
+    "--no-cost-prompt",
+    "no_cost_prompt",
+    is_flag=True,
+    default=False,
+    help="Skip the interactive cost-gate prompt (US-084 — Sprint 8 / v0.2.0).",
+)
+@click.option(
     "--no-log-redaction",
     "no_log_redaction",
     is_flag=True,
@@ -317,6 +332,7 @@ def generate_cmd(
     dry_run: bool,
     review_plan: bool,
     log_format: str,
+    no_cost_prompt: bool,
     no_log_redaction: bool,
 ) -> None:
     """Generate an interactive HTML tutorial from a local Git repository."""
@@ -325,6 +341,12 @@ def generate_cmd(
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     console = init_console(json_mode=json_mode)
     structlog_logger = get_structlog(stage="cli")
+
+    # Sprint 8: startup banner — TTY-only, suppressed for non-interactive output
+    # (CI, pipe, redirect) and JSON log mode where the stdout is consumer-readable.
+    is_tty = sys.stdin.isatty() and sys.stdout.isatty()
+    if is_tty and not json_mode:
+        render_banner(console, version=__version__)
 
     ensure_gitignore_entry(repo_path)
 
@@ -404,6 +426,10 @@ def generate_cmd(
             dry_run=dry_run,
             review_plan=review_plan,
             max_cost_usd=max_cost_usd,
+            auto_yes=yes,
+            no_cost_prompt=no_cost_prompt,
+            is_tty=is_tty,
+            json_mode=json_mode,
         )
     finally:
         sigint.restore()
@@ -480,7 +506,7 @@ def _build_llm_provider(
     return FakeLLMProvider()  # pragma: no cover — exhaustive config Literal above
 
 
-def _run_pipeline(
+def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with many exception paths
     *,
     repo_path: Path,
     providers: Providers,
@@ -495,8 +521,26 @@ def _run_pipeline(
     dry_run: bool = False,
     review_plan: bool = False,
     max_cost_usd: float | None = None,
+    auto_yes: bool = False,
+    no_cost_prompt: bool = False,
+    is_tty: bool = False,
+    json_mode: bool = False,
 ) -> int:
     """Run the generation pipeline, write the run report, return an exit code."""
+    # Sprint 8: animated stage reporter (suppressed for JSON log mode where
+    # stdout is consumer-readable). NoOpReporter takes over headless callers.
+    progress: StageReporter | None = StageReporter(console=console) if not json_mode else None
+
+    def _cost_gate(estimate: CostEstimate) -> bool:
+        """Closure passed to ``generate_tutorial`` — Sprint 8 / US-084 / Q4."""
+        return prompt_cost_gate(
+            console,
+            estimate=estimate,
+            auto_yes=auto_yes,
+            prompt_disabled=no_cost_prompt,
+            is_tty=is_tty,
+        )
+
     try:
         result: GenerationResult = generate_tutorial(
             repo_path,
@@ -509,6 +553,8 @@ def _run_pipeline(
             dry_run=dry_run,
             review_plan=review_plan,
             max_cost_usd=max_cost_usd,
+            progress=progress,
+            cost_gate_callback=_cost_gate,
         )
     except KeyboardInterrupt:
         _write_final_report(
@@ -517,8 +563,31 @@ def _run_pipeline(
             started_at=started_at,
             status="interrupted",
         )
-        click.echo("Run interrupted by user. Partial state retained for --resume.", err=True)
+        if progress is not None:
+            render_run_report(
+                console,  # type: ignore[arg-type]
+                status="failed",  # render as failed-style frame; status line itself is custom
+                lines=[
+                    ("status", "interrupted by user"),
+                    ("hint", "partial state retained for --resume"),
+                ],
+            )
+        else:
+            click.echo("Run interrupted by user. Partial state retained for --resume.", err=True)
         return 130
+    except CostGateAbortedError:
+        # Clean user abort at cost-gate prompt (Sprint 8 / US-084) — exit 0.
+        _write_final_report(
+            repo_path=repo_path,
+            provider_label=provider_label,
+            started_at=started_at,
+            status="ok",
+        )
+        if progress is not None:
+            print_cost_abort(console, elapsed=_format_elapsed(started_at))  # type: ignore[arg-type]
+        else:
+            click.echo("aborted by user. no API calls were made.", err=True)
+        return 0
     except MaxCostExceededError as exc:
         _write_final_report(
             repo_path=repo_path,
@@ -528,11 +597,24 @@ def _run_pipeline(
             stack_trace=f"MaxCostExceededError: {exc}",
             failed_at_lesson="<cost-gate>",
         )
-        click.echo(
-            f"aborted: estimated cost ${exc.estimate_usd:.2f} exceeds --max-cost "
-            f"${exc.cap_usd:.2f}. No API calls were made.",
-            err=True,
-        )
+        if progress is not None:
+            render_run_report(
+                console,  # type: ignore[arg-type]
+                status="failed",
+                lines=[
+                    ("failed at", "cost-gate (--max-cost)"),
+                    ("estimate", f"${exc.estimate_usd:.2f}"),
+                    ("cap", f"${exc.cap_usd:.2f}"),
+                    ("lessons", str(exc.lessons)),
+                    ("note", "no API calls were made"),
+                ],
+            )
+        else:
+            click.echo(
+                f"aborted: estimated cost ${exc.estimate_usd:.2f} exceeds --max-cost "
+                f"${exc.cap_usd:.2f}. No API calls were made.",
+                err=True,
+            )
         return 1
     except PlanningFatalError as exc:
         _write_final_report(
@@ -543,7 +625,17 @@ def _run_pipeline(
             stack_trace=f"PlanningFatalError: {exc}",
             failed_at_lesson="<planning>",
         )
-        click.echo(f"error: planning stage failed — {exc}", err=True)
+        if progress is not None:
+            render_run_report(
+                console,  # type: ignore[arg-type]
+                status="failed",
+                lines=[
+                    ("failed at", "stage 5 (planning)"),
+                    ("reason", str(exc)),
+                ],
+            )
+        else:
+            click.echo(f"error: planning stage failed — {exc}", err=True)
         return 1
     except Exception:
         _write_final_report(
@@ -554,7 +646,19 @@ def _run_pipeline(
             stack_trace=traceback.format_exc(),
             failed_at_lesson="<unknown>",
         )
-        click.echo("error: unhandled exception — see run-report.json for stack trace.", err=True)
+        if progress is not None:
+            render_run_report(
+                console,  # type: ignore[arg-type]
+                status="failed",
+                lines=[
+                    ("failed at", "<unknown>"),
+                    ("see", ".codeguide/run-report.json for stack trace"),
+                ],
+            )
+        else:
+            click.echo(
+                "error: unhandled exception — see run-report.json for stack trace.", err=True
+            )
         return 1
 
     status: RunStatus = "degraded" if result.degraded else "ok"
@@ -570,16 +674,46 @@ def _run_pipeline(
         hallucinated_symbols=result.hallucinated_symbols,
     )
 
-    click.echo(f"Tutorial written to: {result.output_path}")
-    print_done_summary(console, path=result.output_path)  # type: ignore[arg-type]
-    if result.degraded:
-        click.echo(
-            f"warning: tutorial DEGRADED — "
-            f"{len(result.skipped_lessons)} of {result.total_planned} lessons skipped.",
-            err=True,
+    if progress is not None:
+        # Sprint 8: render the run-report card in place of the v0.1.0 one-liner.
+        elapsed = _format_elapsed(started_at)
+        rendered_status: Literal["success", "degraded"] = (
+            "degraded" if result.degraded else "success"
         )
+        report_lines: list[tuple[str, str]] = [
+            (
+                "lessons",
+                f"{result.total_planned - len(result.skipped_lessons)} of "
+                f"{result.total_planned} narrated"
+                + (f" · {len(result.skipped_lessons)} skipped" if result.skipped_lessons else ""),
+            ),
+            ("retries", f"{result.retry_count} grounding retries"),
+            ("elapsed", elapsed),
+            ("output", str(result.output_path)),
+        ]
+        render_run_report(console, status=rendered_status, lines=report_lines)  # type: ignore[arg-type]
+        print_done_summary(console, path=result.output_path)  # type: ignore[arg-type]
+    else:
+        click.echo(f"Tutorial written to: {result.output_path}")
+        print_done_summary(console, path=result.output_path)  # type: ignore[arg-type]
+
+    if result.degraded:
+        if progress is None:
+            click.echo(
+                f"warning: tutorial DEGRADED — "
+                f"{len(result.skipped_lessons)} of {result.total_planned} lessons skipped.",
+                err=True,
+            )
         return 2
     return 0
+
+
+def _format_elapsed(started_at: datetime) -> str:
+    """Format ``MM:SS`` elapsed time since ``started_at`` (Sprint 8 helper)."""
+    delta = (datetime.now(UTC) - started_at).total_seconds()
+    minutes = int(delta) // 60
+    seconds = int(delta) % 60
+    return f"{minutes}:{seconds:02d}"
 
 
 def _write_final_report(

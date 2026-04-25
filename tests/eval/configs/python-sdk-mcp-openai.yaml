@@ -8,8 +8,8 @@
 # lessons on the MCP SDK with gpt-4o + gpt-4o-mini for descriptions).
 llm:
   provider: "openai"
-  model_plan: "gpt-4o"
-  model_narrate: "gpt-4o"
+  model_plan: "gpt-5.4-mini"
+  model_narrate: "gpt-5.4"
   concurrency: 8
 # Same lesson count rationale as Anthropic config (curated tour, 10 chapters).
 max_lessons: 10

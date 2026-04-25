@@ -6,6 +6,77 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-25 — Animated CLI + Cost Gate Prompt (Sprint 8)
+
+### BREAKING (perceptual, pre-1.0)
+- **Cost-gate prompt is now ON by default for TTY users.** Before Stage 5
+  (Planning) finalises the manifest, the CLI shows the estimated cost panel
+  and asks `Proceed? [y/N]`. Declining aborts cleanly with exit code `0` and
+  no API calls. Non-TTY callers (CI, pipes, redirect) auto-confirm — no
+  pipeline change required. Power users running interactively can pass
+  `--no-cost-prompt` to skip the prompt without bypassing the consent banner.
+  v0.1.0 only enforced `--max-cost` as a hard kill switch; that flag is
+  unchanged and still raises `MaxCostExceededError` independently of the
+  prompt (US-070, US-084).
+
+### Added
+- **Animated stage progress** (`src/codeguide/cli/stage_reporter.py`).
+  `StageReporter` is now wired into `generate_tutorial()` and renders one
+  header per stage (`[N/7] <Name>`) plus a `✓ done · <summary>` line at the
+  end of each stage. New methods drive a stateful `rich.live.Live` region:
+  - `progress_line(text)` — replace-line update for mass-scan stages
+    (Stage 2 Analysis: `parsing AST + resolving call graph for N files`).
+  - `lesson_event(idx, total, title)` — append-only scrolling event log for
+    Stage 6 Generation (each narrated lesson stays in the transcript).
+  - `tick_counters(tokens_in, tokens_out, cost_usd, elapsed_s)` — running
+    counters footer (US-083).
+  - `NoOpReporter` null-object sentinel for headless callers
+    (`--log-format=json`, library use, tests) (US-081, US-082).
+- **Startup banner** (`render_banner()` in `cli/output.py`). Printed before
+  preflight on TTY runs, suppressed on non-TTY and `--log-format=json`.
+  Format: `CodeGuide vX.Y.Z` plus tagline (US-086).
+- **Run-report card** at every exit path. The v0.1.0 one-liner
+  `Tutorial written to: …` is replaced with a `rich.panel.Panel` card
+  showing `lessons / retries / elapsed / output` rows (or `failed at /
+  reason` for error paths). Mirrors the spec'd `✓ success` / `⚠ degraded`
+  / `✗ failed` headers from `.ai/ux-spec.md §4.8` (US-085).
+- **`cli/cost_gate.py`** — `prompt_cost_gate()` + `should_skip_prompt()` +
+  `CostGateAbortedError`. Bypass conditions: `--yes`, `--no-cost-prompt`,
+  `not stdin.isatty()`. Caller in `_run_pipeline` translates the abort to
+  exit `0` and prints the spec abort line via `print_cost_abort()`.
+- **`--no-cost-prompt` flag** for `codeguide generate` — skips the
+  interactive cost prompt without auto-confirming the consent banner.
+- **`generate_tutorial()` API** gained two optional parameters:
+  - `progress: StageReporter | NoOpReporter | None` — receives stage
+    lifecycle events. Defaults to `NoOpReporter` so existing library
+    callers and tests keep working.
+  - `cost_gate_callback: Callable[[CostEstimate], bool] | None` —
+    invoked after Stage 5 with the cost estimate; returning `False`
+    raises `CostGateAbortedError`.
+- 28 new unit tests under `tests/unit/cli/`:
+  `test_stage_reporter_animations.py` (12), `test_cost_gate_prompt.py` (12),
+  `test_banner.py` (4).
+
+### Changed
+- `_run_pipeline()` now creates a `StageReporter` (or skips it for JSON
+  mode), builds a `_cost_gate` closure, and threads both through
+  `generate_tutorial()`. All four exit paths (success, degraded, failed,
+  interrupted, cost-gate-abort) render via `render_run_report()` /
+  `print_cost_abort()` instead of plain `click.echo`.
+- Stage names in `stage_reporter._STAGE_NAMES` aligned with the actual
+  pipeline (Ingestion, Analysis, Graph, RAG, Planning, Generation, Build).
+  `.ai/ux-spec.md §4.5` still describes a wishful v0.5+ pipeline with
+  separate clustering / outlining / narration / grounding stages;
+  reconciliation tracked for a future sprint.
+- `init_console()` now reconfigures `sys.stdout` to UTF-8 (errors=replace)
+  on Windows code pages — fixes `UnicodeEncodeError` when printing
+  `✓` / `─` / `┏` glyphs in PowerShell with cp1250/cp1252 default.
+- `pyproject.toml` and `__init__.py` version 0.1.0 → 0.2.0.
+
+### Sprint 8 follow-up (deferred to Sprint 9)
+- Interactive repo picker (`codeguide` without arguments in TTY launches a
+  questionary-based picker). Plan in `~/.claude/plans/`.
+
 ## [0.1.0] - 2026-04-24 — Release Candidate + Release Gate (Sprint 7)
 
 ### Added

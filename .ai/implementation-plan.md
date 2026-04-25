@@ -55,6 +55,8 @@ Każde PR zamykające jeden US musi zawierać:
 | 5 | Output HTML + Run modes + Reporting | v0.0.5 | Stage 6 (Jinja2 + Pygments + template linter) + CLI flags + navigation + run report + pixel-perfect UX recreation per ux-spec.md + CLI UX polish (rich.panel/rich.live/color roles) | smoke: click + requests + starlette | A: build · B: run modes · C: HTML frontend |
 | 6 | Privacy + Config + Hardening | v0.0.6 | Consent banner, hard-refuse list, `codeguide init`, config precedence, SecretFilter, shell injection hardening, pip-audit | smoke: 4/5 repos | A: privacy + init · B: config chain · C: hardening + SecretFilter |
 | 7 | Release Candidate + Release Gate | v0.1.0-rc.1 → v0.1.0 | Pełny 5-repo eval, rubric sign-off, cross-OS fixes, release workflow | **gate: 5/5 repos + rubric ≥3** | A: eval runner · B: rubric coordination · C: CI/release |
+| 8 | CLI UX wiring + animations | v0.2.0 | Wiring `StageReporter`/`render_cost_gate`/`render_run_report` z v0.1.0 do orchestratora + nowe animacje (Stage 2 replace-line, Stage 5 scroll, live counters) + cost-gate prompt domyślnie ON dla TTY + banner | — | A: orchestrator hooks · B: CLI wiring · C: tests + docs |
+| 9 | Interactive repo picker | v0.3.0 | `codeguide` bez argumentów (TTY) → questionary picker (recent / discover / manual path) | — | A: picker UI · B: sources + cache · C: ADR-0012 + tests |
 
 ## Sprint 0 — Foundation (v0.0.0)
 
@@ -394,6 +396,69 @@ Track C:
 - **T-007.GATE**: `pytest -m eval` na wszystkich 5 repach MUSI być zielony, rubric avg ≥3 na MCP SDK tutorial, 0 crashów, <5% hallucinated symbols. Bez tego NIE tagujemy v0.1.0.
 
 **DoD sprintu 7**: tag `v0.1.0`, CHANGELOG sekcja release, archiwum rubric w repo, README zawiera disclosure LLM transmission.
+
+---
+
+## Sprint 8 — CLI UX wiring + animations (v0.2.0)
+
+**Cel**: wire'ować istniejący UX-spec do pipeline'a + dodać animacje per-stage.
+Po sprintcie `codeguide ./repo` w TTY pokazuje banner, animowane stage'y,
+cost-gate prompt domyślnie ON, run-report card. Plan szczegółowy:
+`~/.claude/plans/ok-zastanawa-mnie-jednak-linear-wigderson.md` (zaakceptowany
+2026-04-25).
+
+**Parallel tracks** (3 agenty, ~5-7 dni):
+
+- **Track A — `python-pro`**: orchestrator hooks + Stage 1-4 wiring w `use_cases/generate_tutorial.py`. Plik scope: `cli/stage_reporter.py`, `use_cases/generate_tutorial.py` (Stages 1-4 + cost-gate hook).
+- **Track B — `python-pro` + `frontend-developer`**: CLI wiring + Stage 5-7. Plik scope: `cli/main.py`, `cli/output.py` (banner, preflight), `cli/cost_gate.py` (NEW), `use_cases/generate_tutorial.py` (Stages 5-7 progress callbacks).
+- **Track C — `test-automator` + `technical-writer`**: testy + docs. Plik scope: `tests/unit/cli/test_*` (US-081 do US-086), `README.md`, `CHANGELOG.md`, `.ai/ux-spec.md §4.5.1`, ADR-0011 dopisek.
+
+### US (Sprint 8 — nowe)
+
+- **US-081** Animated Stage 2 (Jedi) — replace-line per file (Track A)
+- **US-082** Scrolling Stage 5 (narration) — append-only event log (Track B)
+- **US-083** Live counters footer (tokens / cost / elapsed) (Track A)
+- **US-084** Cost-gate domyślnie ON dla TTY + bypass: `--yes` / `--no-cost-prompt` / non-TTY (Track B)
+- **US-085** Run-report card dla success / degraded / failed / interrupted / cost-gate-abort (Track B)
+- **US-086** Banner startowy `CodeGuide vX.Y.Z` (Track B)
+- **US-087** Animation strategy doc (UX-spec §4.5.1) — Q3 decyzja zapisana (Track C)
+
+### Founding decisions (Q1-Q6 z pytań Socratesowych, plan-mode 2026-04-25)
+
+| # | Decyzja | Rationale |
+|---|---|---|
+| Q1 | Sprint 8 wire'owanie spec'a, Sprint 9 picker (osobno) | Wire'owanie ~80% jest już zbudowane (martwy kod) — tani sprint, nie blokuje v0.1.0 |
+| Q2 | `codeguide` bez argumentów → picker tylko gdy `stdin.isatty()` | Non-TTY (CI, pipe) dalej wymaga argumentu — żaden release flow się nie zepsuje (Sprint 9) |
+| Q3 | Stage 2 = replace-line, Stage 5 = scroll | Mass scan (no-history) vs event log (auditable) |
+| Q4 | Cost gate domyślnie ON dla TTY, auto-bypass non-TTY, flaga `--no-cost-prompt` | Pierwszy run pyta o $$$; CI bez friction |
+| Q5 | `rich.live` + `rich.spinner` (Sprint 8) | Zero nowych deps; questionary dopiero w Sprint 9 |
+| Q6 | S8 → v0.2.0, S9 → v0.3.0 | SemVer pre-1.0; cost-gate-default jest perceptual-breaking |
+
+**DoD sprintu 8**: tag `v0.2.0`, CHANGELOG sekcja, README "What you'll see", UX-spec §4.5.1, 28+ nowych testów, smoke test e2e na tiny_repo.
+
+---
+
+## Sprint 9 — Interactive repo picker (v0.3.0)
+
+**Cel**: `codeguide` bez argumentów (TTY) → questionary picker z 3 sources (recent runs / discover git repos / manual path), potem flow Sprint 8.
+
+**Parallel tracks** (3 agenty, ~5-7 dni):
+
+- **Track A — `python-pro`**: picker UI (`cli/picker.py` NEW) + dispatch w `cli/main.py:_DefaultToGenerate`.
+- **Track B — `python-pro`**: sources discovery (`cli/picker_sources.py` NEW) + recent runs cache (`cli/recent_runs_cache.py` NEW).
+- **Track C — `test-automator` + `technical-writer`**: ADR-0012, UX-spec §4.0 Picker mode, FR-91, README, tests.
+
+### US (Sprint 9 — nowe)
+
+- **US-088** Picker entry — `codeguide` bez args + TTY → `run_repo_picker()`. Non-TTY zostaje bez zmian.
+- **US-089** Recent runs source — czytanie `~/.cache/codeguide/recent.json`, fallback gdy plik nie istnieje
+- **US-090** Git-repo discovery — rekurencyjny walk cwd do max_depth=2, znajdź `.git/`
+- **US-091** Manual path source — `questionary.path()` z walidacją "is git repo"
+- **US-092** Recent runs cache writeback — po success run zapisz wpis (LRU 10)
+
+**Nowa dep**: `questionary>=2.0` (transitive `prompt_toolkit` ~600 KB).
+
+**DoD sprintu 9**: tag `v0.3.0`, ADR-0012, UX-spec §4.0, FR-91, recent.json cross-platform.
 
 ## ADR queue
 

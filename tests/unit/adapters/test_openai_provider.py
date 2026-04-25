@@ -13,7 +13,10 @@ import openai
 import pydantic
 import pytest
 
-from codeguide.adapters.openai_provider import OpenAIProvider
+from codeguide.adapters.openai_provider import (
+    OpenAIProvider,
+    _uses_max_completion_tokens,
+)
 from codeguide.entities.code_symbol import CodeSymbol
 from codeguide.entities.lesson_manifest import LessonManifest
 from codeguide.interfaces.ports import LLMProvider
@@ -493,3 +496,83 @@ def test_auth_error_not_retried(mock_cls, monkeypatch):
 
     # Auth errors must NOT be retried — exactly 1 call
     assert mock_client.chat.completions.create.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Test: max_completion_tokens vs max_tokens routing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("gpt-4o", False),
+        ("gpt-4o-mini", False),
+        ("gpt-4-turbo", False),
+        ("gpt-3.5-turbo", False),
+        ("o1", True),
+        ("o1-preview", True),
+        ("o3-mini", True),
+        ("o4-mini", True),
+        ("gpt-5", True),
+        ("gpt-5.4", True),
+        ("gpt-5.4-mini", True),
+        ("GPT-5.4-MINI", True),  # case-insensitive
+        ("  o1-preview  ", True),  # whitespace-tolerant
+    ],
+)
+def test_uses_max_completion_tokens_detection(model: str, expected: bool) -> None:
+    """Newer OpenAI families (o1/o3/o4/gpt-5) require max_completion_tokens."""
+    assert _uses_max_completion_tokens(model) is expected
+
+
+@patch("codeguide.adapters.openai_provider.OpenAI")
+def test_plan_gpt5_uses_max_completion_tokens(mock_cls, monkeypatch):
+    """plan() with gpt-5* swaps max_tokens → max_completion_tokens (avoids 400 BadRequest)."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = _mk_response(_valid_manifest_json())
+    mock_cls.return_value = mock_client
+
+    provider = OpenAIProvider(model_plan="gpt-5.4-mini")
+    provider.plan("outline")
+
+    kwargs = mock_client.chat.completions.create.call_args.kwargs
+    assert "max_completion_tokens" in kwargs
+    assert kwargs["max_completion_tokens"] == 8000
+    assert "max_tokens" not in kwargs
+
+
+@patch("codeguide.adapters.openai_provider.OpenAI")
+def test_describe_o1_uses_max_completion_tokens(mock_cls, monkeypatch):
+    """describe_symbol() with o-series reasoning model uses max_completion_tokens."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = _mk_response("desc")
+    mock_cls.return_value = mock_client
+
+    provider = OpenAIProvider(model_describe="o1-mini")
+    provider.describe_symbol(_mk_symbol(), context="ctx")
+
+    kwargs = mock_client.chat.completions.create.call_args.kwargs
+    assert "max_completion_tokens" in kwargs
+    assert kwargs["max_completion_tokens"] == 300
+    assert "max_tokens" not in kwargs
+
+
+@patch("codeguide.adapters.openai_provider.OpenAI")
+def test_narrate_gpt5_uses_max_completion_tokens(mock_cls, monkeypatch):
+    """narrate() with gpt-5* uses max_completion_tokens."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = _mk_response("## narrative")
+    mock_cls.return_value = mock_client
+
+    spec = json.dumps({"id": "l-1", "title": "T", "code_refs": []})
+    provider = OpenAIProvider(model_narrate="gpt-5.4")
+    provider.narrate(spec, concepts_introduced=())
+
+    kwargs = mock_client.chat.completions.create.call_args.kwargs
+    assert "max_completion_tokens" in kwargs
+    assert kwargs["max_completion_tokens"] == 4000
+    assert "max_tokens" not in kwargs

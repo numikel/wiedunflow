@@ -14,7 +14,8 @@ Design review conducted 2026-04-19 evaluated all nine combinations (3 CLI × 3 p
 
 ## Decision
 
-**Seven binary decisions are final for MVP:**
+**Nine binary decisions are now final** (1-7 for MVP, 8-9 added in Sprint 8 /
+v0.2.0):
 
 1. **CLI direction**: Modern only. Minimal and Retro ASCII directions are dropped.
    - Rationale: Consistent with Claude Code, opencode, and uv aesthetic — modern Polish without heavy TUI or retro ASCII.
@@ -36,6 +37,30 @@ Design review conducted 2026-04-19 evaluated all nine combinations (3 CLI × 3 p
 
 7. **Syntax highlighting**: Pre-rendered by Pygments during the Python build phase (stage 7). No runtime highlight.js or Prism.js in the browser.
    - Rationale: Avoids 15 KB+ syntax-highlighting JavaScript bundle. Tokenization happens in the renderer, HTML ships with pre-baked `tok-*` spans and `<style>` definitions. Zero runtime performance impact.
+
+8. **CLI animation strategy** (added Sprint 8 / v0.2.0): Stage 2 (mass scan)
+   uses a single replace-line live region; Stage 6 (narration) uses an
+   append-only scrolling event log. Stages 3/4/5 (LLM stages) overlay a
+   live counters footer (cost · tokens · elapsed) below the body. Stages
+   1/7 are static (header + ✓ done only).
+   - Rationale: Mass-scan progress (`[42/47] analysing src/foo.py`) is
+     low-information per file — keeping a single updating row keeps the
+     transcript compact. Narration events are paid LLM calls — keeping
+     each `[N/12] narrating '<title>'` line in the transcript makes
+     failures auditable post-hoc and matches the "$$$ accountability"
+     mental model. Implementation: `rich.live.Live` (already in stack via
+     `rich`) confined to `cli/output.py` per Sprint 5 #6 two-sink rule.
+     No new dependency. Codified in `.ai/ux-spec.md §4.5.1`.
+
+9. **Cost-gate prompt default** (added Sprint 8 / v0.2.0): The Stage-5
+   cost-gate prompt is **on by default for TTY runs**. Bypass conditions
+   are `--yes`, `--no-cost-prompt`, or non-TTY (`stdin.isatty() == False`).
+   v0.1.0 only enforced `--max-cost` as a hard kill switch.
+   - Rationale: Privacy and cost transparency are core product DNA
+     (zero-telemetry, BYOK, Apache 2.0). A first-time `codeguide ./repo`
+     run should pause and show "$2.28 OK?" rather than silently spending.
+     Power users override with `--no-cost-prompt` once. Non-TTY auto-bypass
+     keeps CI / pipes / `--log-format=json` flows unchanged.
 
 ## Consequences
 

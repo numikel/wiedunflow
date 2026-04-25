@@ -112,6 +112,7 @@ Options:
   --regenerate-plan            Discard the cached lesson manifest and re-run Stage 4 (US-018).
   --cache-path FILE            Override the cache database location (US-020).
   --max-cost USD               Abort if the projected LLM cost exceeds this value (US-019).
+  --no-cost-prompt             Skip the interactive cost-gate prompt (Sprint 8 / v0.2.0).
   --dry-run                    Run Stages 0..4 and emit a preview HTML without paying for narration (US-015).
   --review-plan                Pause after Stage 4 and open the lesson manifest in $EDITOR (US-016).
   --log-format [text|json]     Structured log output on stderr (US-022). Default: text.
@@ -121,6 +122,68 @@ Options:
 
 **Backward compatibility**: `codeguide <repo>` (without an explicit `generate`) still works — a custom
 click group class rewrites an unknown first positional to `generate <positional>`.
+
+### What you'll see (Sprint 8 / v0.2.0)
+
+Running `codeguide ./my-repo` in a TTY produces:
+
+```
+CodeGuide v0.2.0
+offline-friendly tutorial generator from local Git repos
+
+[1/7] Ingestion
+     ✓ done · 47 python files discovered
+[2/7] Analysis
+     parsing AST + resolving call graph for 47 files
+     ✓ done · 412 symbols · 352 call edges
+[3/7] Graph
+     ✓ done · 412 symbols ranked · 0 cycle groups
+[4/7] RAG
+     ✓ done · BM25 index built · doc coverage 87%
+[5/7] Planning
+     generating lesson manifest…
+     ✓ done · manifest ready (12 lessons)
+
+┏━ ESTIMATED COST ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Model    Stage                            Est. tokens     Cost            ┃
+┃ haiku    stages 1-4 (analyse/cluster)        ~410 000    $0.41            ┃
+┃ opus     stages 5-6 (narrate/ground)         ~280 000    $1.87            ┃
+┃ TOTAL                                        ~690 000    $2.28            ┃
+┃ Runtime est. 18-26 min · 12 lessons across 1 clusters                     ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Proceed? [y/N]: y
+
+[6/7] Generation
+     [1/12] narrating 'Session basics: initialization and context'
+     [2/12] narrating 'Sessions: threading safety and scoping'
+     …
+     ✓ done · 12 lessons narrated
+[7/7] Build
+     ✓ done · tutorial.html written · 2387 KB
+
+┏━ ✓ success ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  lessons    12 of 12 narrated                                              ┃
+┃  retries    0 grounding retries                                            ┃
+┃  elapsed    18:43                                                          ┃
+┃  output     ./tutorial.html                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+open  tutorial.html
+```
+
+The cost-gate prompt **defaults to ON** for interactive terminals. Three bypass
+options are available:
+
+- `--yes` — auto-confirm both the consent banner and the cost prompt (existing
+  v0.1.0 behaviour).
+- `--no-cost-prompt` — skip only the cost prompt, keep the consent flow
+  interactive.
+- Non-TTY / piped / redirected stdin — the prompt is automatically bypassed
+  so CI pipelines and `codeguide … > out.txt` keep working unchanged.
+
+In `--log-format=json` mode the banner and animated progress are suppressed so
+the stdout transcript stays parseable; structured stage events are still
+emitted to stderr.
 
 ### Output HTML reader (Sprint 5 / v0.0.5)
 
@@ -313,13 +376,13 @@ Full precedence specification: [docs/config-precedence.md](docs/config-precedenc
 
 ## Known limitations
 
-The following limitations are acknowledged in v0.1.0 and prioritized for v0.2.0:
+The following limitations are acknowledged in v0.1.0 and prioritized for v0.2.0+:
 
-- **Language support**: Python only. TypeScript, JavaScript, Go, and other languages are planned for v0.2.0.
-- **Narration language**: English only. Non-English language support and i18n infrastructure are deferred to v0.2.0.
+- **Language support**: Python only. TypeScript, JavaScript, Go, and other languages are planned for v0.2.0+.
+- **Narration language**: English only. Non-English language support and i18n infrastructure are deferred to v0.2.0+.
 - **Dynamic constructs**: Dynamic imports, runtime polymorphism, reflection, and metaclass-based dispatch are detected and flagged as `uncertain` in the output HTML. Symbol resolution does not attempt to trace these patterns — see the code directly for runtime behavior.
 - **Lesson capacity**: Hard cap at 30 regular lessons per tutorial (configurable via `tutorial.max_lessons`). Very large repositories are aggressively pruned to maintain narrative coherence. A synthetic "Where to go next" lesson is always appended as lesson 31.
-- **Installation channel**: v0.1.0 ships as a Git-installable package only. PyPI release is explicitly deferred to v0.2.0 per FR-03.
+- **Installation channel**: v0.1.0 ships as a Git-installable package only. PyPI release is explicitly deferred to v0.2.0+ per FR-03.
 
 ## License
 
