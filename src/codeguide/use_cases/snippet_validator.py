@@ -32,8 +32,12 @@ __all__ = ["validate_narrative_snippets"]
 _FENCE_RE = re.compile(r"```python\s*\n(.*?)```", re.DOTALL)
 
 # Matches a def line (first line of a snippet or source_excerpt).
-# Groups: (1) function_name, (2) param_string (may be multi-line in source,
-# but we only inspect the first def line here).
+# Groups: (1) function_name, (2) param_string.
+# NOTE on multi-line signatures: ``[^)]`` matches newline characters by
+# default (re.MULTILINE only changes anchor semantics, not the negated
+# class), so a wrapped ``def foo(\n    x,\n    y\n):`` body still matches as
+# a single token. This is intentional — Python source frequently splits
+# long parameter lists across lines and we want every shape to validate.
 _DEF_RE = re.compile(r"^def\s+(\w+)\s*\(([^)]*)\)\s*(?:->.*?)?:", re.MULTILINE)
 
 # Strip type annotations from a parameter token: everything after the first

@@ -75,8 +75,10 @@
   --border:    oklch(0.82 0.006 100);
   --border-2:  oklch(0.77 0.008 100);
   --code-bg:   oklch(0.91 0.008 100);
-  --hl:        oklch(0.87 0.006 100);
-  --hl-line:   oklch(0.35 0.01 250);
+  /* v0.3.0: highlight-row colour bumped from a near-grey to a warmer
+   * accent-tinted shade so the focused code lines stand out clearly. */
+  --hl:        oklch(0.92 0.10 90);
+  --hl-line:   oklch(0.45 0.18 80);
 
   /* Confidence pills (US-080) */
   --conf-hi-bg:   oklch(0.93 0.08 145);
@@ -125,8 +127,10 @@
   --border:    oklch(0.27 0.01 250);
   --border-2:  oklch(0.19 0.01 250);
   --code-bg:   oklch(0.11 0.01 250);
-  --hl:        oklch(0.20 0.01 250);
-  --hl-line:   oklch(0.70 0.01 250);
+  /* v0.3.0: dark-theme highlight uses an accent-tinted backdrop so the
+   * focused range is obvious against the near-black code panel. */
+  --hl:        oklch(0.30 0.10 250);
+  --hl-line:   oklch(0.75 0.18 80);
 
   --conf-hi-bg:   oklch(0.28 0.08 145);
   --conf-hi-ink:  oklch(0.75 0.14 145);

@@ -260,12 +260,14 @@ def test_metadata_total_lessons_synced_after_filter() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_helpers_attached_to_closing_lesson_as_example_role() -> None:
-    """Skipped helpers appear on the closing lesson as role='example' refs.
+def test_helpers_returned_as_tuple_for_orchestrator_attachment() -> None:
+    """Skipped helpers are returned as a typed tuple, not mutated onto the spec.
 
-    This is the schema-compatible workaround documented in skip_trivial.py;
-    Track A chose this over adding a new field to LessonSpec to avoid a
-    schema_version bump (per ADR-0007).
+    The orchestrator (`generate_tutorial.py`) takes the returned tuple and
+    attaches a typed `HelperAppendixEntry` collection onto the *Lesson*
+    entity post-narration. `LessonSpec.code_refs` are NOT mutated — the
+    earlier `role="example"` smuggling path was dead code and is removed
+    in v0.3.x polish.
     """
     spec_a = _build_spec(
         "lesson-001",
@@ -276,12 +278,16 @@ def test_helpers_attached_to_closing_lesson_as_example_role() -> None:
     scores = (("trivial", 0.0), *((f"sym_{i}", 1.0) for i in range(20)))
     ranked = _build_ranked(scores)
 
-    result_manifest, _ = filter_trivial_helpers(manifest, ranked, frozenset(), enabled=True)
+    result_manifest, helper_refs = filter_trivial_helpers(
+        manifest, ranked, frozenset(), enabled=True
+    )
 
+    # Returned tuple carries the skipped ref for the orchestrator.
+    assert len(helper_refs) == 1
+    assert helper_refs[0].symbol == "trivial"
+    # Closing lesson spec is NOT mutated with role="example" refs anymore.
     closing_after = next(lsn for lsn in result_manifest.lessons if lsn.is_closing)
-    example_refs = [r for r in closing_after.code_refs if r.role == "example"]
-    assert len(example_refs) == 1
-    assert example_refs[0].symbol == "trivial"
+    assert all(r.role != "example" for r in closing_after.code_refs)
 
 
 # ---------------------------------------------------------------------------
@@ -317,4 +323,27 @@ def test_no_helpers_returns_unchanged_manifest_reference() -> None:
     result_manifest, helpers = filter_trivial_helpers(manifest, ranked, frozenset(), enabled=True)
 
     assert result_manifest is manifest
+    assert helpers == ()
+
+
+def test_empty_ranked_symbols_keeps_all_lessons() -> None:
+    """An empty RankedGraph yields top5_threshold=0.0 — every symbol passes the >=
+    comparison and survives the top-5% gate. Regression guard so degenerate ranking
+    does not silently start filtering when scoring produces no symbols at all.
+    """
+    spec_a = _build_spec(
+        "lesson-001",
+        refs=(_build_ref("trivial", line_start=1, line_end=1),),
+    )
+    manifest = _build_manifest((spec_a,))
+    ranked = RankedGraph(
+        ranked_symbols=(),
+        communities=(),
+        topological_order=(),
+        has_cycles=False,
+    )
+
+    result_manifest, helpers = filter_trivial_helpers(manifest, ranked, frozenset(), enabled=True)
+
+    assert len(result_manifest.lessons) == 1
     assert helpers == ()

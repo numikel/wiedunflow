@@ -29,16 +29,76 @@ $env:ANTHROPIC_API_KEY = "sk-ant-..." # PowerShell
 ## Quickstart
 
 ```bash
-# 1. First-run setup — interactive wizard writes ~/.config/codeguide/config.yaml
-codeguide init
+# 1. Easiest — launch the interactive menu (v0.4.0+)
+codeguide                                # ASCII banner + 7-item picker
 
-# 2. Generate a tutorial for the current repository (prompts for consent on first cloud run)
-codeguide generate .
-# Shorthand alias (preserved for backward compat): `codeguide .` still works
+# 2. Direct CLI (no menu) — best for CI and scripts
+codeguide init                           # 5-step config wizard
+codeguide generate .                     # generate from current repo
+codeguide .                              # shorthand alias (backward compat)
 
-# 3. Non-interactive (CI, scripts) — skip both wizard and consent banner
+# 3. Fully non-interactive (CI, automation)
 ANTHROPIC_API_KEY=sk-ant-... codeguide generate /path/to/repo --yes --no-consent-prompt
 ```
+
+## Interactive menu (v0.4.0)
+
+Running `codeguide` with no arguments in a TTY launches a menu-driven TUI
+("centrum dowodzenia") inspired by GitHub Copilot CLI, OpenCode, and Claude
+Code's custom-agent picker. Arrow keys + Enter + Esc — no flags to remember.
+
+```
+ ██████╗ ██████╗ ██████╗ ███████╗ ██████╗ ██╗   ██╗██╗██████╗ ███████╗
+██╔════╝██╔═══██╗██╔══██╗██╔════╝██╔════╝ ██║   ██║██║██╔══██╗██╔════╝
+██║     ██║   ██║██║  ██║█████╗  ██║  ███╗██║   ██║██║██║  ██║█████╗
+██║     ██║   ██║██║  ██║██╔══╝  ██║   ██║██║   ██║██║██║  ██║██╔══╝
+╚██████╗╚██████╔╝██████╔╝███████╗╚██████╔╝╚██████╔╝██║██████╔╝███████╗
+ ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝╚═════╝ ╚══════╝
+
+  v0.4.0 · interactive tutorial generator from your local Git repository
+
+? What would you like to do?
+  ❯ Initialize config
+    Generate tutorial
+    Show config
+    Estimate cost
+    Resume last run
+    Help
+    Exit
+```
+
+The `Generate tutorial` action opens a 5-section sub-wizard (Repo+Output,
+Provider+Models, Filters, Limits+Audience, Summary). When a saved config
+exists the §2 "express path" skips §3-§4 entirely — three keystrokes
+(repo path, Enter, Enter) reach the cost-aware Summary screen.
+
+The `Provider+Models` section pulls live model lists from the provider API
+(`anthropic.Anthropic().models.list()`, `openai.OpenAI().models.list()`)
+with a 24-hour disk cache at `~/.cache/codeguide/models-<provider>.json`.
+OpenAI fine-tuned models (`ft:*`) and non-chat models (audio, realtime,
+image, tts, whisper, embedding, moderation, transcribe, dall-e, sora,
+codex, search, deep-research) are filtered out automatically.
+
+After Launch the existing 7-stage `rich.Live` pipeline takes over — the
+menu redraws when the pipeline exits. `Esc` from the menu prompts a
+confirm-exit; `Esc` from any sub-wizard returns to the previous screen.
+
+**The menu does NOT activate when**:
+- you pass any subcommand (`codeguide generate ...`, `codeguide init`),
+- stdin or stdout is non-TTY (CI, pipes, redirect),
+- you set `CODEGUIDE_NO_MENU=1` (emergency escape hatch for scripts that
+  want the bare `codeguide` invocation to be a no-op).
+
+### Target audience — 5-level enum (BREAKING in v0.4.0)
+
+`tutorial.config.yaml`:
+```yaml
+target_audience: mid     # noob | junior | mid | senior | expert (default: mid)
+```
+
+The previous free-text default `"mid-level Python developer"` is fuzzy-mapped
+to `mid` automatically with a logged warning — no config changes required for
+existing setups. The shim is removed in v1.0; update your YAML when convenient.
 
 ## First-run setup (`codeguide init`)
 

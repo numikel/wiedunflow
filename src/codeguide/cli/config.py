@@ -62,7 +62,12 @@ class CodeguideConfig(BaseSettings):
     exclude_patterns: list[str] = Field(default_factory=list)
     include_patterns: list[str] = Field(default_factory=list)
     max_lessons: int = 30
-    target_audience: str = "mid-level Python developer"
+    # ADR-0013 decision 9 (BREAKING CHANGE in v0.4.0): target_audience is a
+    # 5-level enum, not free text. Old free-text values flow through
+    # ``_normalize_target_audience`` in ``_load_yaml_flat`` (fuzzy mapping
+    # with logged warning) so existing YAML configs keep loading; the shim
+    # is removed in v1.0. Per-level narration prompt branches arrive in v0.4.
+    target_audience: Literal["noob", "junior", "mid", "senior", "expert"] = "mid"
     # v0.2.0: Override the tutorial output path. Relative paths resolve against
     # cwd at runtime; absolute paths are used verbatim. ``None`` keeps the
     # default ``./tutorial.html``. CLI flag ``--output``/``-o`` takes precedence.
@@ -207,6 +212,49 @@ def _apply_block(
             flat[field_name] = block[yaml_key]
 
 
+_TARGET_AUDIENCE_ENUM: frozenset[str] = frozenset({"noob", "junior", "mid", "senior", "expert"})
+
+
+def _normalize_target_audience(raw: Any) -> Any:
+    """Map free-text ``target_audience`` (pre-v0.4.0) to one of the 5 enum levels.
+
+    The shim only fires for YAML inputs (CLI flags and env vars use the enum
+    directly). Already-valid enum values pass through unchanged. Non-string
+    values pass through so Pydantic surfaces the type error itself.
+
+    Mapping rules (first match wins; case-insensitive substring):
+    - ``"noob"`` → ``"noob"``
+    - ``"junior"`` or ``"beginner"`` → ``"junior"``
+    - ``"senior"`` → ``"senior"``
+    - ``"expert"`` or ``"advanced"`` → ``"expert"``
+    - ``"mid"`` → ``"mid"``
+    - anything else → ``"mid"`` with a logged warning
+
+    Removed in v1.0 once old YAML configs are assumed migrated.
+    """
+    if not isinstance(raw, str):
+        return raw  # let Pydantic surface the validation error
+    if raw in _TARGET_AUDIENCE_ENUM:
+        return raw
+    lowered = raw.lower()
+    if "noob" in lowered:
+        return "noob"
+    if "junior" in lowered or "beginner" in lowered:
+        return "junior"
+    if "senior" in lowered:
+        return "senior"
+    if "expert" in lowered or "advanced" in lowered:
+        return "expert"
+    if "mid" in lowered:
+        return "mid"
+    logger.warning(
+        "target_audience %r did not match any 5-level enum (noob/junior/mid/senior/expert); "
+        "defaulting to 'mid'. Update your YAML to one of the enum values.",
+        raw,
+    )
+    return "mid"
+
+
 def _load_yaml_flat(path: Path) -> dict[str, Any]:
     """Load a YAML config file and flatten nested blocks to field names."""
     with path.open("r", encoding="utf-8") as fh:
@@ -221,6 +269,10 @@ def _load_yaml_flat(path: Path) -> dict[str, Any]:
     for key in _TOP_LEVEL_KEYS:
         if key in data:
             flat[key] = data[key]
+
+    # ADR-0013 decision 9: legacy free-text target_audience → fuzzy-mapped enum.
+    if "target_audience" in flat:
+        flat["target_audience"] = _normalize_target_audience(flat["target_audience"])
 
     # security.allow_secret_files → frozenset[str] (special-case: type coercion).
     security = data.get("security")

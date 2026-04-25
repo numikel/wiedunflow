@@ -64,6 +64,12 @@ if TYPE_CHECKING:
 # size past the 8 MB PERFORMANCE_BUDGETS target; clamp here as a safety net).
 _CODE_SNIPPET_FILE_LINE_CAP = 2000
 
+# v0.3.x — code-panel trim. Files longer than the threshold are clipped to a
+# window centred on the highlighted range (`highlight_range ± CONTEXT`) so the
+# reader sees the function under discussion, not the whole module surrounding it.
+_CODE_SNIPPET_TRIM_THRESHOLD = 60
+_CODE_SNIPPET_CONTEXT = 8
+
 
 _RENDERER_DIR = Path(__file__).parent.parent / "renderer"
 _TEMPLATES_DIR = _RENDERER_DIR / "templates"
@@ -120,20 +126,36 @@ def _build_code_snippet(
         if not all_lines:
             continue
         lang = "python" if symbol.file_path.suffix == ".py" else "text"
-        highlighted_lines = [
-            highlight_python(line) if lang == "python" else line for line in all_lines
-        ]
         # Highlight the full symbol body (decl line … end_lineno inclusive).
         # Falls back to a single-line highlight when the parser did not report
         # an end position (e.g. Jedi-only resolution for dynamic imports).
         end = symbol.end_lineno if symbol.end_lineno is not None else symbol.lineno
         highlight_range = list(range(symbol.lineno, min(end, len(all_lines)) + 1))
+
+        # v0.3.x — Auto-trim long files to a window centred on the highlighted
+        # range so the reader does not scroll a 200-line file to find a 5-line
+        # function. Window = highlight ± _CODE_SNIPPET_CONTEXT lines, clamped
+        # to file bounds. ``start_line`` becomes the absolute line number of
+        # the first kept row so the gutter still shows real source positions.
+        # NB: this is symbol-level trimming; per-lesson focus_range (showing
+        # different fragments of the same long function for lessons that
+        # discuss separate aspects of it) is a v0.5.0 follow-up requiring an
+        # LLM-aware ``code_refs[*].focus_range`` field.
+        first_visible = 1
+        last_visible = len(all_lines)
+        if highlight_range and (last_visible - first_visible + 1) > _CODE_SNIPPET_TRIM_THRESHOLD:
+            first_visible = max(1, min(highlight_range) - _CODE_SNIPPET_CONTEXT)
+            last_visible = min(len(all_lines), max(highlight_range) + _CODE_SNIPPET_CONTEXT)
+        kept_slice = all_lines[first_visible - 1 : last_visible]
+        highlighted_lines = [
+            highlight_python(line) if lang == "python" else line for line in kept_slice
+        ]
         return {
             "file": str(symbol.file_path).replace("\\", "/"),
             "lang": lang,
             "lines": highlighted_lines,
             "highlight": highlight_range,
-            "start_line": 1,  # full file — gutter starts at line 1
+            "start_line": first_visible,
         }
     return None
 
@@ -193,6 +215,17 @@ def _lesson_to_payload(
             }
             for h in lesson.helper_appendix
         ]
+
+    # v0.3.0 — non-default split layout (closing lesson runs single-column).
+    if lesson.layout != "split":
+        payload["layout"] = lesson.layout
+
+    # v0.3.0 — pre-rendered HTML override for the right code pane (used by the
+    # synthetic Project README lesson). When set, the JS bypasses the standard
+    # source-highlighting render and injects this HTML verbatim (already
+    # sanitised by mistune at build time).
+    if lesson.code_panel_html:
+        payload["code_panel_html"] = lesson.code_panel_html
 
     # Attach a lookup-based code snippet when the lesson has no inline
     # segment-level `code_ref` (the common Stage 5 output today). The browser

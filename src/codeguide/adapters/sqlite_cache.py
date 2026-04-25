@@ -224,6 +224,19 @@ class SQLiteCache:
             lesson=entry.lesson_id,
         )
 
+    def has_checkpoint(self, repo_abs: Path) -> bool:
+        """Return ``True`` if any checkpoint row exists for ``repo_abs`` (any commit).
+
+        Used by the menu's ``Resume last run`` action (ADR-0013 Step 8) to
+        decide whether to launch the resume flow or surface a "no checkpoint
+        found" message before sending the user back to the menu.
+        """
+        row = self._conn.execute(
+            "SELECT 1 FROM checkpoints WHERE repo_abs = ? LIMIT 1",
+            (str(repo_abs),),
+        ).fetchone()
+        return row is not None
+
     def load_checkpoints(self, repo_abs: Path, commit: str) -> list[CheckpointEntry]:
         """Return all checkpoint entries for *repo_abs* + *commit*, ordered by creation time.
 

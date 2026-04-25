@@ -56,6 +56,15 @@
     var root = document.getElementById("tutorial-narration-body");
     if (!root) { return; }
     root.innerHTML = "";
+    // v0.3.x — visual cue that this is a special-layout lesson (closing,
+    // README appendix). Rendered above the lesson title so the reader does
+    // not mistake the missing right pane for a rendering bug.
+    if (lesson.layout === "single" || lesson.id === "lesson-readme") {
+      var badge = document.createElement("span");
+      badge.className = "lesson-type-badge";
+      badge.textContent = lesson.id === "lesson-readme" ? "REFERENCE" : "CLOSING";
+      root.appendChild(badge);
+    }
     if (lesson.status === "skipped") {
       var box = document.createElement("section");
       box.className = "lesson-skipped";
@@ -99,12 +108,10 @@
       });
     }
 
-    // B7: helper appendix — rendered when Track A emits meta.helper_appendix
-    // Checks both lesson.meta.helper_appendix and top-level lesson.helper_appendix.
-    // TODO: remove guard + TODO comment once Track A ships meta.helper_appendix.
-    var helpers = lesson.meta && Array.isArray(lesson.meta.helper_appendix)
-      ? lesson.meta.helper_appendix
-      : (Array.isArray(lesson.helper_appendix) ? lesson.helper_appendix : null);
+    // Helper appendix (closing lesson) — populated by skip_trivial via
+    // jinja_renderer; consumed only as the top-level lesson.helper_appendix
+    // payload field (the legacy meta.helper_appendix branch was never wired).
+    var helpers = Array.isArray(lesson.helper_appendix) ? lesson.helper_appendix : null;
     if (helpers && helpers.length) {
       var appendix = document.createElement("div");
       appendix.className = "helper-appendix";
@@ -128,6 +135,25 @@
       appendix.appendChild(ul);
       root.appendChild(appendix);
     }
+
+  }
+
+  function applyLayout(lesson) {
+    // v0.3.0 — toggle the .layout-single class on #tutorial-content so CSS
+    // can collapse the right code pane (closing lesson). Default "split"
+    // strips the class so the standard 2-pane layout is restored.
+    var content = document.getElementById("tutorial-content");
+    var codePane = document.getElementById("tutorial-code");
+    var splitter = document.getElementById("tutorial-splitter");
+    if (!content) { return; }
+    var single = !!(lesson && lesson.layout === "single");
+    content.classList.toggle("layout-single", single);
+    // Belt-and-braces: also flip inline style so the collapse works even if
+    // a later CSS rule wins specificity. Cleared on the next non-single
+    // navigation so the standard 2-pane layout snaps back.
+    if (codePane) { codePane.style.display = single ? "none" : ""; }
+    if (splitter) { splitter.style.display = single ? "none" : ""; }
+    content.style.gridTemplateColumns = single ? "1fr" : "";
   }
 
   function renderCode(lesson) {
@@ -135,6 +161,18 @@
     var head = document.getElementById("tutorial-code-head");
     if (!root || !head) { return; }
     root.innerHTML = ""; head.textContent = "";
+
+    // v0.3.0 — code pane override (used by the Project README lesson).
+    // The pre-rendered HTML is sanitised by mistune at build time; we trust
+    // the string and skip syntax highlighting / line numbers entirely.
+    if (typeof lesson.code_panel_html === "string" && lesson.code_panel_html.length) {
+      head.textContent = "Project README";
+      var wrap = document.createElement("div");
+      wrap.className = "code-readme prose";
+      wrap.innerHTML = lesson.code_panel_html;
+      root.appendChild(wrap);
+      return;
+    }
     var ref = null;
     if (lesson.segments && lesson.segments.length) {
       for (var i = 0; i < lesson.segments.length; i++) {
@@ -150,9 +188,12 @@
     var startLine = typeof ref.start_line === "number" ? ref.start_line : 1;
     (ref.lines || []).forEach(function (line, idx) {
       var row = document.createElement("div");
-      row.className = "code-row" + (highlight.has(idx + 1) ? " hl" : "");
+      // v0.3.x — match highlight against absolute file line numbers so
+      // trimmed views (start_line > 1) still highlight the right rows.
+      var absoluteLine = startLine + idx;
+      row.className = "code-row" + (highlight.has(absoluteLine) ? " hl" : "");
       var ln = document.createElement("span"); ln.className = "ln";
-      ln.textContent = String(startLine + idx);
+      ln.textContent = String(absoluteLine);
       var pre = document.createElement("pre"); pre.innerHTML = line || "&nbsp;";
       row.appendChild(ln); row.appendChild(pre); root.appendChild(row);
     });
@@ -186,8 +227,16 @@
   }
 
   function renderLessonFooter(lessons, repoId, idx) {
-    var root = document.getElementById("tutorial-narration-body");
-    if (!root) { return; }
+    // v0.4.0 — append the footer directly under #tutorial-narration (the
+    // scrolling container) instead of #tutorial-narration-body. Sticky needs
+    // its parent to be the scroll surface; nesting it inside the body div
+    // pinned the footer to the body's height and broke the bottom anchor.
+    var narration = document.getElementById("tutorial-narration");
+    if (!narration) { return; }
+    // Strip any previous footer left over from the prior lesson before we
+    // append a fresh one — otherwise repeated navigations stack footers.
+    var existing = narration.querySelector(":scope > .lesson-footer");
+    if (existing) { existing.remove(); }
     var footer = document.createElement("div");
     footer.className = "lesson-footer";
     var isLast = idx >= lessons.length - 1;
@@ -214,8 +263,16 @@
         navigateTo(lessons, repoId, lessons[0].id, {});
       });
       footer.appendChild(backBtn);
+      // v0.3.x — surface keyboard shortcuts at the highest-attention moment
+      // (last lesson). Also discoverable via the cog dropdown, but most users
+      // never open settings on a tutorial they're reading once.
+      var hint = document.createElement("div");
+      hint.className = "lesson-footer-hint";
+      hint.innerHTML =
+        'Tip: <kbd>J</kbd> / <kbd>K</kbd> to navigate · <kbd>?</kbd> for all shortcuts';
+      footer.appendChild(hint);
     }
-    root.appendChild(footer);
+    narration.appendChild(footer);
   }
 
   function escapeHtml(s) {
@@ -253,10 +310,27 @@
       try { console.warn("CodeGuide: unknown lesson id '" + id + "', falling back to first"); } catch (e) { /* noop */ }
       id = lessons[0].id; idx = 0;
     }
+    // v0.3.0 — any intentional navigation (Next/Prev buttons, sidebar click,
+    // keyboard J/K, inline next-btn) marks the lesson the user is leaving as
+    // visited. Skipped for hash routing (URL paste / first load) and no-op
+    // re-navigations to the same lesson so we don't paint freshly-opened
+    // bookmarks as already-read.
+    if (!options.fromHash && CodeGuide._activeId && CodeGuide._activeId !== id) {
+      markVisited(repoId, CodeGuide._activeId);
+    }
     var lesson = lessons[idx];
+    applyLayout(lesson);
     renderNarration(lesson); renderCode(lesson); setActiveLink(id); updateProgress(idx, lessons.length);
     renderLessonFooter(lessons, repoId, idx);
     updateNavButtons(idx, lessons.length);
+    // v0.2.1/v0.4.0 — scroll narration body back to the top so each new lesson
+    // starts with the heading in view. The body div is the actual scroller in
+    // the flex-column layout (the parent has overflow:hidden); reset both for
+    // safety on mobile (where the parent is the scroller).
+    var narrationBody = document.getElementById("tutorial-narration-body");
+    if (narrationBody) { narrationBody.scrollTop = 0; }
+    var narrationParent = document.getElementById("tutorial-narration");
+    if (narrationParent) { narrationParent.scrollTop = 0; }
     scrollHighlightIntoView();
     if (!options.fromHash) { location.hash = "#/lesson/" + id; }
     writeStorage("codeguide:" + repoId + ":last-lesson", id);
@@ -388,34 +462,250 @@
     });
   }
 
+  // v0.3.0 — system theme follows OS preference via prefers-color-scheme.
+  var _systemThemeMql = null;
+  function _resolveTheme(theme) {
+    if (theme === "system") {
+      try {
+        return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)
+          ? "dark" : "light";
+      } catch (e) { return "light"; }
+    }
+    return theme === "dark" ? "dark" : "light";
+  }
   function applyTheme(theme) {
-    document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", _resolveTheme(theme));
+    // Re-bind the system listener so toggling between explicit/system works
+    // without leaking duplicate listeners.
+    if (_systemThemeMql && _systemThemeMql.handler) {
+      try { _systemThemeMql.removeEventListener("change", _systemThemeMql.handler); }
+      catch (e) { /* legacy MediaQueryList */ }
+      _systemThemeMql = null;
+    }
+    if (theme === "system" && window.matchMedia) {
+      _systemThemeMql = window.matchMedia("(prefers-color-scheme: dark)");
+      _systemThemeMql.handler = function () { applyTheme("system"); };
+      try { _systemThemeMql.addEventListener("change", _systemThemeMql.handler); }
+      catch (e) { /* private mode / older browser */ }
+    }
+  }
+
+  function applyFontSize(size) {
+    var html = document.documentElement;
+    if (size === "sm" || size === "lg") {
+      html.setAttribute("data-font-size", size);
+    } else {
+      html.removeAttribute("data-font-size");  // "md" = default; remove attr
+    }
+  }
+
+  function applyTocHidden(hidden) {
+    var app = document.getElementById("tutorial-app");
+    if (!app) { return; }
+    if (hidden) { app.classList.add("toc-hidden"); }
+    else { app.classList.remove("toc-hidden"); }
+  }
+
+  function setSegOn(panel, attrName, value) {
+    var segButtons = panel.querySelectorAll("[" + attrName + "]");
+    segButtons.forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute(attrName) === value);
+    });
+  }
+
+  function _activeRepoId() {
+    var meta = window.CodeGuide && window.CodeGuide._meta;
+    return (meta && meta.repo) ? meta.repo : "default";
+  }
+
+  function resetVisitedMarkers() {
+    var repoId = _activeRepoId();
+    try { localStorage.removeItem(visitedKey(repoId)); }
+    catch (e) { /* private mode — silent */ }
+    paintVisited(repoId);
+  }
+
+  function showShortcutsModal(open) {
+    var modal = document.getElementById("shortcuts-modal");
+    if (!modal) { return; }
+    if (open) {
+      modal.classList.add("open");
+      modal.setAttribute("aria-hidden", "false");
+    } else {
+      modal.classList.remove("open");
+      modal.setAttribute("aria-hidden", "true");
+    }
   }
 
   function initTweaksPanel() {
     var panel = document.getElementById("tweaks-panel");
     var openBtn = document.getElementById("tweaks-open");
+    var modal = document.getElementById("shortcuts-modal");
     if (!panel || !openBtn) { return; }
+
+    function _syncTweaksOpenClass() {
+      // v0.3.x — body.tweaks-open powers the pointer-events guard that keeps
+      // taps on narration/code panes from dismissing the dropdown on touch.
+      document.body.classList.toggle("tweaks-open", panel.classList.contains("open"));
+    }
     openBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       panel.classList.toggle("open");
+      _syncTweaksOpenClass();
     });
     document.addEventListener("click", function (e) {
       if (panel.classList.contains("open") && !panel.contains(e.target) && e.target !== openBtn) {
         panel.classList.remove("open");
+        _syncTweaksOpenClass();
+      }
+      // Click outside the shortcuts modal closes it.
+      if (modal && modal.classList.contains("open") && !modal.contains(e.target)) {
+        showShortcutsModal(false);
       }
     });
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { panel.classList.remove("open"); }
-    });
-    var buttons = panel.querySelectorAll("[data-theme-set]");
-    buttons.forEach(function (btn) {
+
+    // Theme buttons
+    var themeBtns = panel.querySelectorAll("[data-theme-set]");
+    themeBtns.forEach(function (btn) {
       btn.addEventListener("click", function () {
         var t = btn.getAttribute("data-theme-set") || "light";
         applyTheme(t); writeStorage("codeguide:tweak:theme:v2", t);
-        buttons.forEach(function (b) { b.classList.toggle("on", b === btn); });
+        setSegOn(panel, "data-theme-set", t);
       });
     });
+
+    // Font-size buttons
+    var fontBtns = panel.querySelectorAll("[data-font-size-set]");
+    fontBtns.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var s = btn.getAttribute("data-font-size-set") || "md";
+        applyFontSize(s); writeStorage("codeguide:tweak:font-size:v1", s);
+        setSegOn(panel, "data-font-size-set", s);
+      });
+    });
+
+    // Action buttons
+    panel.querySelectorAll("[data-action]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var action = btn.getAttribute("data-action");
+        if (action === "toggle-toc") {
+          var app = document.getElementById("tutorial-app");
+          var nowHidden = !(app && app.classList.contains("toc-hidden"));
+          applyTocHidden(nowHidden);
+          writeStorage("codeguide:tweak:toc-hidden:v1", nowHidden ? "1" : "0");
+          btn.textContent = nowHidden ? "Show TOC sidebar" : "Hide TOC sidebar";
+          btn.classList.toggle("on", nowHidden);
+        } else if (action === "reset-visited") {
+          // Two-click destructive pattern: first click arms the action and
+          // changes the label; second click within 3 s actually resets. Any
+          // later click reverts to the unarmed state with no data loss.
+          if (btn.dataset.armed === "1") {
+            resetVisitedMarkers();
+            btn.textContent = "Cleared — reload to undo";
+            btn.classList.remove("armed");
+            delete btn.dataset.armed;
+            setTimeout(function () { btn.textContent = "Reset visited markers"; }, 2500);
+          } else {
+            var origLabel = btn.textContent;
+            btn.dataset.armed = "1";
+            btn.classList.add("armed");
+            btn.textContent = "Confirm reset?";
+            setTimeout(function () {
+              if (btn.dataset.armed === "1") {
+                btn.textContent = origLabel;
+                btn.classList.remove("armed");
+                delete btn.dataset.armed;
+              }
+            }, 3000);
+          }
+        }
+        // Note: "show-shortcuts" used to live here but the dedicated menu
+        // entry was removed in v0.3.x — readers find shortcuts via the cog
+        // tooltip ("? for keyboard shortcuts") and the lesson-footer-hint on
+        // the final lesson. The `?` keyboard binding still toggles the modal.
+      });
+    });
+
+    // Modal close button
+    if (modal) {
+      modal.querySelectorAll('[data-action="close-shortcuts"]').forEach(function (btn) {
+        btn.addEventListener("click", function () { showShortcutsModal(false); });
+      });
+    }
+  }
+
+  function _isEditableTarget(el) {
+    if (!el) { return false; }
+    var tag = el.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") { return true; }
+    return !!el.isContentEditable;
+  }
+
+  function initGlobalShortcuts(lessons, repoId) {
+    document.addEventListener("keydown", function (e) {
+      // Always-on: Escape closes overlays.
+      if (e.key === "Escape") {
+        var panel = document.getElementById("tweaks-panel");
+        if (panel) {
+          panel.classList.remove("open");
+          document.body.classList.remove("tweaks-open");
+        }
+        showShortcutsModal(false);
+        return;
+      }
+      // Skip when the user is typing into a form / contentEditable region.
+      if (_isEditableTarget(e.target)) { return; }
+      // Skip when modifier keys (other than plain Shift for "G") are held.
+      if (e.ctrlKey || e.metaKey || e.altKey) { return; }
+
+      var key = e.key;
+      var idx = (window.CodeGuide && typeof CodeGuide._activeIndex === "number")
+        ? CodeGuide._activeIndex : 0;
+
+      if (key === "j" || key === "ArrowDown") {
+        if (idx < lessons.length - 1) {
+          e.preventDefault();
+          navigateTo(lessons, repoId, lessons[idx + 1].id, {});
+        }
+      } else if (key === "k" || key === "ArrowUp") {
+        if (idx > 0) {
+          e.preventDefault();
+          navigateTo(lessons, repoId, lessons[idx - 1].id, {});
+        }
+      } else if (key === "G" && e.shiftKey) {
+        e.preventDefault();
+        navigateTo(lessons, repoId, lessons[lessons.length - 1].id, {});
+      } else if (key === "g" && !e.shiftKey) {
+        e.preventDefault();
+        navigateTo(lessons, repoId, lessons[0].id, {});
+      } else if (key === "?" || (e.shiftKey && key === "/")) {
+        // Some keyboard layouts surface "?" as Shift+"/" with e.key="/" so we
+        // accept either form to keep the shortcut reliable cross-platform.
+        e.preventDefault();
+        var modal = document.getElementById("shortcuts-modal");
+        var alreadyOpen = modal && modal.classList.contains("open");
+        showShortcutsModal(!alreadyOpen);
+      }
+    });
+  }
+
+  function _initTweaksFromStorage(panel) {
+    if (!panel) { return; }
+    var savedTheme = readStorage("codeguide:tweak:theme:v2", "light");
+    applyTheme(savedTheme);
+    setSegOn(panel, "data-theme-set", savedTheme);
+
+    var savedSize = readStorage("codeguide:tweak:font-size:v1", "md");
+    applyFontSize(savedSize);
+    setSegOn(panel, "data-font-size-set", savedSize);
+
+    var savedTocHidden = readStorage("codeguide:tweak:toc-hidden:v1", "0") === "1";
+    applyTocHidden(savedTocHidden);
+    var tocBtn = panel.querySelector('[data-action="toggle-toc"]');
+    if (tocBtn) {
+      tocBtn.textContent = savedTocHidden ? "Show TOC sidebar" : "Hide TOC sidebar";
+      tocBtn.classList.toggle("on", savedTocHidden);
+    }
   }
 
   // ── Visited-lesson tracking (B6: Track B v0.2.1) ─────────────────────────
@@ -481,10 +771,6 @@
     validateSchema(meta);
 
     var repoId = (meta && meta.repo) ? meta.repo : "default";
-    var savedTheme = readStorage("codeguide:tweak:theme:v2", "light");
-    applyTheme(savedTheme);
-    var currentBtn = document.querySelector('[data-theme-set="' + savedTheme + '"]');
-    if (currentBtn) { currentBtn.classList.add("on"); }
 
     initTOC(clusters, lessons, repoId);
     paintVisited(repoId); // B6: restore visited checkmarks from previous sessions
@@ -494,6 +780,8 @@
     initNavButtons(lessons, repoId);
     initHashRouting(lessons, repoId);
     initTweaksPanel();
+    _initTweaksFromStorage(document.getElementById("tweaks-panel"));
+    initGlobalShortcuts(lessons, repoId);
 
     var startId = activeLessonId() || readStorage("codeguide:" + repoId + ":last-lesson", lessons[0].id);
     navigateTo(lessons, repoId, startId || lessons[0].id, { fromHash: !!activeLessonId() });

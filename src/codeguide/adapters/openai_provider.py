@@ -324,6 +324,14 @@ CONSTRAINTS:
 - Do NOT re-teach these already-covered concepts: {concepts_introduced}.
 - Ground every claim in the provided code references; do not invent function names.
 
+PROJECT CONTEXT:
+- The user message MAY include a `project_context` field with an excerpt of the
+  repository README. Use it to anchor narrations in the project's actual purpose
+  and vocabulary — say what the project does, not generic Python platitudes.
+- Concrete code claims MUST still be grounded in source_excerpt, never in
+  project_context narrative. Treat project_context as orientation, not as truth
+  about how the function is implemented.
+
 GROUNDING (signature accuracy):
 - For every code_refs entry where source_excerpt is not null, narration MUST quote
   the function signature EXACTLY as it appears in source_excerpt.

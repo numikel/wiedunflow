@@ -19,7 +19,9 @@ include_patterns: []
 
 # Planning
 max_lessons: 30                # hard cap per FR-35
-target_audience: "mid-level Python developer"
+# v0.3.0: 5-level enum (noob | junior | mid | senior | expert).
+# Old free-text values are auto-mapped via fuzzy substring match (shim removed in v1.0).
+target_audience: mid
 
 # Output (optional — default `./tutorial.html` in the current directory)
 # Relative paths resolve against the cwd at runtime; absolute paths are used

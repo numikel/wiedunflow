@@ -454,7 +454,19 @@ def generate_cmd(
 
 
 def main() -> None:
-    """Process entrypoint — delegates to the click group."""
+    """Process entrypoint — launches the interactive menu (no args + TTY) or the click group.
+
+    ADR-0013: when ``codeguide`` is invoked with no arguments in an interactive
+    terminal, the menu-driven TUI launches. All other invocations
+    (``codeguide generate <repo>``, ``codeguide init``, ``codeguide --version``,
+    non-TTY, ``CODEGUIDE_NO_MENU=1``) flow through the existing click group
+    bit-exact.
+    """
+    from codeguide.cli.menu import QuestionaryMenuIO, _should_launch_menu, main_menu_loop
+
+    if _should_launch_menu():
+        main_menu_loop(QuestionaryMenuIO())
+        return
     cli()
 
 
@@ -496,8 +508,9 @@ def _build_llm_provider(
         return OpenAIProvider(
             api_key=resolve_api_key(config),
             base_url=config.llm_base_url,
-            model_plan=config.llm_model_plan or "gpt-4o",
-            model_narrate=config.llm_model_narrate or "gpt-4o",
+            # ADR-0013 D#12: gpt-4.1 is the project default for OpenAI (not gpt-4o).
+            model_plan=config.llm_model_plan or "gpt-4.1",
+            model_narrate=config.llm_model_narrate or "gpt-4.1",
             max_retries=config.llm_max_retries,
             max_wait_s=config.llm_max_wait_s,
         )
@@ -511,8 +524,11 @@ def _build_llm_provider(
         return OpenAIProvider(
             api_key=resolve_api_key(config),
             base_url=config.llm_base_url,
-            model_plan=config.llm_model_plan or "gpt-4o",
-            model_narrate=config.llm_model_narrate or "gpt-4o",
+            # ADR-0013 D#12: gpt-4.1 is the project default (Ollama / vLLM endpoints
+            # may use any model name; this default matters only when llm.model_plan
+            # / model_narrate are unset and the local endpoint accepts gpt-4.1).
+            model_plan=config.llm_model_plan or "gpt-4.1",
+            model_narrate=config.llm_model_narrate or "gpt-4.1",
             max_retries=config.llm_max_retries,
             max_wait_s=config.llm_max_wait_s,
         )
@@ -560,6 +576,13 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
     # stdout is consumer-readable). NoOpReporter takes over headless callers.
     progress: StageReporter | None = StageReporter(console=console) if not json_mode else None
 
+    # Pull live model ids off the LLM provider so the cost-gate panel shows
+    # what the user actually configured (gpt-4.1 / claude-opus-4-7 / etc.)
+    # instead of the hardcoded haiku/opus labels (ADR-0013 follow-up bug).
+    llm_provider_obj = providers.llm
+    plan_label = str(getattr(llm_provider_obj, "model_plan", "plan"))
+    narrate_label = str(getattr(llm_provider_obj, "model_narrate", "narrate"))
+
     def _cost_gate(estimate: CostEstimate) -> bool:
         """Closure passed to ``generate_tutorial`` — Sprint 8 / US-084 / Q4."""
         return prompt_cost_gate(
@@ -568,6 +591,8 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
             auto_yes=auto_yes,
             prompt_disabled=no_cost_prompt,
             is_tty=is_tty,
+            plan_model_label=plan_label,
+            narrate_model_label=narrate_label,
         )
 
     try:

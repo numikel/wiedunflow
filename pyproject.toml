@@ -1,6 +1,6 @@
 [project]
 name = "codeguide"
-version = "0.2.1"
+version = "0.4.0"
 description = "Generate interactive, self-contained HTML tutorials from local Git repositories"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -42,6 +42,7 @@ dependencies = [
     "numpy>=1.24",
     "rich>=13.7",
     "mistune>=3.2.0",
+    "questionary>=2.1.1,<3.0",
 ]
 
 [project.urls]
@@ -102,8 +103,19 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["PLR2004", "S101", "PLR0915"]
+"tests/**/*.py" = ["PLR2004", "S101", "PLR0915", "PLC0415", "PLW0108"]
 "__init__.py" = ["F401"]
+# menu.py uses local imports inside helpers to avoid an import cycle with main.py
+# (main.main() loads menu lazily; menu._launch_pipeline() loads main lazily back).
+# Sub-wizards have many branch / return paths because each prompt boundary can abort.
+"src/codeguide/cli/menu.py" = ["PLC0415", "PLR0911", "PLR0912", "PLR0915", "SIM102"]
+# scripts/* are utility one-shots, not production library code.
+"scripts/**/*.py" = ["PLR2004"]
+# config._normalize_target_audience has explicit per-prefix branches for the
+# fuzzy-mapping shim; flattening it into a dict harms readability.
+"src/codeguide/cli/config.py" = ["PLR0911"]
+# main.main() lazy-imports the menu module to avoid an import cycle.
+"src/codeguide/cli/main.py" = ["PLC0415"]
 
 [tool.ruff.format]
 quote-style = "double"

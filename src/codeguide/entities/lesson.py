@@ -62,6 +62,16 @@ class Lesson(BaseModel):
     segments: tuple[NarrationSegment, ...] = ()  # S5 structured narration (optional)
     code_refs: tuple[str, ...] = ()  # CodeSymbol names referenced in this lesson
     helper_appendix: tuple[HelperAppendixEntry, ...] = ()  # v0.2.1 closing-lesson appendix
+    # v0.3.0 layout/render overrides for non-narration lessons:
+    # ``layout`` controls the split-view: ``"split"`` (default 2-pane),
+    # ``"single"`` (code pane minimised, narration spans the row — used by the
+    # closing "Where to go next" lesson). Renderer toggles a CSS class.
+    layout: Literal["split", "single"] = "split"
+    # ``code_panel_html`` overrides the right-hand code pane with arbitrary
+    # pre-rendered HTML (sanitised by mistune at build time). Used by the
+    # synthetic Project README lesson to surface the README in the code pane
+    # while the narration column carries the title and a one-liner pointer.
+    code_panel_html: str | None = None
     status: LessonStatus = "generated"
     confidence: Confidence = "MEDIUM"
 

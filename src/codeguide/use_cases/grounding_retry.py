@@ -136,31 +136,37 @@ def _floor_for_lesson(spec: LessonSpec, *, min_words_trivial: int) -> int:
     return _MIN_WORDS_COMPLEX
 
 
-def _spec_to_json(spec: LessonSpec) -> str:
+def _spec_to_json(spec: LessonSpec, *, project_context: str | None = None) -> str:
     """Serialise *spec* to the JSON string expected by ``LLMProvider.narrate``.
 
     Includes ``source_excerpt`` when populated so the narration LLM can quote
     exact signatures rather than inventing them (v0.2.1 anti-hallucination fix).
+
+    When *project_context* is supplied (typically the README excerpt loaded by
+    :func:`~codeguide.use_cases.readme_excerpt.load_readme_excerpt`), the LLM
+    receives the project-level intent alongside the per-symbol code refs so
+    it can keep narrations tight rather than padding with generic prose.
     """
-    return json.dumps(
-        {
-            "id": spec.id,
-            "title": spec.title,
-            "teaches": spec.teaches,
-            "is_closing": spec.is_closing,
-            "code_refs": [
-                {
-                    "file_path": str(ref.file_path),
-                    "symbol": ref.symbol,
-                    "line_start": ref.line_start,
-                    "line_end": ref.line_end,
-                    "role": ref.role,
-                    "source_excerpt": ref.source_excerpt,
-                }
-                for ref in spec.code_refs
-            ],
-        }
-    )
+    payload: dict[str, object] = {
+        "id": spec.id,
+        "title": spec.title,
+        "teaches": spec.teaches,
+        "is_closing": spec.is_closing,
+        "code_refs": [
+            {
+                "file_path": str(ref.file_path),
+                "symbol": ref.symbol,
+                "line_start": ref.line_start,
+                "line_end": ref.line_end,
+                "role": ref.role,
+                "source_excerpt": ref.source_excerpt,
+            }
+            for ref in spec.code_refs
+        ],
+    }
+    if project_context:
+        payload["project_context"] = project_context
+    return json.dumps(payload)
 
 
 def _validate_grounding(lesson: Lesson, allowed_symbols: frozenset[str]) -> list[str]:
@@ -177,6 +183,8 @@ def _build_reinforcement_spec_json(
     spec: LessonSpec,
     invalid_symbols: list[str],
     allowed_symbols: frozenset[str],
+    *,
+    project_context: str | None = None,
 ) -> str:
     """Build the reinforcement prompt JSON for the retry call.
 
@@ -187,7 +195,7 @@ def _build_reinforcement_spec_json(
     """
     allowed_preview = ", ".join(sorted(allowed_symbols)[:30])
     invalid_preview = ", ".join(invalid_symbols[:20]) if invalid_symbols else "(word count too low)"
-    base = json.loads(_spec_to_json(spec))
+    base = json.loads(_spec_to_json(spec, project_context=project_context))
     base["grounding_error"] = (
         f"Your previous response referenced these non-existent symbols: {invalid_preview}. "
         f"Rewrite the lesson using ONLY symbols from this AST slice: {allowed_preview}"
@@ -232,6 +240,7 @@ def narrate_with_grounding_retry(  # noqa: PLR0912 — grounding+snippet validat
     hallucination_accumulator: HallucinationAccumulator | None = None,
     min_words_trivial: int = 50,
     snippet_validation: bool = True,
+    project_context: str | None = None,
 ) -> Lesson | SkippedLesson:
     """Narrate a single lesson spec with one grounding-reinforcement retry.
 
@@ -280,7 +289,7 @@ def narrate_with_grounding_retry(  # noqa: PLR0912 — grounding+snippet validat
         A :class:`~codeguide.entities.lesson.Lesson` on success or a
         :class:`~codeguide.entities.skipped_lesson.SkippedLesson` on double failure.
     """
-    spec_json = _spec_to_json(spec)
+    spec_json = _spec_to_json(spec, project_context=project_context)
 
     # Compute per-lesson minimum word count floor.
     min_words_floor = _floor_for_lesson(spec, min_words_trivial=min_words_trivial)
@@ -289,13 +298,18 @@ def narrate_with_grounding_retry(  # noqa: PLR0912 — grounding+snippet validat
     lesson = llm.narrate(spec_json, concepts_introduced)
 
     # Word-count upper bound: truncate silently (US-034 AC2).
-    if count_words(lesson.narrative) > _MAX_WORDS:
+    # v0.3.0 Fix (P1 from code review): capture the pre-truncation word count
+    # before model_copy reassigns ``lesson``, so ``original_words`` actually
+    # reports the original — not the post-truncation length.
+    original_wc = count_words(lesson.narrative)
+    if original_wc > _MAX_WORDS:
         truncated_narrative = truncate_at_sentence_boundary(lesson.narrative)
         lesson = lesson.model_copy(update={"narrative": truncated_narrative})
         logger.info(
             "lesson_truncated",
             lesson_id=spec.id,
-            original_words=count_words(lesson.narrative),
+            original_words=original_wc,
+            truncated_words=count_words(lesson.narrative),
         )
 
     ok, invalid, word_count_low = _validate_lesson(
@@ -335,9 +349,13 @@ def narrate_with_grounding_retry(  # noqa: PLR0912 — grounding+snippet validat
     # --- Attempt 2 (reinforcement retry) ---
     # Build reinforcement prompt — include snippet hints when relevant.
     if snippet_errors and not invalid and not word_count_low:
-        reinforced_json = _build_snippet_reinforcement_json(spec, snippet_errors)
+        reinforced_json = _build_snippet_reinforcement_json(
+            spec, snippet_errors, project_context=project_context
+        )
     else:
-        reinforced_json = _build_reinforcement_spec_json(spec, invalid, allowed_symbols)
+        reinforced_json = _build_reinforcement_spec_json(
+            spec, invalid, allowed_symbols, project_context=project_context
+        )
 
     lesson2 = llm.narrate(reinforced_json, concepts_introduced)
 
@@ -391,6 +409,8 @@ def narrate_with_grounding_retry(  # noqa: PLR0912 — grounding+snippet validat
 def _build_snippet_reinforcement_json(
     spec: LessonSpec,
     snippet_errors: list[str],
+    *,
+    project_context: str | None = None,
 ) -> str:
     """Build a reinforcement prompt focused on correcting misquoted function signatures.
 
@@ -400,13 +420,15 @@ def _build_snippet_reinforcement_json(
     Args:
         spec: The original lesson spec (with ``source_excerpt`` attached).
         snippet_errors: Human-readable error messages from :func:`validate_narrative_snippets`.
+        project_context: Optional README excerpt threaded through the retry so the
+            reinforcement prompt carries the same project intent as the first attempt.
 
     Returns:
         JSON string with a ``snippet_validation_error`` field appended to the
         serialised spec.
     """
     error_block = "\n".join(snippet_errors)
-    base = json.loads(_spec_to_json(spec))
+    base = json.loads(_spec_to_json(spec, project_context=project_context))
     base["snippet_validation_error"] = (
         f"Snippet validation failed:\n{error_block}\n"
         "Rewrite the affected ```python code blocks using the EXACT signatures "

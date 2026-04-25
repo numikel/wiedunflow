@@ -12,7 +12,7 @@ import structlog
 from pydantic import BaseModel, ConfigDict
 
 from codeguide import __version__ as _codeguide_version
-from codeguide.adapters.jinja_renderer import JinjaRenderer
+from codeguide.adapters.jinja_renderer import JinjaRenderer, _markdown_to_html
 from codeguide.adapters.pygments_highlighter import highlight_python as _highlight_python
 from codeguide.cli.cost_estimator import CostEstimate
 from codeguide.cli.cost_estimator import estimate as _estimate_cost
@@ -35,7 +35,15 @@ from codeguide.use_cases.offline_linter import validate_offline_invariant
 from codeguide.use_cases.outline_builder import build_outline
 from codeguide.use_cases.plan_lesson_manifest import PlanningFatalError, plan_with_retry
 from codeguide.use_cases.rag_corpus import build_and_index
+from codeguide.use_cases.readme_excerpt import load_readme_excerpt
 from codeguide.use_cases.skip_trivial import filter_trivial_helpers
+
+# v0.3.0 Fix (P0 from rubber-duck code review): markdown→HTML for the
+# standalone Project README lesson reuses jinja_renderer._markdown_to_html so
+# external README links pass the Stage 7 offline-linter (the renderer's
+# OfflineHTMLRenderer strips href attributes; the prior plain renderer left
+# `<a href="https://...">` tags in `code_panel_html` and crashed every run on
+# any real repo with external links in the README).
 
 if TYPE_CHECKING:
     from codeguide.entities.code_symbol import CodeSymbol
@@ -442,6 +450,12 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
 
     _check_abort()
 
+    # v0.2.1 — load README excerpt for project-level context injection.
+    # Threaded into every narration prompt so the LLM anchors lessons in the
+    # project's actual purpose rather than generic Python prose. Skipped when
+    # no README exists (excerpt remains None).
+    readme_excerpt = load_readme_excerpt(repo_path) if ingestion.has_readme else None
+
     # Stage 6 — Generation
     progress.stage_start(6)
     logger.info("stage_start", stage=6, name="Generation")
@@ -456,31 +470,59 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
         progress=progress,
         narration_min_words_trivial=narration_min_words_trivial,
         narration_snippet_validation=narration_snippet_validation,
+        project_context=readme_excerpt,
     )
     all_lessons: list[Lesson] = generation_result.lessons
     skipped_lessons: list[SkippedLesson] = generation_result.skipped
     # retry_count is logged by grounding_retry; future RunReport will expose it via Cross-cutting.
     concepts_introduced: tuple[str, ...] = generation_result.concepts_introduced
 
-    # v0.2.1 A6 — attach trivial-helper appendix to the closing lesson so
-    # Track B JS can render the "Helper functions you'll see along the way" list.
-    if helper_appendix_refs and all_lessons:
-        appendix_entries = tuple(
-            HelperAppendixEntry(
-                symbol=ref.symbol,
-                file_path=str(ref.file_path),
-                line_start=ref.line_start,
-                line_end=ref.line_end,
-            )
-            for ref in helper_appendix_refs
-        )
-        # Closing lesson is the last in the manifest order; locate it by id pattern.
+    # v0.3.0 — single closing-lesson decoration pass: attach helper appendix
+    # (Fix A6 from v0.2.1) and switch to single-column layout in one
+    # ``model_copy`` so we lookup the closing index once.
+    if all_lessons:
         closing_idx = next(
             (i for i, lsn in enumerate(all_lessons) if lsn.id == "lesson-closing"),
             len(all_lessons) - 1,
         )
-        closing = all_lessons[closing_idx]
-        all_lessons[closing_idx] = closing.model_copy(update={"helper_appendix": appendix_entries})
+        closing_updates: dict[str, object] = {"layout": "single"}
+        if helper_appendix_refs:
+            closing_updates["helper_appendix"] = tuple(
+                HelperAppendixEntry(
+                    symbol=ref.symbol,
+                    file_path=str(ref.file_path),
+                    line_start=ref.line_start,
+                    line_end=ref.line_end,
+                )
+                for ref in helper_appendix_refs
+            )
+        all_lessons[closing_idx] = all_lessons[closing_idx].model_copy(update=closing_updates)
+
+    # v0.3.0 — append a standalone "Project README" lesson as the final TOC
+    # entry when the repo ships one. The narration column hosts a thin
+    # pointer ("Project README — read on the right →") while the right code
+    # pane is replaced with the rendered README HTML, treating it as
+    # reference reading rather than a primary lesson.
+    if readme_excerpt:
+        rendered_readme = _markdown_to_html(readme_excerpt)
+        readme_html = (
+            rendered_readme.strip() if isinstance(rendered_readme, str) else readme_excerpt
+        )
+        readme_lesson = Lesson(
+            id="lesson-readme",
+            title="Project README",
+            narrative=(
+                "## Project README\n\n"
+                "The repository's README is rendered in the panel on the right — "
+                "browse it for project-level context, install instructions, and any "
+                "pointers the maintainers left behind."
+            ),
+            code_refs=(),
+            code_panel_html=readme_html,
+            status="generated",
+            confidence="HIGH",
+        )
+        all_lessons.append(readme_lesson)
 
     # A8 bug fix: synchronise manifest.metadata.total_lessons with the ACTUAL
     # lesson count after generation (which is manifest.lessons + 1 closing lesson).
@@ -719,6 +761,7 @@ def _stage_generation(
     progress: StageReporter | NoOpReporter | None = None,
     narration_min_words_trivial: int = 50,
     narration_snippet_validation: bool = True,
+    project_context: str | None = None,
 ) -> _StageGenerationOutput:
     """Stage 6: Narrate each lesson spec with grounding retry.
 
@@ -765,6 +808,7 @@ def _stage_generation(
             hallucination_accumulator=output.hallucinated_symbols,
             min_words_trivial=narration_min_words_trivial,
             snippet_validation=narration_snippet_validation,
+            project_context=project_context,
         )
 
         if isinstance(result, SkippedLesson):
@@ -801,6 +845,7 @@ def _stage_generation(
         hallucination_accumulator=output.hallucinated_symbols,
         min_words_trivial=narration_min_words_trivial,
         snippet_validation=narration_snippet_validation,
+        project_context=project_context,
     )
     if isinstance(closing_result, SkippedLesson):
         # Closing lesson failed — render placeholder (still append, no DEGRADED impact).

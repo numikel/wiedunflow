@@ -23,6 +23,8 @@ message via :func:`codeguide.cli.output.print_cost_abort`.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import click
 
 from codeguide.cli.cost_estimator import CostEstimate
@@ -71,6 +73,9 @@ def prompt_cost_gate(
     auto_yes: bool,
     prompt_disabled: bool,
     is_tty: bool,
+    confirm_fn: Callable[[str], bool] | None = None,
+    plan_model_label: str = "haiku",
+    narrate_model_label: str = "opus",
 ) -> bool:
     """Render the cost-gate panel and prompt for confirmation (US-070, US-084).
 
@@ -80,6 +85,16 @@ def prompt_cost_gate(
         auto_yes: ``--yes`` flag value.
         prompt_disabled: ``--no-cost-prompt`` flag value.
         is_tty: Result of ``stdin.isatty()`` at CLI entry.
+        confirm_fn: Optional injected confirm callable (ADR-0013 D#5). The
+            menu path passes ``io.confirm`` so the prompt uses questionary;
+            CLI path leaves ``None`` and falls back to ``click.confirm``.
+            Signature: ``confirm_fn(message: str) -> bool``.
+        plan_model_label: Label shown in the cost-gate table for the
+            planning/clustering model (stages 1-4). Defaults to ``"haiku"``
+            for backward compatibility — callers should pass the actual
+            configured model id (e.g. ``gpt-4.1-mini``, ``claude-haiku-4-5``).
+        narrate_model_label: Same as ``plan_model_label`` but for the
+            narration/grounding model (stages 5-6).
 
     Returns:
         ``True`` when the run should proceed (bypass condition met or user
@@ -89,16 +104,16 @@ def prompt_cost_gate(
     if should_skip_prompt(auto_yes=auto_yes, prompt_disabled=prompt_disabled, is_tty=is_tty):
         return True
 
-    # Build the rows shown in the table — Sprint 8 keeps the v0.1.0 wording.
+    # Build the rows shown in the table — model labels follow the live config.
     rows = [
         CostGateRow(
-            model="haiku",
+            model=plan_model_label,
             stage="stages 1-4 (analyse/cluster)",
             est_tokens=estimate.haiku_tokens,
             est_cost_usd=estimate.haiku_cost_usd,
         ),
         CostGateRow(
-            model="opus",
+            model=narrate_model_label,
             stage="stages 5-6 (narrate/ground)",
             est_tokens=estimate.sonnet_tokens,
             est_cost_usd=estimate.sonnet_cost_usd,
@@ -116,4 +131,6 @@ def prompt_cost_gate(
     )
 
     # ``click.confirm`` honours non-TTY by raising; we already filtered above.
+    if confirm_fn is not None:
+        return bool(confirm_fn("Proceed?"))
     return click.confirm("Proceed?", default=False)

@@ -60,8 +60,12 @@ def test_us_049_closing_lesson_appended_to_output(tmp_path: Path) -> None:
 
 
 def test_us_049_closing_lesson_is_beyond_cap(tmp_path: Path) -> None:
-    """AC1 / decision: Closing lesson is +1 beyond regular cap."""
-    # FakeLLMProvider returns 3 regular lessons; with closing = 4 total.
+    """AC1 / decision: Closing lesson is +1 beyond regular cap.
+
+    v0.3.0: when the repo has a README, an additional standalone "Project README"
+    lesson is appended after the closing one. The tiny_repo fixture ships a
+    README, so the expected total is 3 regular + 1 closing + 1 README = 5.
+    """
     output = tmp_path / "tutorial.html"
     providers = Providers(
         llm=FakeLLMProvider(),
@@ -79,8 +83,13 @@ def test_us_049_closing_lesson_is_beyond_cap(tmp_path: Path) -> None:
     json_start = html.find(">", data_start) + 1
     json_end = html.find("</script>", json_start)
     lessons = json.loads(html[json_start:json_end])
-    # 3 regular + 1 closing = 4
-    assert len(lessons) == 4
+    # 3 regular + 1 closing + 1 README = 5 (README appended because the
+    # tiny_repo fixture ships a README.md).
+    assert len(lessons) == 5
+    # Closing must still come BEFORE the README appendix lesson.
+    ids = [lsn["id"] for lsn in lessons]
+    assert ids[-2] == "lesson-closing"
+    assert ids[-1] == "lesson-readme"
 
 
 def test_us_049_closing_lesson_is_closing_flag_in_spec() -> None:

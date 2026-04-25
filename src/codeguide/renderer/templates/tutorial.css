@@ -13,13 +13,18 @@ html { scroll-behavior: smooth; }
 
 body {
   font-family: var(--font-sans);
-  font-size: 16.5px;
+  font-size: var(--font-size-body, 16.5px);
   line-height: 1.72;
   color: var(--ink);
   background: var(--bg);
   font-feature-settings: "ss02", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Lock body to the viewport so #tutorial-content's per-pane overflow:auto
+   * is the only scroll surface — eliminates the "scroll past content reveals
+   * blank page" regression and keeps narration ↔ code panels independent. */
+  overflow: hidden;
+  height: 100vh;
 }
 
 /* Progress bar — 4px fixed strip below topbar (B1: Track B v0.2.1) */
@@ -99,17 +104,23 @@ body {
   display: flex; align-items: center; gap: 10px;
 }
 
-/* Main layout — desktop split-view */
+/* Main layout — desktop split-view.
+ * v0.4.0: explicit grid rows reserve the bottom 40px for the metadata
+ * footer, so the content row has a known height (1fr) and #tutorial-content
+ * can fill it without overlapping the metadata footer. */
 #tutorial-app {
   display: grid;
   grid-template-columns: 280px 1fr;
-  min-height: calc(100vh - 52px - 40px);
+  grid-template-rows: 1fr 40px;
+  height: calc(100vh - 52px);
 }
 
-/* Sidebar — 280px sticky, TOC */
+/* Sidebar — 280px column, fills the 1fr grid row of #tutorial-app.
+ * v0.4.0: drop the legacy ``height: calc(100vh - 52px)`` which pushed the
+ * sidebar over the metadata-footer row of the grid. ``min-height: 0`` lets
+ * the flex/scroll children settle inside the track. */
 #tutorial-sidebar {
-  position: sticky; top: 52px;
-  height: calc(100vh - 52px);
+  min-height: 0;
   overflow-y: auto;
   border-right: 1px solid var(--border);
   background: var(--panel);
@@ -177,17 +188,32 @@ body {
 #tutorial-content {
   display: grid;
   grid-template-columns: 1fr 10px 1fr;
-  height: calc(100vh - 52px);
+  /* Sit in the 1fr grid row of #tutorial-app — no explicit height, otherwise
+   * we'd ignore the grid track and overflow the row reserved for the
+   * metadata footer. min-height:0 unblocks inner flex children from
+   * pushing the track taller than its 1fr allowance. */
+  min-height: 0;
   overflow: hidden;
 }
 
-/* Narration panel — lightest surface */
+/* Narration panel — lightest surface.
+ * v0.4.0 (Fix 11 final): switched from a scrollable container with a sticky
+ * footer to a flex column where the BODY scrolls and the FOOTER sits at the
+ * bottom as a flex item. Sticky kept rendering in-flow on this build for
+ * reasons that defied diagnosis; the flex pattern is bulletproof and the
+ * footer is now always visible regardless of body content height. */
 #tutorial-narration {
   background: var(--bg);
-  padding: 56px 48px 80px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   height: 100%;
+  overflow: hidden;
   scroll-behavior: smooth;
+}
+#tutorial-narration #tutorial-narration-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 56px 48px 24px;
 }
 #tutorial-narration .lesson-meta {
   display: flex; gap: 10px; align-items: center;
@@ -291,12 +317,18 @@ body {
   background: var(--panel); font-weight: 600;
 }
 
-/* Inline end-of-lesson navigation (US-040) */
+/* Inline end-of-lesson navigation (US-040).
+ * v0.4.0 final: footer is a flex item at the bottom of the flex-column
+ * #tutorial-narration container — NOT a sticky element. The body div above
+ * carries overflow-y:auto and grows with content; the footer keeps its
+ * intrinsic height (flex 0 0 auto) and stays visible at the column's
+ * bottom regardless of scroll position. */
 .lesson-footer {
-  margin-top: 40px; padding-top: 24px;
+  flex: 0 0 auto;
+  padding: 16px 48px 20px;
   border-top: 1px solid var(--border);
   display: flex; align-items: center; gap: 12px;
-  max-width: 62ch;
+  background: var(--bg);
 }
 .lesson-footer-done {
   font-size: 14px; font-weight: 500;
@@ -380,11 +412,15 @@ body {
 #tutorial-code .code-row {
   display: grid; grid-template-columns: 54px 1fr;
   padding: 0 22px 0 0;
+  position: relative;  /* anchor for the .hl::before accent bar */
 }
-#tutorial-code .code-row.hl { background: var(--hl); }
+#tutorial-code .code-row.hl {
+  background: var(--hl);
+}
 #tutorial-code .code-row.hl::before {
-  content: ""; position: absolute; left: 0; width: 3px;
-  background: var(--hl-line); height: 21px;
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--hl-line);
 }
 #tutorial-code .ln {
   color: var(--ink-dim); text-align: right; padding-right: 16px;
@@ -448,31 +484,160 @@ body {
 #tutorial-footer .meta { display: flex; gap: 12px; flex: 1; }
 #tutorial-footer .meta-sep::before { content: "·"; margin-right: 12px; }
 
-/* Tweaks panel (US-077) */
+/* Tweaks dropdown (v0.3.0 — refactored from a fixed-bottom-right modal to an
+ * absolutely-positioned popover anchored under the topbar cog button). */
 #tweaks-panel {
-  position: fixed; bottom: 60px; right: 20px; z-index: 60;
-  width: 300px; padding: 18px;
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: 10px; box-shadow: 0 10px 30px oklch(0.18 0.01 250 / 0.15);
+  position: absolute;
+  top: 56px;
+  right: 8px;
+  width: 240px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px oklch(0.18 0.01 250 / 0.18);
   display: none;
+  z-index: 60;
 }
 #tweaks-panel.open { display: block; }
-#tweaks-panel h3 {
+#tweaks-panel .row { margin-bottom: 10px; }
+#tweaks-panel .row:last-child { margin-bottom: 0; }
+#tweaks-panel .label {
   font-size: 11px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--ink-dim); margin-bottom: 12px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-dim); margin-bottom: 6px;
 }
-#tweaks-panel .row { margin-bottom: 12px; }
-#tweaks-panel .label { font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
 #tweaks-panel .seg {
-  display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+  display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
 }
 #tweaks-panel .seg button {
-  border: none; background: transparent; padding: 6px 12px;
-  font-size: 11px; font-weight: 500; cursor: pointer; color: var(--ink-2);
+  flex: 1;
+  border: none; background: transparent; padding: 6px 8px;
+  font-size: 12px; font-weight: 500; cursor: pointer; color: var(--ink-2);
   font-family: inherit;
 }
+#tweaks-panel .seg button:not(:last-child) { border-right: 1px solid var(--border); }
 #tweaks-panel .seg button.on { background: var(--accent); color: #fff; }
+#tweaks-panel .seg button:hover:not(.on) { background: var(--surface); color: var(--ink); }
+#tweaks-panel .tweak-action {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+#tweaks-panel .tweak-action:hover { background: var(--surface); color: var(--ink); }
+#tweaks-panel .tweak-action.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Keyboard-shortcuts modal — a real centred dialog (the only remaining one). */
+#shortcuts-modal {
+  display: none;
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px 28px;
+  z-index: 70;
+  min-width: 340px;
+  box-shadow: 0 24px 60px oklch(0.18 0.01 250 / 0.25);
+}
+#shortcuts-modal.open { display: block; }
+#shortcuts-modal h3 {
+  font-size: 13px; font-weight: 600;
+  margin: 0 0 14px;
+  color: var(--ink);
+}
+#shortcuts-modal table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+#shortcuts-modal td { padding: 6px 4px; font-size: 13px; color: var(--ink-2); }
+#shortcuts-modal td:first-child { width: 130px; }
+#shortcuts-modal kbd {
+  background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 6px; font-size: 11px;
+  font-family: var(--font-mono); color: var(--ink);
+}
+#shortcuts-modal .tweak-action {
+  width: 100%;
+  text-align: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+#shortcuts-modal .tweak-action:hover { background: var(--surface); color: var(--ink); }
+
+/* v0.3.x — armed (confirm-needed) state for destructive Reset button. */
+#tweaks-panel .tweak-action.armed {
+  background: var(--warn);
+  color: var(--bg);
+  border-color: var(--warn);
+}
+#tweaks-panel .tweak-action.armed:hover { background: var(--warn); color: var(--bg); }
+
+/* v0.3.x — mobile/touch backdrop guard: when the dropdown is open, content
+ * panes ignore pointer events so a stray tap on narration body does not
+ * dismiss the popover before the user finishes interacting with it. */
+#tutorial-content:has(+ [id="tweaks-panel"].open) { pointer-events: none; }
+#tweaks-panel.open ~ #tutorial-content,
+#tweaks-panel.open ~ #tutorial-app #tutorial-narration-body,
+#tweaks-panel.open ~ #tutorial-app #tutorial-code-body {
+  /* Selectors above only fire if .open lives at the right tree level; the
+   * primary defence is the .tweaks-open class on body below. */
+}
+body.tweaks-open #tutorial-narration-body,
+body.tweaks-open #tutorial-code-body { pointer-events: none; }
+
+/* v0.3.x — special-lesson type badge (shown above title for closing /
+ * README appendix lessons, signals "this is a different mode"). */
+.lesson-type-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin-bottom: 16px;
+}
+
+/* v0.3.x — keyboard-shortcut hint shown on the final lesson footer. */
+.lesson-footer-hint {
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  margin-left: auto;
+}
+.lesson-footer-hint kbd {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink);
+}
+
+/* Hide-TOC focus mode (toggled from tweaks panel, persisted in localStorage). */
+#tutorial-app.toc-hidden { grid-template-columns: 1fr; }
+#tutorial-app.toc-hidden #tutorial-sidebar { display: none; }
+
+/* Font-size scale — body inherits via CSS variable; overrides per data-* on
+ * <html> set by the tweaks panel.  Defaults preserve the v0.2.x size. */
+:root { --font-size-body: 16.5px; }
+[data-font-size="sm"] { --font-size-body: 14.5px; }
+[data-font-size="lg"] { --font-size-body: 18.5px; }
 
 /* Helper appendix (B7: Track B v0.2.1 — rendered when Track A emits meta.helper_appendix) */
 .helper-appendix {
@@ -508,15 +673,83 @@ body {
   font-size: 12px;
 }
 
+/* v0.3.0 — single-column layout for special lessons (closing "Where to go
+ * next"). Collapses the right code pane and the splitter so the narration
+ * spans the full content row. */
+#tutorial-content.layout-single {
+  grid-template-columns: 1fr;
+}
+#tutorial-content.layout-single #tutorial-splitter,
+#tutorial-content.layout-single #tutorial-code {
+  display: none;
+}
+
+/* v0.3.0 — Project README rendered into the right code pane. Reset the
+ * monospace + 1px line-grid styling that the syntax-highlighted code body
+ * uses so README markdown reads like prose. */
+.code-readme {
+  padding: 24px 24px 48px;
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--ink);
+  max-width: 70ch;
+}
+.code-readme h1 { font-size: 22px; font-weight: 600; margin: 0 0 16px; }
+.code-readme h2 { font-size: 17px; font-weight: 600; margin: 24px 0 8px; }
+.code-readme h3 { font-size: 15px; font-weight: 600; margin: 18px 0 6px; }
+.code-readme p { margin: 0 0 12px; color: var(--ink-2); }
+.code-readme ul, .code-readme ol { margin: 0 0 12px 20px; }
+.code-readme li { margin-bottom: 4px; color: var(--ink-2); }
+.code-readme code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.code-readme pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.code-readme pre code { background: transparent; padding: 0; border-radius: 0; }
+.code-readme a { color: var(--accent); text-decoration: underline; }
+
 /* Mobile (<1024px) — stacked interleaved (US-042, decision #5) */
 @media (max-width: 1023px) {
-  #tutorial-app { grid-template-columns: 1fr; }
+  /* v0.2.1: revert the desktop body-locked layout — on mobile the page itself
+   * is the scroll container so narration can grow with content. */
+  body { overflow: visible; height: auto; }
+  #tutorial-app { grid-template-columns: 1fr; height: auto; }
   #tutorial-sidebar { display: none; }
-  #tutorial-content { grid-template-columns: 1fr; }
+  #tutorial-content { grid-template-columns: 1fr; height: auto; overflow: visible; }
   #tutorial-splitter { display: none; }
   #tutorial-code { display: none; }
-  #tutorial-narration { padding: 32px 20px 64px; max-height: none; overflow: visible; }
+  /* Mobile: revert the desktop flex-column trick so the whole page scrolls
+   * naturally as one document. */
+  #tutorial-narration {
+    display: block;
+    padding: 32px 20px 64px;
+    max-height: none;
+    overflow: visible;
+    height: auto;
+  }
+  #tutorial-narration #tutorial-narration-body {
+    flex: none;
+    overflow: visible;
+    padding: 0;
+  }
   #tutorial-footer { position: static; grid-column: 1; }
+  .lesson-footer {
+    flex: none;
+    padding: 16px 0 20px;
+    margin-top: 24px;
+  }
   /* Interleaved code blocks shown inline inside narration on mobile */
   .mobile-inline-code {
     display: none;

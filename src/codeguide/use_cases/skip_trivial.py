@@ -39,7 +39,7 @@ logger = structlog.get_logger(__name__)
 _TRIVIAL_SPAN = 3
 
 
-def filter_trivial_helpers(  # noqa: PLR0912 — multi-condition skip logic requires branches
+def filter_trivial_helpers(
     manifest: LessonManifest,
     ranked_graph: RankedGraph,
     entry_points: frozenset[str],
@@ -75,16 +75,21 @@ def filter_trivial_helpers(  # noqa: PLR0912 — multi-condition skip logic requ
     if not enabled:
         return manifest, ()
 
+    # Defensive: a degenerate :class:`RankedGraph` with no symbols means we
+    # can't tell which symbols are "important", so we keep everything rather
+    # than risk dropping lessons the user actually wanted. (Without this
+    # guard the top-5% set would be empty and every trivial symbol would be
+    # skip-eligible — silently trimming small repos with sparse rankings.)
+    if not ranked_graph.ranked_symbols:
+        return manifest, ()
+
     # Compute top-5% PageRank threshold.
     all_scores = sorted(
         (rs.pagerank_score for rs in ranked_graph.ranked_symbols),
         reverse=True,
     )
-    if all_scores:
-        top5_cutoff_idx = max(1, int(len(all_scores) * 0.05))
-        top5_threshold = all_scores[top5_cutoff_idx - 1]
-    else:
-        top5_threshold = 0.0
+    top5_cutoff_idx = max(1, int(len(all_scores) * 0.05))
+    top5_threshold = all_scores[top5_cutoff_idx - 1]
 
     top5_symbols: frozenset[str] = frozenset(
         rs.symbol_name for rs in ranked_graph.ranked_symbols if rs.pagerank_score >= top5_threshold
@@ -157,28 +162,17 @@ def filter_trivial_helpers(  # noqa: PLR0912 — multi-condition skip logic requ
 
     helper_tuple: tuple[CodeRef, ...] = tuple(helper_refs)
 
-    # Attach helper_appendix to the closing lesson by extending its teaches field
-    # with a structured marker that the renderer can detect.
-    # Track B reads ``meta.helper_appendix`` — we store the appendix as a JSON-
-    # serialisable list of dicts in the lesson's code_refs (role="example").
-    # The closing lesson gains extra code_refs with role="example" and a marker
-    # symbol "__helper_appendix__" so the renderer can distinguish them.
-    # NOTE: This approach avoids adding a new field to LessonSpec (which would
-    # require a schema-version bump) — the closing lesson's code_refs already
-    # allow empty or example refs.
-    updated_lessons: list[LessonSpec] = []
-    for spec in kept_lessons:
-        if spec.is_closing:
-            # Append helper refs as 'example' code_refs to the closing lesson.
-            # This is the payload Track B reads from the lesson JSON envelope.
-            extra_refs = tuple(r.model_copy(update={"role": "example"}) for r in helper_tuple)
-            new_spec = spec.model_copy(update={"code_refs": spec.code_refs + extra_refs})
-            updated_lessons.append(new_spec)
-        else:
-            updated_lessons.append(spec)
-
-    new_metadata = manifest.metadata.model_copy(update={"total_lessons": len(updated_lessons)})
+    # The helper-appendix tuple is consumed by the orchestrator
+    # (``generate_tutorial.py``) which attaches a typed
+    # :class:`~codeguide.entities.lesson.HelperAppendixEntry` collection to
+    # the closing :class:`Lesson` after Stage 6 narration. The renderer
+    # serialises ``Lesson.helper_appendix`` into the JSON envelope under the
+    # top-level ``helper_appendix`` field, which the JS consumes directly —
+    # no LessonSpec mutation needed (an earlier draft attempted to smuggle
+    # the refs through ``code_refs[role="example"]`` but that path was never
+    # wired into rendering).
+    new_metadata = manifest.metadata.model_copy(update={"total_lessons": len(kept_lessons)})
     new_manifest = manifest.model_copy(
-        update={"lessons": tuple(updated_lessons), "metadata": new_metadata}
+        update={"lessons": tuple(kept_lessons), "metadata": new_metadata}
     )
     return new_manifest, helper_tuple

@@ -234,7 +234,8 @@ CodeGuide ma dwie user-facing surfaces: CLI (`codeguide init` terminal output) i
 - **Offline HTML**: fonts WOFF2 self-hosted inline, Pygments pre-rendered, vanilla JS (no Preact), wszystko w jednym pliku HTML.
 - **Exact copy**: CLI stage output, cost gate text, error scenarios — literalnie per `.ai/ux-spec.md` §CLI (źródło: `.claude/skills/codeguide-ux-skill/reference/cli/design/cli-session-data.js`).
 - **localStorage keys**: `codeguide:<repo>:last-lesson`, `codeguide:tweak:theme:v2`, `codeguide:tweak:narr-frac:v2`. Namespace `codeguide:*` jest zarezerwowany.
-- **Two-sink rule (Sprint 5 #6)**: rich imports MUSZĄ być TYLKO w `cli/output.py`. `stage_reporter.py` używa opaque `LiveStageHandle`; `cost_gate.py`, `cli/main.py` traktują console jako `object`. Test `test_no_rich_outside_output.py` enforce'uje to.
+- **Three-sink rule (Sprint 5 #6 + ADR-0013)**: rich imports MUSZĄ być TYLKO w `cli/output.py`; questionary imports MUSZĄ być TYLKO w `cli/menu.py`; plain `print()` w `cli/menu_banner.py` (i wszędzie indziej dla diagnostyki). `stage_reporter.py` używa opaque `LiveStageHandle`; `cost_gate.py` przyjmuje `confirm_fn: Callable | None` zamiast `import questionary`; `cli/main.py` traktuje console jako `object`. Testy `test_no_rich_outside_output.py` + `test_no_questionary_outside_menu.py` enforce'ują to.
+- **Hybrid CLI / TUI (ADR-0013, v0.4.0+)**: bare `codeguide` w TTY → menu (`menu.main_menu_loop`). `codeguide generate <repo>` / `codeguide init` / non-TTY / `CODEGUIDE_NO_MENU=1` → existing Click group bit-exact. Menu nie odpala się bez TTY na stdout AND stdin (Sprint 7 eval workflow polega na tym).
 
 **Critical anti-patterns**:
 - ❌ Preact, React, Astro, bundler — vanilla JS binarnie (ADR-0005)
@@ -264,3 +265,4 @@ Aktualne architectural decision records (w `docs/adr/`):
 - **ADR-0010** — Secret redaction policy + zero-telemetry contract: 7 binary decisions (pattern-only regex, structlog processor scope, separate `consent.yaml`, per-provider persistence, 9-pattern hard-refuse list, dual-layer zero-telemetry test, editor resolver shlex+which+metachar validation) (2026-04-22).
 - **ADR-0011** — UX design system: A1 Paper only, Inter only, Direction A only, Modern CLI only (2026-04-19; +decisions 8 (CLI animation strategy) and 9 (cost-gate default ON for TTY) added Sprint 8 / 2026-04-25).
 - **ADR-0012** — Tutorial quality enforcement: `source_excerpt` injection, snippet validator, happy-path ordering, per-tier word counts, skip-trivial helpers (2026-04-25, v0.2.1).
+- **ADR-0013** — Interactive menu-driven TUI ("centrum dowodzenia"): hybrid CLI/menu, questionary 2.x, three-sink rule, modal pipeline, `MenuIO` Protocol, 5-section Generate sub-wizard, dynamic `ModelCatalog` port (anthropic/openai SDK fetch + `ft:*` filter + 24h cache), `target_audience` 5-level enum (BREAKING + migration shim), `gpt-4.1` as OpenAI default. Partially supersedes ADR-0011 D#1 (2026-04-25, v0.4.0).

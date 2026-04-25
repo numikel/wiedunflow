@@ -97,7 +97,11 @@ def test_yaml_all_llm_fields(tmp_path, monkeypatch):
 
 
 def test_yaml_top_level_fields(tmp_path, monkeypatch):
-    """YAML top-level keys (max_lessons, target_audience) are loaded."""
+    """YAML top-level keys (max_lessons, target_audience) are loaded.
+
+    ADR-0012 (v0.3.0): legacy free-text ``target_audience: "senior engineer"``
+    flows through the migration shim and resolves to ``"senior"``.
+    """
     monkeypatch.delenv("CODEGUIDE_MAX_LESSONS", raising=False)
     monkeypatch.delenv("CODEGUIDE_TARGET_AUDIENCE", raising=False)
     cfg_file = tmp_path / "tutorial.config.yaml"
@@ -107,7 +111,7 @@ def test_yaml_top_level_fields(tmp_path, monkeypatch):
     )
     cfg = load_config(cli_config_path=cfg_file)
     assert cfg.max_lessons == 15
-    assert cfg.target_audience == "senior engineer"
+    assert cfg.target_audience == "senior"
 
 
 # ---------------------------------------------------------------------------

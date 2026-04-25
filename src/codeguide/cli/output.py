@@ -149,6 +149,86 @@ def render_cost_gate(
     console.print(panel)
 
 
+def render_generate_summary(
+    console: Console,
+    *,
+    config_lines: list[tuple[str, str]],
+    cost_lines: list[tuple[str, str]],
+    cost_total: tuple[str, str],
+    runtime_minutes: tuple[int, int],
+    lessons_estimate: int,
+) -> None:
+    """Render the §5 summary panel for the Generate sub-wizard (ADR-0013 Step 7).
+
+    Two-column key/value table in a HEAVY-bordered panel with two sections:
+    "RUN CONFIGURATION" (one row per chosen field) and "ESTIMATED COST"
+    (one row per model + bold TOTAL). Subtitle carries the runtime range
+    and lesson count to mirror the cost-gate panel UX.
+
+    Args:
+        console: Rich console (two-sink rule — only output.py imports rich).
+        config_lines: ``[(label, value)]`` rows shown in the configuration block.
+        cost_lines: ``[(label, value)]`` rows shown in the cost block (haiku, opus).
+        cost_total: ``(label, value)`` row rendered bold under the cost rows.
+        runtime_minutes: ``(min, max)`` runtime estimate displayed as subtitle.
+        lessons_estimate: Estimated lesson count — also surfaces in subtitle.
+    """
+    body = Table(show_header=False, box=None, pad_edge=False)
+    body.add_column("key", style="dim", no_wrap=True)
+    body.add_column("value", style="default")
+
+    body.add_row("[accent]RUN CONFIGURATION[/accent]", "")
+    for label, value in config_lines:
+        body.add_row(label, value)
+
+    body.add_section()
+    body.add_row("[accent]ESTIMATED COST[/accent]", "")
+    for label, value in cost_lines:
+        body.add_row(label, value)
+    body.add_row(f"[accent]{cost_total[0]}[/accent]", f"[accent]{cost_total[1]}[/accent]")
+
+    runtime_min, runtime_max = runtime_minutes
+    subtitle = f"Runtime est. {runtime_min}-{runtime_max} min · ~{lessons_estimate} lessons"
+
+    panel = Panel(
+        body,
+        title="REVIEW & LAUNCH",
+        title_align="left",
+        box=HEAVY,
+        border_style="accent",
+        padding=(1, 2),
+        subtitle=subtitle,
+    )
+    console.print(panel)
+
+
+def render_info_panel(
+    console: Console,
+    *,
+    title: str,
+    lines: list[tuple[str, str]],
+) -> None:
+    """Render a generic 2-column info panel for menu helpers (ADR-0013 Step 8).
+
+    Used by ``Show config``, ``Help``, ``Estimate cost``. Lighter visual
+    weight than ``render_run_report`` (no status header, no border color).
+    """
+    body = Table(show_header=False, box=None, pad_edge=False)
+    body.add_column("key", style="dim", no_wrap=True)
+    body.add_column("value", style="default")
+    for key, value in lines:
+        body.add_row(key, value)
+    panel = Panel(
+        body,
+        title=title,
+        title_align="left",
+        box=HEAVY,
+        border_style="accent",
+        padding=(1, 2),
+    )
+    console.print(panel)
+
+
 def render_run_report(
     console: Console,
     *,
@@ -197,8 +277,16 @@ def osc8_hyperlink(path: Path, label: str | None = None) -> str:
 
 
 def print_done_summary(console: Console, *, path: Path) -> None:
-    """Print the final clickable summary pointing at the generated tutorial (US-055)."""
-    console.print(f"open  [link]{osc8_hyperlink(path)}[/link]")
+    """Print the final clickable summary pointing at the generated tutorial (US-055).
+
+    Uses Rich's native ``[link=URL]label[/link]`` markup which emits OSC 8
+    on terminals that support it and degrades to plain text elsewhere.
+    Wrapping a manual ``\\x1b]8;;...`` escape inside ``[link]`` markup (the
+    pre-fix pattern) leaked literal ``ink]`` sequences into PowerShell on
+    long path wrap.
+    """
+    url = path.resolve().as_uri()
+    console.print(f"open  [link={url}]{path}[/link]")
 
 
 def print_cost_abort(console: Console, *, elapsed: str) -> None:

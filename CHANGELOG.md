@@ -6,7 +6,91 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.2.1] - 2026-04-25 — Tutorial Quality Enforcement
+## [0.4.0] - 2026-04-25 — Interactive Menu-Driven TUI ("centrum dowodzenia")
+
+### Added
+- **Interactive top-level menu** when `codeguide` is invoked with no arguments
+  in a TTY. ASCII welcome banner + 7-item picker with arrow navigation
+  (`↑↓ Enter Esc`): `Initialize config`, `Generate tutorial`, `Show config`,
+  `Estimate cost`, `Resume last run`, `Help`, `Exit`. Inspired by GitHub
+  Copilot CLI, OpenCode, and Claude Code's custom-agent picker. The
+  established `codeguide generate <repo>` and `codeguide init` CLI
+  invocations are unchanged — Sprint 7 release-gate CI is unaffected.
+- **Generate sub-wizard with 5 sections**: §1 Repo+Output, §2 Provider+Models
+  (with **express path** that auto-fills from saved config and skips §3-§4),
+  §3 File Filters (optional, dynamic add/edit/remove list manager),
+  §4 Limits & Audience (optional, with the new 5-level audience enum),
+  §5 Summary & Launch (file-count cost heuristic + Cancel/Launch). After
+  Launch the existing `rich.Live` 7-stage pipeline takes over the terminal;
+  on completion the menu loop redraws.
+- **`ModelCatalog` port + dynamic model fetch** (ADR-0013 D#11). The
+  Provider+Models section pulls live model lists from
+  `anthropic.Anthropic().models.list()` and `openai.OpenAI().models.list()`
+  with 24-hour disk cache at `~/.cache/codeguide/models-<provider>.json`.
+  OpenAI filter strips `ft:*` (private fine-tunes) and non-chat models
+  (audio, realtime, image, tts, whisper, embedding, moderation, transcribe,
+  dall-e, sora, codex, search, deep-research). Hardcoded fallbacks fire
+  only when the API call fails (offline, missing key, rate limit, 5xx).
+  New menu entry `[r] Refresh now` bypasses the cache.
+- **`SQLiteCache.has_checkpoint(repo_abs)`** — fast presence check used by
+  the menu's `Resume last run` action to surface "no checkpoint found"
+  before launching the resume flow.
+- **`render_generate_summary` / `render_info_panel`** in `cli/output.py` —
+  Rich panels for the Generate sub-wizard §5 review and the menu's
+  `Show config` / `Estimate cost` / `Help` views.
+- **Three-sink architecture** (extending Sprint 5's two-sink rule). New
+  lint test `tests/unit/cli/test_no_questionary_outside_menu.py` enforces
+  that `import questionary` lives only in `cli/menu.py`.
+- **Emergency escape hatch** — `CODEGUIDE_NO_MENU=1` env var disables
+  the menu even in a TTY. For scripts that want bare `codeguide` to be
+  a no-op without bumping the subcommand into argv.
+
+### BREAKING (perceptual, pre-1.0)
+- **`target_audience` is now a Literal 5-level enum**: `noob`, `junior`,
+  `mid`, `senior`, `expert` (default `mid`). Previously a free-text `str`
+  field defaulting to `"mid-level Python developer"`. Existing YAML
+  configs continue to load via a fuzzy-mapping shim in `_load_yaml_flat`
+  (`"mid-level Python developer"` → `mid` with a logged warning;
+  `"senior engineer"` → `senior`; etc.). The shim is removed in v1.0.
+  Per-level narration prompt branches arrive in v0.5.0; v0.4.0 ships a
+  shared template that flows audience into the system preamble and HTML
+  metadata.
+- **OpenAI defaults switched from `gpt-4o` to `gpt-4.1`** (ADR-0013 D#12).
+  Affects: `OpenAIModelCatalog._FALLBACK`, `cli/main.py:_build_llm_provider`
+  (openai / openai_compatible / custom branches), `tutorial.config.yaml.example`.
+  Anthropic defaults unchanged. CLI users with `--model-plan gpt-4o` or YAML
+  `model_plan: gpt-4o` keep their explicit selection — only the implicit
+  fallback path changes.
+
+### Changed
+- `prompt_cost_gate(...)` accepts a new optional `confirm_fn:
+  Callable[[str], bool] | None` parameter. When `None` (CLI path),
+  the prompt falls back to `click.confirm`; when set (menu path), the
+  injected callable replaces the prompt — used by the menu to drive the
+  cost gate via `MenuIO.confirm` (questionary).
+- `cli/main.py:main()` gains a 3-line guard before delegating to the Click
+  group: bare `codeguide` in a TTY launches `main_menu_loop`. All other
+  invocations flow through the existing Click dispatcher.
+
+### Internal
+- New ADR-0013 ("Interactive menu-driven TUI") captures the 12 binary
+  decisions for the menu surface. Partially supersedes ADR-0011 D#1
+  ("no heavy TUI"). Reasons documented inline.
+- New port `interfaces/model_catalog.py::ModelCatalog`. New adapters:
+  `adapters/anthropic_model_catalog.py`, `adapters/openai_model_catalog.py`,
+  `adapters/cached_model_catalog.py` (24h TTL decorator).
+- New CLI modules: `cli/menu.py` (~900 lines, single questionary sink),
+  `cli/menu_banner.py` (ASCII art only).
+- New test fixtures: `tests/unit/cli/_fake_menu_io.py` (deterministic
+  `MenuIO` test double for sub-wizard testing).
+- New tests: `test_no_questionary_outside_menu.py`, `test_should_launch_menu.py`,
+  `test_menu_loop.py`, `test_config_target_audience_migration.py`,
+  `test_anthropic_model_catalog.py`, `test_openai_model_catalog.py`,
+  `test_cached_model_catalog.py`, `test_generate_subwizard.py`,
+  `test_filters_subwizard.py`, `test_limits_summary_subwizard.py`,
+  `test_menu_remaining_actions.py` — ~190 new test cases total.
+
+## [0.3.0] - 2026-04-25 — Tutorial Quality Enforcement
 
 ### Fixed
 - **Hallucinated function signatures** in narration prompts. The narration LLM
@@ -47,6 +131,14 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rolled up into a "Helper functions you'll see along the way" appendix on
   the closing lesson. Enable with `planning.skip_trivial_helpers: true`
   (`use_cases/skip_trivial.py`).
+- **Standalone "Project README" lesson** appended to the TOC when the repo
+  ships a README. The narration column carries a one-line pointer; the right
+  pane (normally the code reference) is replaced with the rendered README so
+  the reader treats it as reference reading rather than a primary lesson.
+- **Single-column layout for the closing lesson.** "Where to go next" no
+  longer leaves an empty code panel — the right pane and the splitter
+  collapse so the closing narrative spans the full content row. Toggled via
+  ``Lesson.layout = "single"`` (renderer adds the ``layout-single`` class).
 - **Lesson progress UI in the generated tutorial.html**:
   - Thin (4 px) horizontal progress bar pinned under the topbar that fills
     as the reader advances through lessons.
@@ -67,6 +159,12 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `source_excerpt: str | None` (max 4000 chars). Schema version remains
   1.0.0 — older cache JSON deserialises without migration. ADR-0007 was
   updated to document the additive change.
+- `Lesson` entity gained additive optional fields ``layout`` (``"split"`` /
+  ``"single"``) and ``code_panel_html`` (pre-rendered HTML for the right
+  pane), used by the new standalone README lesson and single-column closing.
+- Footer documentation-coverage label is now ``Docs N%`` (was ``Jedi N%``).
+  The metric measures the share of symbols with a non-empty docstring;
+  the previous label confusingly suggested it was a Jedi-resolution rate.
 
 ### Internal
 - New use-case modules: `inject_source_excerpts.py`, `snippet_validator.py`,

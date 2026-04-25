@@ -37,7 +37,7 @@
       <span id="tutorial-progress-label" class="progress-label" aria-live="polite"></span>
       <button id="tutorial-next" class="nav-btn" type="button" aria-label="Next lesson" disabled>Next &#8594;</button>
     </div>
-    <button id="tweaks-open" class="icon-btn" aria-label="Tutorial tweaks" type="button">&#9881;</button>
+    <button id="tweaks-open" class="icon-btn" aria-label="Tutorial tweaks" title="Tutorial tweaks (? for keyboard shortcuts)" type="button">&#9881;</button>
   </header>
 
   {% if run_status == "degraded" %}
@@ -68,21 +68,48 @@
         <span class="meta-sep">{{ repo_branch }}@{{ repo_commit_hash[:7] }}</span>
         <span class="meta-sep">{{ generated_at }}</span>
         {% if doc_coverage is not none %}
-        <span class="meta-sep">Jedi {{ (doc_coverage.ratio * 100) | round(0, 'floor') | int }}%</span>
+        <span class="meta-sep" title="Share of public symbols with a non-empty docstring">Docs {{ (doc_coverage.ratio * 100) | round(0, 'floor') | int }}%</span>
         {% endif %}
       </div>
     </footer>
   </div>
 
-  <div id="tweaks-panel" role="dialog" aria-label="Tutorial tweaks">
-    <h3>Tweaks</h3>
+  <div id="tweaks-panel" role="menu" aria-label="Tutorial tweaks">
     <div class="row">
       <div class="label">Theme</div>
       <div class="seg" role="group" aria-label="Theme">
         <button type="button" data-theme-set="light">Light</button>
         <button type="button" data-theme-set="dark">Dark</button>
+        <button type="button" data-theme-set="system">System</button>
       </div>
     </div>
+    <div class="row">
+      <div class="label">Font size</div>
+      <div class="seg" role="group" aria-label="Font size">
+        <button type="button" data-font-size-set="sm">S</button>
+        <button type="button" data-font-size-set="md">M</button>
+        <button type="button" data-font-size-set="lg">L</button>
+      </div>
+    </div>
+    <div class="row">
+      <button type="button" class="tweak-action" data-action="toggle-toc">Hide TOC sidebar</button>
+    </div>
+    <div class="row">
+      <button type="button" class="tweak-action" data-action="reset-visited">Reset visited markers</button>
+    </div>
+  </div>
+
+  <div id="shortcuts-modal" role="dialog" aria-label="Keyboard shortcuts" aria-hidden="true">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>J</kbd> / <kbd>&darr;</kbd></td><td>Next lesson</td></tr>
+      <tr><td><kbd>K</kbd> / <kbd>&uarr;</kbd></td><td>Previous lesson</td></tr>
+      <tr><td><kbd>G</kbd></td><td>First lesson</td></tr>
+      <tr><td><kbd>Shift</kbd>+<kbd>G</kbd></td><td>Last lesson</td></tr>
+      <tr><td><kbd>?</kbd></td><td>Toggle this dialog</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Close dialog / panel</td></tr>
+    </table>
+    <button type="button" class="tweak-action" data-action="close-shortcuts">Close</button>
   </div>
 
   <script type="application/json" id="tutorial-meta">{{ meta_json | safe }}</script>
