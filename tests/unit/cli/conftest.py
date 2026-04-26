@@ -31,7 +31,7 @@ def _disable_litellm_pricing_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
     through to ``StaticPricingCatalog`` instantly.
     """
     monkeypatch.setattr(
-        "codeguide.adapters.litellm_pricing_catalog.LiteLLMPricingCatalog._ensure_loaded",
+        "wiedunflow.adapters.litellm_pricing_catalog.LiteLLMPricingCatalog._ensure_loaded",
         lambda self: {},
     )
 
@@ -47,6 +47,6 @@ def _isolate_user_config_path(
     producing flaky results that depend on prior interactive runs.
     """
     target = tmp_path_factory.mktemp("user-config") / "config.yaml"
-    monkeypatch.setattr("codeguide.cli.config.user_config_path", lambda: target)
-    monkeypatch.setattr("codeguide.cli.menu.user_config_path", lambda: target)
+    monkeypatch.setattr("wiedunflow.cli.config.user_config_path", lambda: target)
+    monkeypatch.setattr("wiedunflow.cli.menu.user_config_path", lambda: target)
     return target

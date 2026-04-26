@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from codeguide.interfaces.pricing_catalog import PricingCatalog
+    from wiedunflow.interfaces.pricing_catalog import PricingCatalog
 
 # Blended USD per 1M tokens, computed as 0.6 * input + 0.4 * output for each
 # model. Sourced from the providers' published pricing pages on 2026-04-25.

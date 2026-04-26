@@ -13,13 +13,13 @@ import openai
 import pydantic
 import pytest
 
-from codeguide.adapters.openai_provider import (
+from wiedunflow.adapters.openai_provider import (
     OpenAIProvider,
     _uses_max_completion_tokens,
 )
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.lesson_manifest import LessonManifest
-from codeguide.interfaces.ports import LLMProvider
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.lesson_manifest import LessonManifest
+from wiedunflow.interfaces.ports import LLMProvider
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -97,7 +97,7 @@ def _mk_symbol(
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_init_requires_api_key_without_base_url(mock_cls, monkeypatch):
     """No api_key arg, no base_url, no env var → ValueError mentioning OPENAI_API_KEY."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -105,7 +105,7 @@ def test_init_requires_api_key_without_base_url(mock_cls, monkeypatch):
         OpenAIProvider(api_key=None, base_url=None)
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_init_no_api_key_with_base_url_uses_placeholder(mock_cls, monkeypatch):
     """No api_key + base_url set → provider created with api_key='not-needed'."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -117,7 +117,7 @@ def test_init_no_api_key_with_base_url_uses_placeholder(mock_cls, monkeypatch):
     assert call_kwargs["base_url"] == "http://localhost:11434/v1"
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_init_uses_env_key(mock_cls, monkeypatch):
     """OPENAI_API_KEY env var is picked up when api_key= is not passed."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-env-test")
@@ -128,7 +128,7 @@ def test_init_uses_env_key(mock_cls, monkeypatch):
     assert call_kwargs["api_key"] == "sk-env-test"
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_init_explicit_key_wins_over_env(mock_cls, monkeypatch):
     """Explicit api_key= overrides OPENAI_API_KEY env var."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
@@ -138,7 +138,7 @@ def test_init_explicit_key_wins_over_env(mock_cls, monkeypatch):
     assert call_kwargs["api_key"] == "sk-explicit"
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_init_sdk_created_with_max_retries_zero(mock_cls, monkeypatch):
     """OpenAI SDK must be initialised with max_retries=0 — tenacity owns retry logic."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -148,7 +148,7 @@ def test_init_sdk_created_with_max_retries_zero(mock_cls, monkeypatch):
     assert call_kwargs["max_retries"] == 0
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_init_base_url_forwarded_to_sdk(mock_cls, monkeypatch):
     """base_url constructor arg is forwarded to the OpenAI SDK constructor."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -163,7 +163,7 @@ def test_init_base_url_forwarded_to_sdk(mock_cls, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_implements_llm_provider_protocol(mock_cls, monkeypatch):
     """OpenAIProvider satisfies the runtime-checkable LLMProvider Protocol."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -177,7 +177,7 @@ def test_implements_llm_provider_protocol(mock_cls, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_plan_uses_model_plan(mock_cls, monkeypatch):
     """plan() calls chat.completions.create with model_plan and json_object response_format."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -197,7 +197,7 @@ def test_plan_uses_model_plan(mock_cls, monkeypatch):
     assert len(manifest.lessons) == 1
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_plan_user_message_contains_outline(mock_cls, monkeypatch):
     """plan() user message includes the provided outline text."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -214,7 +214,7 @@ def test_plan_user_message_contains_outline(mock_cls, monkeypatch):
     assert "my outline text" in user_messages[0]["content"]
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_plan_invalid_json_raises(mock_cls, monkeypatch):
     """Malformed JSON response from plan() propagates pydantic.ValidationError or ValueError."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -232,7 +232,7 @@ def test_plan_invalid_json_raises(mock_cls, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_describe_symbol_uses_model_describe(mock_cls, monkeypatch):
     """describe_symbol() calls chat.completions.create with model_describe and tight max_tokens."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -252,7 +252,7 @@ def test_describe_symbol_uses_model_describe(mock_cls, monkeypatch):
     assert description == "A simple addition helper for two integers."
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_describe_symbol_no_response_format(mock_cls, monkeypatch):
     """describe_symbol() does NOT pass response_format (plain prose, not JSON)."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -267,7 +267,7 @@ def test_describe_symbol_no_response_format(mock_cls, monkeypatch):
     assert "response_format" not in kwargs
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_describe_symbol_prompt_includes_symbol_metadata(mock_cls, monkeypatch):
     """describe_symbol() user prompt embeds symbol name, kind, file, docstring."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -292,7 +292,7 @@ def test_describe_symbol_prompt_includes_symbol_metadata(mock_cls, monkeypatch):
     assert "<source snippet>" in prompt
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_describe_symbol_flags_dynamic_and_uncertain(mock_cls, monkeypatch):
     """describe_symbol() surfaces is_dynamic_import / is_uncertain flags in the prompt."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -314,7 +314,7 @@ def test_describe_symbol_flags_dynamic_and_uncertain(mock_cls, monkeypatch):
     assert "uncertain-resolution" in prompt
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_describe_symbol_strips_whitespace(mock_cls, monkeypatch):
     """Leading/trailing whitespace in the model response is stripped."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -333,7 +333,7 @@ def test_describe_symbol_strips_whitespace(mock_cls, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_narrate_uses_model_narrate(mock_cls, monkeypatch):
     """narrate() calls chat.completions.create with model_narrate and correct max_tokens."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -354,7 +354,7 @@ def test_narrate_uses_model_narrate(mock_cls, monkeypatch):
     assert "module.func" in lesson.code_refs
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_narrate_system_prompt_includes_concepts(mock_cls, monkeypatch):
     """narrate() injects concepts_introduced into the system prompt."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -376,7 +376,7 @@ def test_narrate_system_prompt_includes_concepts(mock_cls, monkeypatch):
     assert "beta" in system_prompt
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_narrate_no_concepts_uses_placeholder(mock_cls, monkeypatch):
     """narrate() with empty concepts_introduced uses '<none yet>' placeholder."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -402,7 +402,7 @@ def test_narrate_no_concepts_uses_placeholder(mock_cls, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_retry_on_rate_limit_succeeds(mock_cls, monkeypatch):
     """Two RateLimitErrors followed by a success → returns result, logs backoffs."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -418,7 +418,7 @@ def test_retry_on_rate_limit_succeeds(mock_cls, monkeypatch):
     logged_events: list[str] = []
 
     with patch(
-        "codeguide.adapters.openai_provider._log_backoff",
+        "wiedunflow.adapters.openai_provider._log_backoff",
         side_effect=lambda rs: logged_events.append("backoff"),
     ):
         provider = OpenAIProvider(max_retries=5, max_wait_s=1)
@@ -429,7 +429,7 @@ def test_retry_on_rate_limit_succeeds(mock_cls, monkeypatch):
     assert len(logged_events) == 2, "Expected two backoff log calls"
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_retry_on_timeout_succeeds(mock_cls, monkeypatch):
     """Two APITimeoutErrors followed by a success → returns result."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -442,7 +442,7 @@ def test_retry_on_timeout_succeeds(mock_cls, monkeypatch):
     ]
     mock_cls.return_value = mock_client
 
-    with patch("codeguide.adapters.openai_provider._log_backoff"):
+    with patch("wiedunflow.adapters.openai_provider._log_backoff"):
         provider = OpenAIProvider(max_retries=5, max_wait_s=1)
         manifest = provider.plan("outline")
 
@@ -450,7 +450,7 @@ def test_retry_on_timeout_succeeds(mock_cls, monkeypatch):
     assert mock_client.chat.completions.create.call_count == 3
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_retry_exhausted_reraises_rate_limit(mock_cls, monkeypatch):
     """After max_retries RateLimitErrors tenacity reraises the final exception."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -462,7 +462,7 @@ def test_retry_exhausted_reraises_rate_limit(mock_cls, monkeypatch):
     provider = OpenAIProvider(max_retries=5, max_wait_s=1)
 
     with (
-        patch("codeguide.adapters.openai_provider._log_backoff"),
+        patch("wiedunflow.adapters.openai_provider._log_backoff"),
         pytest.raises(openai.RateLimitError),
     ):
         provider.plan("outline")
@@ -470,7 +470,7 @@ def test_retry_exhausted_reraises_rate_limit(mock_cls, monkeypatch):
     assert mock_client.chat.completions.create.call_count == 5
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_auth_error_not_retried(mock_cls, monkeypatch):
     """AuthenticationError is NOT retried — auth failures are not transient."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -526,7 +526,7 @@ def test_uses_max_completion_tokens_detection(model: str, expected: bool) -> Non
     assert _uses_max_completion_tokens(model) is expected
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_plan_gpt5_uses_max_completion_tokens(mock_cls, monkeypatch):
     """plan() with gpt-5* swaps max_tokens → max_completion_tokens (avoids 400 BadRequest)."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -543,7 +543,7 @@ def test_plan_gpt5_uses_max_completion_tokens(mock_cls, monkeypatch):
     assert "max_tokens" not in kwargs
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_describe_o1_uses_max_completion_tokens(mock_cls, monkeypatch):
     """describe_symbol() with o-series reasoning model uses max_completion_tokens."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -560,7 +560,7 @@ def test_describe_o1_uses_max_completion_tokens(mock_cls, monkeypatch):
     assert "max_tokens" not in kwargs
 
 
-@patch("codeguide.adapters.openai_provider.OpenAI")
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
 def test_narrate_gpt5_uses_max_completion_tokens(mock_cls, monkeypatch):
     """narrate() with gpt-5* uses max_completion_tokens."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")

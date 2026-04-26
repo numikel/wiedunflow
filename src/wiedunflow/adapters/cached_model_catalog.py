@@ -26,7 +26,7 @@ from pathlib import Path
 import platformdirs
 import structlog
 
-from codeguide.interfaces.model_catalog import ModelCatalog
+from wiedunflow.interfaces.model_catalog import ModelCatalog
 
 logger = structlog.get_logger(__name__)
 

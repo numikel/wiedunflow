@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.cli.menu import (
+from wiedunflow.cli.menu import (
     _pick_hosted_model,
     _saved_section_payload,
     _subwizard_provider_models,
@@ -270,7 +270,7 @@ def test_provider_models_custom_optional_key(monkeypatch: pytest.MonkeyPatch) ->
 def test_provider_models_express_path_yes(monkeypatch: pytest.MonkeyPatch) -> None:
     """Saved config + Y → returns saved values + _express marker."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-saved")
-    from codeguide.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import CodeguideConfig
 
     saved = CodeguideConfig(
         llm_provider="anthropic",
@@ -296,7 +296,7 @@ def test_provider_models_express_path_no_falls_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-saved")
-    from codeguide.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import CodeguideConfig
 
     saved = CodeguideConfig(
         llm_provider="anthropic",
@@ -325,7 +325,7 @@ def test_provider_models_express_path_no_falls_through(
 
 
 def test_saved_section_payload_marks_express() -> None:
-    from codeguide.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import CodeguideConfig
 
     saved = CodeguideConfig(
         llm_provider="openai",
@@ -386,7 +386,7 @@ def test_provider_models_abort_on_express_confirm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    from codeguide.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import CodeguideConfig
 
     saved = CodeguideConfig()
     io = FakeMenuIO(responses=[None])  # express confirm Esc

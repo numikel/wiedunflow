@@ -7,7 +7,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from codeguide.cli.history_rotator import write_history_copy
+from wiedunflow.cli.history_rotator import write_history_copy
 
 
 def _write_current(repo: Path, payload: str) -> Path:

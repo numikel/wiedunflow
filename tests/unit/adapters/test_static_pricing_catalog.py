@@ -4,9 +4,9 @@
 
 from __future__ import annotations
 
-from codeguide.adapters.static_pricing_catalog import StaticPricingCatalog
-from codeguide.cli.cost_estimator import MODEL_PRICES
-from codeguide.interfaces.pricing_catalog import PricingCatalog
+from wiedunflow.adapters.static_pricing_catalog import StaticPricingCatalog
+from wiedunflow.cli.cost_estimator import MODEL_PRICES
+from wiedunflow.interfaces.pricing_catalog import PricingCatalog
 
 
 def test_returns_known_anthropic_price() -> None:

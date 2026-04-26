@@ -2,15 +2,15 @@
 # Copyright 2026 Michał Kamiński
 """Documentation coverage use case — Stage 2 post-processing.
 
-Computes a :class:`~codeguide.entities.doc_coverage.DocCoverage` summary from
+Computes a :class:`~wiedunflow.entities.doc_coverage.DocCoverage` summary from
 the list of symbols produced by the analysis stage.  The result drives the
 low-coverage warning banner injected into the generated HTML by the build stage.
 """
 
 from __future__ import annotations
 
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.doc_coverage import DocCoverage
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.doc_coverage import DocCoverage
 
 
 def compute_doc_coverage(symbols: list[CodeSymbol]) -> DocCoverage:
@@ -26,7 +26,7 @@ def compute_doc_coverage(symbols: list[CodeSymbol]) -> DocCoverage:
         symbols: Symbols extracted by the analysis stage.
 
     Returns:
-        A frozen :class:`~codeguide.entities.doc_coverage.DocCoverage` instance.
+        A frozen :class:`~wiedunflow.entities.doc_coverage.DocCoverage` instance.
     """
     total = len(symbols)
     with_doc = sum(1 for s in symbols if s.docstring is not None and s.docstring.strip())

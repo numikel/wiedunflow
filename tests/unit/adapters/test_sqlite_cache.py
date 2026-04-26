@@ -11,14 +11,14 @@ from unittest.mock import patch
 
 import pytest
 
-from codeguide.adapters.sqlite_cache import SQLiteCache, _default_db_path
-from codeguide.entities.cache_entry import (
+from wiedunflow.adapters.sqlite_cache import SQLiteCache, _default_db_path
+from wiedunflow.entities.cache_entry import (
     CheckpointEntry,
     FileCacheEntry,
     PageRankSnapshot,
     PlanCacheEntry,
 )
-from codeguide.entities.cache_key import build_cache_key, build_plan_key
+from wiedunflow.entities.cache_key import build_cache_key, build_plan_key
 
 # ---------------------------------------------------------------------------
 # Fixtures

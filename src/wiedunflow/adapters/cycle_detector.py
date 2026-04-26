@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import networkx as nx
 
-from codeguide.entities.call_graph import CallGraph
+from wiedunflow.entities.call_graph import CallGraph
 
 
 def detect_cycles(graph: CallGraph) -> tuple[tuple[str, ...], ...]:

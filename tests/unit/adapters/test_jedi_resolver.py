@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.adapters.jedi_resolver import JediResolver
-from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.code_symbol import CodeSymbol
+from wiedunflow.adapters.jedi_resolver import JediResolver
+from wiedunflow.entities.call_graph import CallGraph
+from wiedunflow.entities.code_symbol import CodeSymbol
 
 # ---------------------------------------------------------------------------
 # Helpers

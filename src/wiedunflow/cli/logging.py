@@ -19,7 +19,7 @@ from typing import Any
 
 import structlog
 
-from codeguide.cli.secret_filter import redact as _redact_secret
+from wiedunflow.cli.secret_filter import redact as _redact_secret
 
 _state: dict[str, bool] = {"configured": False}
 
@@ -57,7 +57,7 @@ def _redact_secrets_processor(
 
     Installed by :func:`configure` before the rendering processor when
     ``redact_secrets=True`` (the default). Authoritative pattern list lives
-    in :mod:`codeguide.cli.secret_filter` per ADR-0010.
+    in :mod:`wiedunflow.cli.secret_filter` per ADR-0010.
     """
     for key, val in list(event_dict.items()):
         if isinstance(val, str):

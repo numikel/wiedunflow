@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from codeguide import __version__
-from codeguide.adapters import (
+from wiedunflow import __version__
+from wiedunflow.adapters import (
     FakeClock,
     FakeLLMProvider,
     InMemoryCache,
@@ -16,7 +16,7 @@ from codeguide.adapters import (
     StubRanker,
     StubTreeSitterParser,
 )
-from codeguide.use_cases.generate_tutorial import Providers, generate_tutorial
+from wiedunflow.use_cases.generate_tutorial import Providers, generate_tutorial
 
 pytestmark = pytest.mark.integration
 

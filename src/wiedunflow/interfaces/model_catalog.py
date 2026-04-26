@@ -8,8 +8,8 @@ Hardcoded fallbacks are used only when the API call fails (offline, missing
 key, rate limit, 5xx). This keeps CodeGuide current with new model releases
 without requiring a CodeGuide release.
 
-Adapters live in ``codeguide.adapters.{anthropic,openai}_model_catalog``.
-A ``CachedModelCatalog`` decorator (``codeguide.adapters.cached_model_catalog``)
+Adapters live in ``wiedunflow.adapters.{anthropic,openai}_model_catalog``.
+A ``CachedModelCatalog`` decorator (``wiedunflow.adapters.cached_model_catalog``)
 wraps any concrete catalog with a 24-hour disk cache.
 """
 

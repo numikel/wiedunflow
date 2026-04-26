@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from codeguide.cli.main import ensure_gitignore_entry
+from wiedunflow.cli.main import ensure_gitignore_entry
 
 
 def test_creates_gitignore_when_missing(tmp_path: Path) -> None:

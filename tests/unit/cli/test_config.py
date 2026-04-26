@@ -10,7 +10,7 @@ import pytest
 import yaml
 from pydantic import ValidationError as _ValidationError
 
-from codeguide.cli.config import (
+from wiedunflow.cli.config import (
     CodeguideConfig,
     ConfigError,
     load_config,

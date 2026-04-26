@@ -12,8 +12,8 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from codeguide.cli.config import _load_yaml_flat
-from codeguide.cli.main import cli
+from wiedunflow.cli.config import _load_yaml_flat
+from wiedunflow.cli.main import cli
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -24,7 +24,7 @@ def _patch_config_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Redirect user_config_path() to a temp directory and return the path."""
     config_path = tmp_path / "codeguide" / "config.yaml"
     monkeypatch.setattr(
-        "codeguide.cli.init_wizard.user_config_path",
+        "wiedunflow.cli.init_wizard.user_config_path",
         lambda: config_path,
     )
     return config_path

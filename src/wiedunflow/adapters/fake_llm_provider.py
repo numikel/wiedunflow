@@ -7,10 +7,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.lesson import Lesson
+from wiedunflow.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
 
 
 class FakeLLMProvider:

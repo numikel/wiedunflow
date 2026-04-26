@@ -35,7 +35,7 @@ class _StubCatalog:
 
 
 def _make_cache(upstream: _StubCatalog, tmp_path: Path, ttl_seconds: int = 86_400):
-    from codeguide.adapters.cached_model_catalog import CachedModelCatalog
+    from wiedunflow.adapters.cached_model_catalog import CachedModelCatalog
 
     return CachedModelCatalog(
         upstream,
@@ -128,7 +128,7 @@ def test_refresh_bypasses_fresh_cache(tmp_path: Path) -> None:
 def test_cache_creates_parent_directory(tmp_path: Path) -> None:
     nested = tmp_path / "deep" / "nested"
     upstream = _StubCatalog([["x"]])
-    from codeguide.adapters.cached_model_catalog import CachedModelCatalog
+    from wiedunflow.adapters.cached_model_catalog import CachedModelCatalog
 
     cache = CachedModelCatalog(upstream, provider_name="test", cache_dir=nested)
 
@@ -139,7 +139,7 @@ def test_cache_creates_parent_directory(tmp_path: Path) -> None:
 
 def test_cache_path_uses_provider_name(tmp_path: Path) -> None:
     upstream = _StubCatalog([["x"]])
-    from codeguide.adapters.cached_model_catalog import CachedModelCatalog
+    from wiedunflow.adapters.cached_model_catalog import CachedModelCatalog
 
     cache = CachedModelCatalog(upstream, provider_name="myprovider", cache_dir=tmp_path)
 
@@ -148,8 +148,8 @@ def test_cache_path_uses_provider_name(tmp_path: Path) -> None:
 
 def test_protocol_satisfied() -> None:
     """``CachedModelCatalog`` must structurally satisfy the ``ModelCatalog`` Protocol."""
-    from codeguide.adapters.cached_model_catalog import CachedModelCatalog
-    from codeguide.interfaces.model_catalog import ModelCatalog
+    from wiedunflow.adapters.cached_model_catalog import CachedModelCatalog
+    from wiedunflow.interfaces.model_catalog import ModelCatalog
 
     upstream = _StubCatalog([["x"]])
     cache: ModelCatalog = CachedModelCatalog(upstream, provider_name="t")
@@ -157,9 +157,9 @@ def test_protocol_satisfied() -> None:
 
 
 def test_concrete_adapters_satisfy_protocol() -> None:
-    from codeguide.adapters.anthropic_model_catalog import AnthropicModelCatalog
-    from codeguide.adapters.openai_model_catalog import OpenAIModelCatalog
-    from codeguide.interfaces.model_catalog import ModelCatalog
+    from wiedunflow.adapters.anthropic_model_catalog import AnthropicModelCatalog
+    from wiedunflow.adapters.openai_model_catalog import OpenAIModelCatalog
+    from wiedunflow.interfaces.model_catalog import ModelCatalog
 
     a: ModelCatalog = AnthropicModelCatalog(api_key="x")
     o: ModelCatalog = OpenAIModelCatalog(api_key="x")

@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.adapters.networkx_ranker import NetworkxRanker
-from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.ranked_graph import RankedGraph
-from codeguide.entities.resolution_stats import ResolutionStats
+from wiedunflow.adapters.networkx_ranker import NetworkxRanker
+from wiedunflow.entities.call_graph import CallGraph
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.ranked_graph import RankedGraph
+from wiedunflow.entities.resolution_stats import ResolutionStats
 
 # ---------------------------------------------------------------------------
 # Helpers

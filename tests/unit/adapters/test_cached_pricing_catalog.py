@@ -11,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.adapters.cached_pricing_catalog import (
+from wiedunflow.adapters.cached_pricing_catalog import (
     CachedPricingCatalog,
     ChainedPricingCatalog,
 )
-from codeguide.adapters.static_pricing_catalog import StaticPricingCatalog
-from codeguide.interfaces.pricing_catalog import PricingCatalog
+from wiedunflow.adapters.static_pricing_catalog import StaticPricingCatalog
+from wiedunflow.interfaces.pricing_catalog import PricingCatalog
 
 
 class _StubUpstream:
@@ -154,6 +154,6 @@ def test_chain_satisfies_pricing_catalog_protocol() -> None:
 def _no_real_network(monkeypatch: pytest.MonkeyPatch) -> None:
     """Defensive — keep these tests offline even if a regression slips."""
     monkeypatch.setattr(
-        "codeguide.adapters.litellm_pricing_catalog.httpx.get",
+        "wiedunflow.adapters.litellm_pricing_catalog.httpx.get",
         lambda *_a, **_k: pytest.fail("unexpected httpx.get in cached pricing test"),
     )

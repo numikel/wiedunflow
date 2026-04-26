@@ -7,12 +7,12 @@ from typing import Literal
 import structlog
 from pydantic import ValidationError
 
-from codeguide.entities.lesson_manifest import (
+from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
     LessonManifestValidationError,
     validate_against_graph,
 )
-from codeguide.interfaces.ports import LLMProvider
+from wiedunflow.interfaces.ports import LLMProvider
 
 logger = structlog.get_logger(__name__)
 
@@ -55,13 +55,13 @@ def plan_with_retry(
             Derived from ``RankedGraph`` by :func:`_collect_allowed_symbols` in
             ``generate_tutorial``; excludes uncertain / dynamic-import / cyclic.
         entry_points: Optional frozenset of qualified symbol names detected as
-            entry points (from :func:`~codeguide.use_cases.entry_point_detector.detect_entry_points`).
+            entry points (from :func:`~wiedunflow.use_cases.entry_point_detector.detect_entry_points`).
             When ``None``, treated as an empty set (no reordering).
         entry_point_mode: Controls the reorder behaviour — ``"auto"`` (default),
             ``"always"``, or ``"never"``.  See :func:`_apply_entry_point_first`.
 
     Returns:
-        A :class:`~codeguide.entities.lesson_manifest.LessonManifest` that
+        A :class:`~wiedunflow.entities.lesson_manifest.LessonManifest` that
         passes grounding validation, with optional entry-point reordering applied.
 
     Raises:
@@ -136,17 +136,17 @@ def _apply_entry_point_first(
     - ``"never"``: Returns *manifest* unchanged.
     - ``"auto"`` (default): No-op when *entry_points* is empty or no lesson
       matches; silently skips reordering.
-    - ``"always"``: Raises :exc:`~codeguide.entities.lesson_manifest.LessonManifestValidationError`
+    - ``"always"``: Raises :exc:`~wiedunflow.entities.lesson_manifest.LessonManifestValidationError`
       when no entry-point lesson is found.
 
     Args:
         manifest: Planning-stage output to reorder.
         entry_points: Frozenset of qualified symbol names identified as entry
-            points by :func:`~codeguide.use_cases.entry_point_detector.detect_entry_points`.
+            points by :func:`~wiedunflow.use_cases.entry_point_detector.detect_entry_points`.
         mode: Reorder policy — ``"auto"``, ``"always"``, or ``"never"``.
 
     Returns:
-        Possibly-reordered :class:`~codeguide.entities.lesson_manifest.LessonManifest`.
+        Possibly-reordered :class:`~wiedunflow.entities.lesson_manifest.LessonManifest`.
 
     Raises:
         LessonManifestValidationError: Only in ``"always"`` mode when no

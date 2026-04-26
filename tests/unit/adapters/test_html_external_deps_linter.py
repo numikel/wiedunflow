@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from codeguide.adapters.html_external_deps_linter import (
+from wiedunflow.adapters.html_external_deps_linter import (
     ExternalDependencyError,
     assert_no_external_refs,
 )

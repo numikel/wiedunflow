@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_plan import LessonPlan
+from wiedunflow.entities.lesson import Lesson
+from wiedunflow.entities.lesson_plan import LessonPlan
 
 
 def _lesson(lesson_id: str, title: str = "Test Lesson") -> Lesson:

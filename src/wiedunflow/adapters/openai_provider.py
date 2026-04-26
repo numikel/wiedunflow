@@ -25,10 +25,10 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from codeguide import __version__
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import (
+from wiedunflow import __version__
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.lesson import Lesson
+from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
     LessonSpec,
     ManifestMetadata,

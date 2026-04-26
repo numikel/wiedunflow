@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from codeguide.entities import ResolutionStats
+from wiedunflow.entities import ResolutionStats
 
 
 def test_valid_instance():

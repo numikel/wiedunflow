@@ -9,7 +9,7 @@ inline ``style=`` attributes.
 
 from __future__ import annotations
 
-from codeguide.adapters.pygments_highlighter import highlight_python
+from wiedunflow.adapters.pygments_highlighter import highlight_python
 
 
 def test_highlight_python_uses_tok_classes() -> None:

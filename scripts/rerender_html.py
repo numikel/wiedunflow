@@ -23,7 +23,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from codeguide.adapters.jinja_renderer import _TEMPLATES_DIR, JinjaRenderer
+from wiedunflow.adapters.jinja_renderer import _TEMPLATES_DIR, JinjaRenderer
 
 _TRIM_THRESHOLD = 60
 _TRIM_CONTEXT = 8
@@ -32,7 +32,7 @@ _TRIM_CONTEXT = 8
 def _retrim_code_snippets(lessons: list[dict[str, Any]]) -> None:
     """In-place: clip overlong ``code_snippet`` arrays to a window centred on
     the highlighted range. Mirrors the trim logic in
-    :mod:`codeguide.adapters.jinja_renderer` so static rerenders apply the
+    :mod:`wiedunflow.adapters.jinja_renderer` so static rerenders apply the
     same UX improvement without re-running the LLM pipeline.
     """
     for lesson in lessons:

@@ -2,8 +2,8 @@
 # Copyright 2026 Michał Kamiński
 from __future__ import annotations
 
-from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.ranked_graph import RankedGraph, RankedSymbol
+from wiedunflow.entities.call_graph import CallGraph
+from wiedunflow.entities.ranked_graph import RankedGraph, RankedSymbol
 
 
 class StubRanker:

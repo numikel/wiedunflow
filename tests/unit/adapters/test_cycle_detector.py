@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.adapters.cycle_detector import detect_cycles
-from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.resolution_stats import ResolutionStats
+from wiedunflow.adapters.cycle_detector import detect_cycles
+from wiedunflow.entities.call_graph import CallGraph
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.resolution_stats import ResolutionStats
 
 # ---------------------------------------------------------------------------
 # Helpers

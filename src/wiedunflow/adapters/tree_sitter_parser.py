@@ -10,8 +10,8 @@ from pathlib import Path
 import tree_sitter_python as _tspy
 from tree_sitter import Language, Node, Parser, Query, QueryCursor
 
-from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.code_symbol import CodeSymbol, SymbolKind
+from wiedunflow.entities.call_graph import CallGraph
+from wiedunflow.entities.code_symbol import CodeSymbol, SymbolKind
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +56,8 @@ _MIN_SINGLE_QUOTE_LEN = 2
 class TreeSitterParser:
     """Production parser adapter using tree-sitter 0.25+ Python grammar.
 
-    Implements the :class:`~codeguide.interfaces.ports.Parser` Protocol.  Produces
-    a raw :class:`~codeguide.entities.call_graph.CallGraph` where
+    Implements the :class:`~wiedunflow.interfaces.ports.Parser` Protocol.  Produces
+    a raw :class:`~wiedunflow.entities.call_graph.CallGraph` where
     ``resolution_stats`` is ``None`` — the Jedi resolver fills that in.
 
     Call edges carry the raw callee text (identifier or attribute leaf), *not*

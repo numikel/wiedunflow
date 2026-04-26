@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.cli.menu import _subwizard_pick_repo
+from wiedunflow.cli.menu import _subwizard_pick_repo
 from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 # ---------------------------------------------------------------------------
@@ -42,7 +42,7 @@ def test_subwizard_pick_repo_recent_happy(monkeypatch: pytest.MonkeyPatch, tmp_p
     repo = _make_git_repo(tmp_path / "myrepo")
 
     monkeypatch.setattr(
-        "codeguide.cli.menu.load_recent_runs",
+        "wiedunflow.cli.menu.load_recent_runs",
         lambda limit=10: [repo],
     )
 
@@ -134,7 +134,7 @@ def test_subwizard_pick_repo_back_returns_to_source_selector(
     repo = _make_git_repo(tmp_path / "repo")
 
     monkeypatch.setattr(
-        "codeguide.cli.menu.load_recent_runs",
+        "wiedunflow.cli.menu.load_recent_runs",
         lambda limit=10: [repo],
     )
 
@@ -164,7 +164,7 @@ def test_subwizard_pick_repo_empty_recent_falls_through(
     repo = _make_git_repo(tmp_path / "repo")
 
     monkeypatch.setattr(
-        "codeguide.cli.menu.load_recent_runs",
+        "wiedunflow.cli.menu.load_recent_runs",
         lambda limit=10: [],
     )
 

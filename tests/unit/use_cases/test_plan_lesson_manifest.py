@@ -8,15 +8,15 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import (
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.lesson import Lesson
+from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
     LessonManifestValidationError,
     LessonSpec,
     ManifestMetadata,
 )
-from codeguide.use_cases.plan_lesson_manifest import (
+from wiedunflow.use_cases.plan_lesson_manifest import (
     PlanningFatalError,
     _apply_entry_point_first,
     plan_with_retry,

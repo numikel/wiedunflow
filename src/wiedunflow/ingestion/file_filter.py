@@ -3,11 +3,11 @@
 """File filter helpers for the ingestion stage (US-008).
 
 This module wraps the hard-refuse secret blocklist check used by
-:func:`codeguide.use_cases.ingestion._collect_files` so tests can exercise
+:func:`wiedunflow.use_cases.ingestion._collect_files` so tests can exercise
 the blocking logic in isolation without running the full pipeline.
 
 The authoritative integration point is ``use_cases/ingestion.py``; this module
-re-exports :func:`~codeguide.ingestion.secret_blocklist.is_hard_refused` and
+re-exports :func:`~wiedunflow.ingestion.secret_blocklist.is_hard_refused` and
 provides :func:`should_include_file` as a single "gate" function that combines
 the hard-refuse check with ``pathspec`` filtering.
 """
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pathspec
 
-from codeguide.ingestion.secret_blocklist import is_hard_refused
+from wiedunflow.ingestion.secret_blocklist import is_hard_refused
 
 logger = logging.getLogger(__name__)
 

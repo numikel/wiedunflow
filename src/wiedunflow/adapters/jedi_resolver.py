@@ -8,10 +8,10 @@ from typing import Any
 import jedi
 import structlog
 
-from codeguide.adapters.dynamic_import_detector import detect_dynamic_imports
-from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.resolution_stats import ResolutionStats
+from wiedunflow.adapters.dynamic_import_detector import detect_dynamic_imports
+from wiedunflow.entities.call_graph import CallGraph
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.resolution_stats import ResolutionStats
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -207,7 +207,7 @@ def _propagate_dynamic_markers(
 class JediResolver:
     """Real Jedi-powered ``Resolver`` adapter.
 
-    Implements the :class:`~codeguide.interfaces.ports.Resolver` Protocol via
+    Implements the :class:`~wiedunflow.interfaces.ports.Resolver` Protocol via
     duck typing.  Consumes the raw ``CallGraph`` emitted by the parser and
     returns a refined graph where:
 
@@ -215,7 +215,7 @@ class JediResolver:
       ``CodeSymbol``.
     * ``is_dynamic_import`` / ``is_uncertain`` markers are set on symbols
       whose source files contain dynamic-import patterns.
-    * A :class:`~codeguide.entities.resolution_stats.ResolutionStats` summary
+    * A :class:`~wiedunflow.entities.resolution_stats.ResolutionStats` summary
       is attached so the planning stage can gate on coverage quality.
 
     Resolution is 3-tiered per edge:

@@ -6,7 +6,7 @@ Guides the user through setting up a user-level ``config.yaml`` with LLM
 provider credentials.  All prompts can be bypassed by passing the
 corresponding CLI flags (US-003 non-interactive mode).
 
-Config is written in the nested YAML format that :func:`codeguide.cli.config._load_yaml_flat`
+Config is written in the nested YAML format that :func:`wiedunflow.cli.config._load_yaml_flat`
 expects:
 
 .. code-block:: yaml
@@ -31,7 +31,7 @@ from typing import Any
 import click
 import yaml
 
-from codeguide.cli.config import user_config_path
+from wiedunflow.cli.config import user_config_path
 
 # Providers that need a base_url (and are prompted for one when in interactive mode).
 _LOCAL_PROVIDERS = frozenset({"openai_compatible", "custom"})

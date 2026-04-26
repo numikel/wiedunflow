@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from codeguide.cli.output import (
+from wiedunflow.cli.output import (
     LiveStageHandle,
     render_stage_detail,
     render_stage_done,

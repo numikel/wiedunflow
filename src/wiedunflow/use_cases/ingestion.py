@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pathspec
 
-from codeguide.adapters.git_context import get_git_context
-from codeguide.entities.ingestion_result import IngestionResult
-from codeguide.ingestion.file_filter import should_include_file
+from wiedunflow.adapters.git_context import get_git_context
+from wiedunflow.entities.ingestion_result import IngestionResult
+from wiedunflow.ingestion.file_filter import should_include_file
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def ingest(
             ``CodeguideConfig.security_allow_secret_files``).
 
     Returns:
-        A populated :class:`~codeguide.entities.ingestion_result.IngestionResult`.
+        A populated :class:`~wiedunflow.entities.ingestion_result.IngestionResult`.
     """
     repo_root = root_override if root_override is not None else repo_path
 

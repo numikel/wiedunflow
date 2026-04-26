@@ -6,8 +6,8 @@ from typing import cast
 
 import networkx as nx
 
-from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.ranked_graph import RankedGraph, RankedSymbol
+from wiedunflow.entities.call_graph import CallGraph
+from wiedunflow.entities.ranked_graph import RankedGraph, RankedSymbol
 
 _PAGERANK_ALPHA = 0.85
 _PAGERANK_MAX_ITER = 100

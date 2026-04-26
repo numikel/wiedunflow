@@ -27,8 +27,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-import codeguide.cli.config as config_module
-from codeguide.cli.config import load_config
+import wiedunflow.cli.config as config_module
+from wiedunflow.cli.config import load_config
 
 pytestmark = pytest.mark.integration
 
@@ -204,7 +204,7 @@ class TestConfigPrecedenceChain:
             config_module, "user_config_path", lambda: tmp_path / "nonexistent.yaml"
         )
 
-        with caplog.at_level(logging.DEBUG, logger="codeguide.cli.config"):
+        with caplog.at_level(logging.DEBUG, logger="wiedunflow.cli.config"):
             load_config(cli_overrides={"llm_provider": "openai"})
 
         log_messages = [r.getMessage() for r in caplog.records]

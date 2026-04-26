@@ -34,10 +34,10 @@ from typing import Any
 import pytest
 from click.testing import CliRunner
 
-from codeguide.adapters.fake_llm_provider import FakeLLMProvider
-from codeguide.cli.main import cli as cli_main
-from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import LessonManifest
+from wiedunflow.adapters.fake_llm_provider import FakeLLMProvider
+from wiedunflow.cli.main import cli as cli_main
+from wiedunflow.entities.lesson import Lesson
+from wiedunflow.entities.lesson_manifest import LessonManifest
 
 pytestmark = pytest.mark.integration
 
@@ -65,7 +65,7 @@ def _patch_llm_builder(monkeypatch: pytest.MonkeyPatch) -> None:
     inject degraded / exploding / hallucinating variants.
     """
     monkeypatch.setattr(
-        "codeguide.cli.main._build_llm_provider",
+        "wiedunflow.cli.main._build_llm_provider",
         lambda config, **_kwargs: FakeLLMProvider(),
     )
 
@@ -89,7 +89,7 @@ def _patch_sigint_handler_noop(monkeypatch: pytest.MonkeyPatch) -> None:
         def restore(self) -> None:
             pass
 
-    monkeypatch.setattr("codeguide.cli.main.SigintHandler", _NoopHandler)
+    monkeypatch.setattr("wiedunflow.cli.main.SigintHandler", _NoopHandler)
 
 
 def _invoke_cli(repo: Path, extra: list[str] | None = None) -> Any:
@@ -196,7 +196,7 @@ def test_degraded_run_exits_2_and_reports_degraded_status(
 ) -> None:
     """All lessons skipped → degraded_ratio=1.0 → exit 2."""
     monkeypatch.setattr(
-        "codeguide.cli.main._build_llm_provider",
+        "wiedunflow.cli.main._build_llm_provider",
         lambda config, **_kwargs: _DegradedFakeLLM(),
     )
     result = _invoke_cli(
@@ -225,7 +225,7 @@ def test_unhandled_exception_produces_failed_report_with_stack_trace(
 ) -> None:
     """LLM raises mid-pipeline → US-029: run-report status=failed + stack_trace, exit 1."""
     monkeypatch.setattr(
-        "codeguide.cli.main._build_llm_provider",
+        "wiedunflow.cli.main._build_llm_provider",
         lambda config, **_kwargs: _ExplodingFakeLLM(),
     )
     result = _invoke_cli(
@@ -270,7 +270,7 @@ def test_pre_fired_sigint_produces_interrupted_report(
         def restore(self) -> None:
             pass
 
-    monkeypatch.setattr("codeguide.cli.main.SigintHandler", _AlreadyFired)
+    monkeypatch.setattr("wiedunflow.cli.main.SigintHandler", _AlreadyFired)
 
     result = _invoke_cli(
         tiny_repo_copy,

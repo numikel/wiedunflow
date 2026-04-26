@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from codeguide.cli.menu import (
+from wiedunflow.cli.menu import (
     _LIST_ADD,
     _LIST_DONE,
     _LIST_EDIT,

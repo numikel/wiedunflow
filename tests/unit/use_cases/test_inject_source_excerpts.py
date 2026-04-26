@@ -8,9 +8,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
-from codeguide.use_cases.inject_source_excerpts import inject_source_excerpts
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
+from wiedunflow.use_cases.inject_source_excerpts import inject_source_excerpts
 
 # ---------------------------------------------------------------------------
 # Helpers

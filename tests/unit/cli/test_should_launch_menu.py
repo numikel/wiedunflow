@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from codeguide.cli.menu import _should_launch_menu
+from wiedunflow.cli.menu import _should_launch_menu
 
 
 @pytest.fixture

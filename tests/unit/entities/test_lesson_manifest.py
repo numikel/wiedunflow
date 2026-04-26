@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.lesson_manifest import (
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
     LessonManifestValidationError,
     LessonSpec,

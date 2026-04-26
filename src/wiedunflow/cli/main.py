@@ -26,8 +26,8 @@ from typing import Literal
 
 import click
 
-from codeguide import __version__
-from codeguide.adapters import (
+from wiedunflow import __version__
+from wiedunflow.adapters import (
     Bm25Store,
     FakeClock,
     FakeLLMProvider,
@@ -35,41 +35,41 @@ from codeguide.adapters import (
     NetworkxRanker,
     TreeSitterParser,
 )
-from codeguide.adapters.anthropic_provider import AnthropicProvider
-from codeguide.adapters.openai_provider import OpenAIProvider
-from codeguide.adapters.sqlite_cache import SQLiteCache
-from codeguide.cli.config import CodeguideConfig, ConfigError, load_config, resolve_api_key
-from codeguide.cli.consent import (
+from wiedunflow.adapters.anthropic_provider import AnthropicProvider
+from wiedunflow.adapters.openai_provider import OpenAIProvider
+from wiedunflow.adapters.sqlite_cache import SQLiteCache
+from wiedunflow.cli.config import CodeguideConfig, ConfigError, load_config, resolve_api_key
+from wiedunflow.cli.consent import (
     ConsentDeniedError,
     ConsentRequiredError,
     ensure_consent_granted,
 )
-from codeguide.cli.cost_estimator import CostEstimate
-from codeguide.cli.cost_gate import prompt_cost_gate
-from codeguide.cli.history_rotator import write_history_copy
-from codeguide.cli.init_wizard import run_init_wizard
-from codeguide.cli.logging import configure as configure_logging
-from codeguide.cli.logging import get_logger as get_structlog
-from codeguide.cli.output import (
+from wiedunflow.cli.cost_estimator import CostEstimate
+from wiedunflow.cli.cost_gate import prompt_cost_gate
+from wiedunflow.cli.history_rotator import write_history_copy
+from wiedunflow.cli.init_wizard import run_init_wizard
+from wiedunflow.cli.logging import configure as configure_logging
+from wiedunflow.cli.logging import get_logger as get_structlog
+from wiedunflow.cli.output import (
     init_console,
     print_cost_abort,
     print_done_summary,
     render_banner,
     render_run_report,
 )
-from codeguide.cli.run_report_writer import write_run_report
-from codeguide.cli.signals import SigintHandler
-from codeguide.cli.stage_reporter import StageReporter
-from codeguide.entities.run_report import RunReport, RunStatus
-from codeguide.interfaces.ports import LLMProvider
-from codeguide.use_cases.generate_tutorial import (
+from wiedunflow.cli.run_report_writer import write_run_report
+from wiedunflow.cli.signals import SigintHandler
+from wiedunflow.cli.stage_reporter import StageReporter
+from wiedunflow.entities.run_report import RunReport, RunStatus
+from wiedunflow.interfaces.ports import LLMProvider
+from wiedunflow.use_cases.generate_tutorial import (
     CostGateAbortedError,
     GenerationResult,
     MaxCostExceededError,
     Providers,
     generate_tutorial,
 )
-from codeguide.use_cases.plan_lesson_manifest import PlanningFatalError
+from wiedunflow.use_cases.plan_lesson_manifest import PlanningFatalError
 
 logger = logging.getLogger(__name__)
 
@@ -462,7 +462,7 @@ def main() -> None:
     non-TTY, ``CODEGUIDE_NO_MENU=1``) flow through the existing click group
     bit-exact.
     """
-    from codeguide.cli.menu import QuestionaryMenuIO, _should_launch_menu, main_menu_loop
+    from wiedunflow.cli.menu import QuestionaryMenuIO, _should_launch_menu, main_menu_loop
 
     if _should_launch_menu():
         main_menu_loop(QuestionaryMenuIO())
@@ -560,12 +560,12 @@ def _build_pricing_chain() -> object:
     downgrade to ``None`` per query, so the chain falls through to
     :class:`StaticPricingCatalog` and never raises.
     """
-    from codeguide.adapters.cached_pricing_catalog import (
+    from wiedunflow.adapters.cached_pricing_catalog import (
         CachedPricingCatalog,
         ChainedPricingCatalog,
     )
-    from codeguide.adapters.litellm_pricing_catalog import LiteLLMPricingCatalog
-    from codeguide.adapters.static_pricing_catalog import StaticPricingCatalog
+    from wiedunflow.adapters.litellm_pricing_catalog import LiteLLMPricingCatalog
+    from wiedunflow.adapters.static_pricing_catalog import StaticPricingCatalog
 
     return ChainedPricingCatalog(
         [

@@ -25,11 +25,11 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec
+from wiedunflow.entities.lesson_manifest import LessonManifest, LessonSpec
 
 if TYPE_CHECKING:
-    from codeguide.entities.code_ref import CodeRef
-    from codeguide.entities.ranked_graph import RankedGraph
+    from wiedunflow.entities.code_ref import CodeRef
+    from wiedunflow.entities.ranked_graph import RankedGraph
 
 __all__ = ["filter_trivial_helpers"]
 
@@ -61,7 +61,7 @@ def filter_trivial_helpers(
 
     Args:
         manifest: Planning-stage manifest to filter.
-        ranked_graph: Stage 3 :class:`~codeguide.entities.ranked_graph.RankedGraph`
+        ranked_graph: Stage 3 :class:`~wiedunflow.entities.ranked_graph.RankedGraph`
             with ``ranked_symbols`` sorted descending by PageRank score.
         entry_points: Frozenset of qualified symbol names detected as entry points.
         enabled: When ``False`` (default), returns ``(manifest, ())`` immediately.
@@ -164,7 +164,7 @@ def filter_trivial_helpers(
 
     # The helper-appendix tuple is consumed by the orchestrator
     # (``generate_tutorial.py``) which attaches a typed
-    # :class:`~codeguide.entities.lesson.HelperAppendixEntry` collection to
+    # :class:`~wiedunflow.entities.lesson.HelperAppendixEntry` collection to
     # the closing :class:`Lesson` after Stage 6 narration. The renderer
     # serialises ``Lesson.helper_appendix`` into the JSON envelope under the
     # top-level ``helper_appendix`` field, which the JS consumes directly —

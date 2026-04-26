@@ -8,7 +8,7 @@ import io
 
 from rich.console import Console
 
-from codeguide.cli.output import make_theme, render_run_report
+from wiedunflow.cli.output import make_theme, render_run_report
 
 
 def _capture() -> tuple[Console, io.StringIO]:

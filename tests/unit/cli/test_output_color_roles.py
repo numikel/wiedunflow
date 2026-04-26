@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from rich.style import Style
 
-from codeguide.cli.output import make_theme
+from wiedunflow.cli.output import make_theme
 
 _EXPECTED_ROLES = frozenset({"default", "dim", "good", "warn", "err", "accent", "link", "prompt"})
 

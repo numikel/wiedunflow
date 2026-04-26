@@ -6,9 +6,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from codeguide.adapters.fake_llm_provider import FakeLLMProvider
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.interfaces.ports import LLMProvider
+from wiedunflow.adapters.fake_llm_provider import FakeLLMProvider
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.interfaces.ports import LLMProvider
 
 
 def _mk_symbol(

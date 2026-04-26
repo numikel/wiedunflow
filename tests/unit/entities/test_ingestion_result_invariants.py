@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from codeguide.entities import IngestionResult
+from wiedunflow.entities import IngestionResult
 
 
 def test_minimal_valid_instance():

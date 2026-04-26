@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import pytest
 
-from codeguide.entities.cache_entry import PageRankSnapshot
-from codeguide.entities.ranked_graph import RankedGraph, RankedSymbol
-from codeguide.use_cases.graph_diff import (
+from wiedunflow.entities.cache_entry import PageRankSnapshot
+from wiedunflow.entities.ranked_graph import RankedGraph, RankedSymbol
+from wiedunflow.use_cases.graph_diff import (
     compute_structural_change,
     is_structural_change,
     pagerank_diff,

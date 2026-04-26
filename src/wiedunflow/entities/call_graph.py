@@ -6,8 +6,8 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.resolution_stats import ResolutionStats
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.resolution_stats import ResolutionStats
 
 
 class CallGraph(BaseModel):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from codeguide.use_cases.offline_linter import OfflineLinterError, validate_offline_invariant
+from wiedunflow.use_cases.offline_linter import OfflineLinterError, validate_offline_invariant
 
 
 @pytest.mark.parametrize(

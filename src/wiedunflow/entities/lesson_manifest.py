@@ -7,8 +7,8 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.doc_coverage import DocCoverage
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.doc_coverage import DocCoverage
 
 __all__ = [
     "CodeRef",

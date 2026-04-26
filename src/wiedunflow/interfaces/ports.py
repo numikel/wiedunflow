@@ -6,11 +6,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import LessonManifest
-from codeguide.entities.ranked_graph import RankedGraph
+from wiedunflow.entities.call_graph import CallGraph
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.lesson import Lesson
+from wiedunflow.entities.lesson_manifest import LessonManifest
+from wiedunflow.entities.ranked_graph import RankedGraph
 
 
 @runtime_checkable

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.entities.cache_key import (
+from wiedunflow.entities.cache_key import (
     build_cache_key,
     build_file_key,
     build_plan_key,

@@ -9,11 +9,11 @@ cached plan can be reused with only incremental lesson updates.
 Two families of functions are provided:
 
 1. **RankedGraph-based** (``compute_structural_change`` / ``is_structural_change``):
-   operate on live :class:`~codeguide.entities.ranked_graph.RankedGraph` objects
+   operate on live :class:`~wiedunflow.entities.ranked_graph.RankedGraph` objects
    and are used during the pipeline run before any persistence occurs.
 
 2. **PageRankSnapshot-based** (``pagerank_diff`` / ``should_regenerate_manifest``):
-   operate on the lightweight :class:`~codeguide.entities.cache_entry.PageRankSnapshot`
+   operate on the lightweight :class:`~wiedunflow.entities.cache_entry.PageRankSnapshot`
    persisted in the SQLite cache (ADR-0008), allowing the caching layer to compare
    the current run against the previous run without reconstructing full graph objects.
 
@@ -22,8 +22,8 @@ Both families apply the same 20 % symmetric-difference threshold.
 
 from __future__ import annotations
 
-from codeguide.entities.cache_entry import PageRankSnapshot
-from codeguide.entities.ranked_graph import RankedGraph
+from wiedunflow.entities.cache_entry import PageRankSnapshot
+from wiedunflow.entities.ranked_graph import RankedGraph
 
 
 def compute_structural_change(

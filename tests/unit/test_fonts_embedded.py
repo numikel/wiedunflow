@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-FONTS_DIR = files("codeguide.renderer").joinpath("fonts")
-TOKENS_CSS = files("codeguide.renderer").joinpath("templates/tokens.css")
+FONTS_DIR = files("wiedunflow.renderer").joinpath("fonts")
+TOKENS_CSS = files("wiedunflow.renderer").joinpath("templates/tokens.css")
 
 REQUIRED_FONTS = [
     "Inter-Regular.woff2",

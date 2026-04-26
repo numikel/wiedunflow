@@ -6,7 +6,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from codeguide.entities.lesson import Lesson
+from wiedunflow.entities.lesson import Lesson
 
 
 class LessonPlan(BaseModel):

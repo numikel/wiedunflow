@@ -19,7 +19,7 @@ class CodeRef(BaseModel):
 
     Attributes:
         source_excerpt: Raw source lines for this reference (populated by
-            :func:`~codeguide.use_cases.inject_source_excerpts.inject_source_excerpts`
+            :func:`~wiedunflow.use_cases.inject_source_excerpts.inject_source_excerpts`
             for primary refs with span < ``primary_max_lines``). ``None`` when
             the excerpt was not injected (large body, non-primary role, or cache
             replay from a manifest without this field). Backward-compatible with

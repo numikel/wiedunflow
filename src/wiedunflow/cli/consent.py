@@ -2,8 +2,8 @@
 # Copyright 2026 Michał Kamiński
 """Consent banner and persistent consent state for LLM provider usage (US-005/007).
 
-Consent is persisted per-provider via the :class:`~codeguide.interfaces.consent_store.ConsentStore`
-port.  The default adapter is :class:`~codeguide.adapters.yaml_consent_store.YamlConsentStore`
+Consent is persisted per-provider via the :class:`~wiedunflow.interfaces.consent_store.ConsentStore`
+port.  The default adapter is :class:`~wiedunflow.adapters.yaml_consent_store.YamlConsentStore`
 which writes to ``<user_config_dir>/codeguide/consent.yaml`` with ``0o600`` permissions.
 
 The session-scoped in-memory ``_granted`` set is kept for backward compatibility:
@@ -19,7 +19,7 @@ from pathlib import Path
 import click
 import platformdirs
 
-from codeguide.interfaces.consent_store import ConsentStore
+from wiedunflow.interfaces.consent_store import ConsentStore
 
 
 class ConsentRequiredError(Exception):
@@ -71,7 +71,7 @@ def _reset_for_tests() -> None:
 
 
 def _default_store() -> ConsentStore:
-    """Return the active :class:`~codeguide.interfaces.consent_store.ConsentStore`.
+    """Return the active :class:`~wiedunflow.interfaces.consent_store.ConsentStore`.
 
     During tests (after :func:`_reset_for_tests` is called) returns a fresh
     in-memory ``_NullConsentStore`` so real YAML state is not polluted.
@@ -82,7 +82,7 @@ def _default_store() -> ConsentStore:
     if override is not None:
         return override
 
-    from codeguide.adapters.yaml_consent_store import YamlConsentStore  # noqa: PLC0415
+    from wiedunflow.adapters.yaml_consent_store import YamlConsentStore  # noqa: PLC0415
 
     consent_path = Path(platformdirs.user_config_dir("codeguide")) / "consent.yaml"
     return YamlConsentStore(path=consent_path)
@@ -99,7 +99,7 @@ def ensure_consent_granted(
 
     Consent is checked in two layers:
     1. Session-scoped in-memory cache (fast path, reset between processes).
-    2. Persistent :class:`~codeguide.interfaces.consent_store.ConsentStore`
+    2. Persistent :class:`~wiedunflow.interfaces.consent_store.ConsentStore`
        (survives across runs).
 
     After a successful interactive confirmation the grant is written to both
@@ -108,7 +108,7 @@ def ensure_consent_granted(
     Args:
         provider: Provider name, e.g. ``"anthropic"`` or ``"openai"``.
         store: Consent store instance.  When ``None``, the default
-            :class:`~codeguide.adapters.yaml_consent_store.YamlConsentStore`
+            :class:`~wiedunflow.adapters.yaml_consent_store.YamlConsentStore`
             is used.
         bypass: Skip the interactive prompt — equivalent to ``--yes`` /
             ``--no-consent-prompt``.

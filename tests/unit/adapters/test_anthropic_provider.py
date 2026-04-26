@@ -14,9 +14,9 @@ import pydantic
 import pytest
 from anthropic.types import TextBlock
 
-from codeguide.adapters.anthropic_provider import AnthropicProvider
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.lesson_manifest import LessonManifest
+from wiedunflow.adapters.anthropic_provider import AnthropicProvider
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.lesson_manifest import LessonManifest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -68,7 +68,7 @@ def _fake_rate_limit_error() -> anthropic.RateLimitError:
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_init_requires_api_key(mock_cls, monkeypatch):
     """No api_key arg and no env var → ValueError."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -76,7 +76,7 @@ def test_init_requires_api_key(mock_cls, monkeypatch):
         AnthropicProvider(api_key=None)
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_init_uses_env_key(mock_cls, monkeypatch):
     """ANTHROPIC_API_KEY env var is picked up when api_key= is not passed."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-env-test")
@@ -86,7 +86,7 @@ def test_init_uses_env_key(mock_cls, monkeypatch):
     assert provider is not None
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_init_explicit_key_wins(mock_cls, monkeypatch):
     """Explicit api_key= overrides ANTHROPIC_API_KEY env var."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-env")
@@ -100,7 +100,7 @@ def test_init_explicit_key_wins(mock_cls, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_plan_uses_sonnet_model(mock_cls, monkeypatch):
     """plan() calls messages.create with the plan model and correct max_tokens."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -120,7 +120,7 @@ def test_plan_uses_sonnet_model(mock_cls, monkeypatch):
     assert len(manifest.lessons) == 1
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_plan_custom_model(mock_cls, monkeypatch):
     """model_plan= constructor arg is forwarded to messages.create."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -135,7 +135,7 @@ def test_plan_custom_model(mock_cls, monkeypatch):
     assert kwargs["model"] == "claude-sonnet-4-5"
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_plan_invalid_json_raises(mock_cls, monkeypatch):
     """Malformed JSON response from plan() propagates pydantic.ValidationError."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -153,7 +153,7 @@ def test_plan_invalid_json_raises(mock_cls, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_narrate_uses_opus_model(mock_cls, monkeypatch):
     """narrate() calls messages.create with the narrate model and correct max_tokens."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -174,7 +174,7 @@ def test_narrate_uses_opus_model(mock_cls, monkeypatch):
     assert "module.func" in lesson.code_refs
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_narrate_system_prompt_includes_concepts(mock_cls, monkeypatch):
     """narrate() injects concepts_introduced into the system prompt."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -191,7 +191,7 @@ def test_narrate_system_prompt_includes_concepts(mock_cls, monkeypatch):
     assert "beta" in system_prompt
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_narrate_no_concepts_uses_placeholder(mock_cls, monkeypatch):
     """narrate() with empty concepts_introduced uses '<none yet>' placeholder."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -231,7 +231,7 @@ def _mk_symbol(
     )
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_describe_symbol_uses_haiku_model(mock_cls, monkeypatch):
     """describe_symbol() calls messages.create with the describe model and tight max_tokens."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -251,7 +251,7 @@ def test_describe_symbol_uses_haiku_model(mock_cls, monkeypatch):
     assert description == "A simple addition helper for two integers."
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_describe_symbol_custom_model(mock_cls, monkeypatch):
     """model_describe= constructor arg is forwarded to messages.create."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -266,7 +266,7 @@ def test_describe_symbol_custom_model(mock_cls, monkeypatch):
     assert kwargs["model"] == "claude-haiku-4-6"
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_describe_symbol_prompt_includes_symbol_metadata(mock_cls, monkeypatch):
     """describe_symbol() user prompt embeds symbol name, kind, file, docstring."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -285,7 +285,7 @@ def test_describe_symbol_prompt_includes_symbol_metadata(mock_cls, monkeypatch):
     assert "<source snippet>" in user_prompt
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_describe_symbol_flags_dynamic_and_uncertain(mock_cls, monkeypatch):
     """describe_symbol() surfaces is_dynamic_import / is_uncertain flags in the prompt."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -302,7 +302,7 @@ def test_describe_symbol_flags_dynamic_and_uncertain(mock_cls, monkeypatch):
     assert "uncertain-resolution" in user_prompt
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_describe_symbol_strips_whitespace(mock_cls, monkeypatch):
     """Leading/trailing whitespace in the model response is stripped."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -321,7 +321,7 @@ def test_describe_symbol_strips_whitespace(mock_cls, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_retry_on_rate_limit_succeeds(mock_cls, monkeypatch):
     """Two RateLimitErrors followed by a success → returns result, logs backoffs."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -337,7 +337,7 @@ def test_retry_on_rate_limit_succeeds(mock_cls, monkeypatch):
     logged_events: list[str] = []
 
     with patch(
-        "codeguide.adapters.anthropic_provider._log_backoff",
+        "wiedunflow.adapters.anthropic_provider._log_backoff",
         side_effect=lambda rs: logged_events.append("backoff"),
     ):
         # Use tiny wait so the test doesn't actually sleep long
@@ -349,7 +349,7 @@ def test_retry_on_rate_limit_succeeds(mock_cls, monkeypatch):
     assert len(logged_events) == 2, "Expected two backoff log calls"
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_retry_exhausted_reraises(mock_cls, monkeypatch):
     """After max_retries RateLimitErrors tenacity reraises the final exception."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -362,7 +362,7 @@ def test_retry_exhausted_reraises(mock_cls, monkeypatch):
     provider = AnthropicProvider(max_retries=5, max_wait_s=1)
 
     with (
-        patch("codeguide.adapters.anthropic_provider._log_backoff"),
+        patch("wiedunflow.adapters.anthropic_provider._log_backoff"),
         pytest.raises(anthropic.RateLimitError),
     ):
         provider.plan("outline")
@@ -375,7 +375,7 @@ def test_retry_exhausted_reraises(mock_cls, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("codeguide.adapters.anthropic_provider.anthropic.Anthropic")
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
 def test_multiple_text_blocks_concatenated(mock_cls, monkeypatch):
     """Response with multiple text blocks are concatenated in order."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")

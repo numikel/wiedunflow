@@ -18,10 +18,10 @@ from pathlib import Path
 
 import structlog
 
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.corpus import Document, DocumentCorpus
-from codeguide.entities.ingestion_result import IngestionResult
-from codeguide.interfaces.ports import VectorStore
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.corpus import Document, DocumentCorpus
+from wiedunflow.entities.ingestion_result import IngestionResult
+from wiedunflow.interfaces.ports import VectorStore
 
 logger = structlog.get_logger(__name__)
 

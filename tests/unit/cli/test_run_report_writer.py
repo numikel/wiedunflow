@@ -8,8 +8,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from codeguide.cli.run_report_writer import RunReportWriter, write_run_report
-from codeguide.entities.run_report import RunReport
+from wiedunflow.cli.run_report_writer import RunReportWriter, write_run_report
+from wiedunflow.entities.run_report import RunReport
 
 
 def _mk_report(status: str = "ok", **extra: object) -> RunReport:

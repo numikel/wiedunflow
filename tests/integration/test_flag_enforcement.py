@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.adapters import (
+from wiedunflow.adapters import (
     FakeClock,
     FakeLLMProvider,
     InMemoryCache,
@@ -24,7 +24,7 @@ from codeguide.adapters import (
     StubRanker,
     StubTreeSitterParser,
 )
-from codeguide.use_cases.generate_tutorial import (
+from wiedunflow.use_cases.generate_tutorial import (
     MaxCostExceededError,
     Providers,
     generate_tutorial,
@@ -117,7 +117,7 @@ class TestReviewPlan:
             calls.append(path)
             return 0  # user saved without modifications
 
-        gt_mod = sys.modules["codeguide.use_cases.generate_tutorial"]
+        gt_mod = sys.modules["wiedunflow.use_cases.generate_tutorial"]
         monkeypatch.setattr(gt_mod, "_open_in_editor", fake_editor)
 
         output = tmp_path / "tutorial.html"
@@ -142,7 +142,7 @@ class TestReviewPlan:
             path.write_text("{ not valid json }", encoding="utf-8")
             return 0
 
-        gt_mod = sys.modules["codeguide.use_cases.generate_tutorial"]
+        gt_mod = sys.modules["wiedunflow.use_cases.generate_tutorial"]
         monkeypatch.setattr(gt_mod, "_open_in_editor", fake_editor)
 
         output = tmp_path / "tutorial.html"

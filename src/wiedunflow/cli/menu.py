@@ -27,13 +27,13 @@ from typing import Any, Protocol, cast, runtime_checkable
 import questionary
 from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 
-from codeguide.adapters.anthropic_model_catalog import AnthropicModelCatalog
-from codeguide.adapters.cached_model_catalog import CachedModelCatalog
-from codeguide.adapters.openai_model_catalog import OpenAIModelCatalog
-from codeguide.cli.config import CodeguideConfig, load_config, user_config_path
-from codeguide.cli.menu_banner import print_banner
-from codeguide.cli.picker_sources import discover_git_repos, load_recent_runs
-from codeguide.interfaces.model_catalog import ModelCatalog
+from wiedunflow.adapters.anthropic_model_catalog import AnthropicModelCatalog
+from wiedunflow.adapters.cached_model_catalog import CachedModelCatalog
+from wiedunflow.adapters.openai_model_catalog import OpenAIModelCatalog
+from wiedunflow.cli.config import CodeguideConfig, load_config, user_config_path
+from wiedunflow.cli.menu_banner import print_banner
+from wiedunflow.cli.picker_sources import discover_git_repos, load_recent_runs
+from wiedunflow.interfaces.model_catalog import ModelCatalog
 
 # Top-level menu items. Order is meaningful — most-used first.
 # v0.4.0 (post-launch UX iteration): "Initialize config" + "Show config" merged
@@ -683,7 +683,7 @@ def _apply_edit(
 
 def _render_config_panel(saved: CodeguideConfig) -> None:
     """Render the read-only config panel (also used as the editor's header)."""
-    from codeguide.cli.output import init_console, render_info_panel
+    from wiedunflow.cli.output import init_console, render_info_panel
 
     console = init_console()
     lines: list[tuple[str, str]] = [
@@ -807,7 +807,7 @@ def _run_config_from_menu(
 
 def _run_estimate_from_menu(io: MenuIO) -> None:
     """Estimate cost for a repo without launching the pipeline (file-count heuristic)."""
-    from codeguide.cli.output import init_console, render_info_panel
+    from wiedunflow.cli.output import init_console, render_info_panel
 
     _redraw_chrome("Estimate cost")
     raw = io.text("Repo path (paste or type):", default="")
@@ -866,7 +866,7 @@ def _run_estimate_from_menu(io: MenuIO) -> None:
 
 def _run_resume_from_menu(io: MenuIO) -> None:
     """Resume an interrupted run by replaying the cached checkpoint."""
-    from codeguide.adapters.sqlite_cache import SQLiteCache
+    from wiedunflow.adapters.sqlite_cache import SQLiteCache
 
     _redraw_chrome("Resume last run")
     raw = io.text("Repo path of the run to resume:", default="")
@@ -1017,7 +1017,7 @@ _PICKER_BACK = "Back"
 
 def _run_recent_from_menu(io: MenuIO) -> None:
     """Show recent pipeline runs; selection re-renders the entry's details."""
-    from codeguide.cli.output import init_console, render_info_panel
+    from wiedunflow.cli.output import init_console, render_info_panel
 
     while True:
         _redraw_chrome("Recent runs")
@@ -1060,7 +1060,7 @@ def _run_recent_from_menu(io: MenuIO) -> None:
         out_path = entry.get("output_path", "")
         if out_path:
             try:
-                from codeguide.cli.output import osc8_hyperlink as _osc8
+                from wiedunflow.cli.output import osc8_hyperlink as _osc8
 
                 console.print(
                     f"  open  [link={Path(out_path).resolve().as_uri()}]{out_path}[/link]"
@@ -1073,7 +1073,7 @@ def _run_recent_from_menu(io: MenuIO) -> None:
 
 def _run_help_from_menu(io: MenuIO) -> None:
     """Render a quick-reference help panel covering the 7 menu items."""
-    from codeguide.cli.output import init_console, render_info_panel
+    from wiedunflow.cli.output import init_console, render_info_panel
 
     _redraw_chrome("Help")
     console = init_console()
@@ -1664,12 +1664,12 @@ def _default_pricing_catalog() -> Any:
     LiteLLM HTTP call (the chain still works offline because every layer
     short-circuits cleanly to ``None``).
     """
-    from codeguide.adapters.cached_pricing_catalog import (
+    from wiedunflow.adapters.cached_pricing_catalog import (
         CachedPricingCatalog,
         ChainedPricingCatalog,
     )
-    from codeguide.adapters.litellm_pricing_catalog import LiteLLMPricingCatalog
-    from codeguide.adapters.static_pricing_catalog import StaticPricingCatalog
+    from wiedunflow.adapters.litellm_pricing_catalog import LiteLLMPricingCatalog
+    from wiedunflow.adapters.static_pricing_catalog import StaticPricingCatalog
 
     return ChainedPricingCatalog(
         [
@@ -1698,7 +1698,7 @@ def _heuristic_estimate(
     back to the hardcoded ``cost_estimator.MODEL_PRICES`` map when the
     catalog returns ``None`` for a model id.
     """
-    from codeguide.cli.cost_estimator import estimate
+    from wiedunflow.cli.cost_estimator import estimate
 
     if pricing_catalog is None:
         pricing_catalog = _default_pricing_catalog()
@@ -1780,7 +1780,7 @@ def _subwizard_summary_and_launch(io: MenuIO, payload: dict[str, Any]) -> None:
     """
     _redraw_chrome("Generate · Section 5/5 · Review & Launch")
 
-    from codeguide.cli.output import init_console, render_generate_summary
+    from wiedunflow.cli.output import init_console, render_generate_summary
 
     console = init_console()
     estimate_obj = _heuristic_estimate(
@@ -1827,24 +1827,24 @@ def _launch_pipeline(payload: dict[str, Any]) -> None:
     # Local imports avoid an import cycle (main.py imports menu via main()).
     from datetime import UTC, datetime
 
-    from codeguide.adapters import (
+    from wiedunflow.adapters import (
         Bm25Store,
         FakeClock,
         JediResolver,
         NetworkxRanker,
         TreeSitterParser,
     )
-    from codeguide.adapters.sqlite_cache import SQLiteCache
-    from codeguide.cli.config import ConfigError, load_config
-    from codeguide.cli.consent import ConsentDeniedError, ConsentRequiredError
-    from codeguide.cli.main import (
+    from wiedunflow.adapters.sqlite_cache import SQLiteCache
+    from wiedunflow.cli.config import ConfigError, load_config
+    from wiedunflow.cli.consent import ConsentDeniedError, ConsentRequiredError
+    from wiedunflow.cli.main import (
         _build_llm_provider,
         _resolve_output_path,
         _run_pipeline,
     )
-    from codeguide.cli.output import init_console
-    from codeguide.cli.signals import SigintHandler
-    from codeguide.use_cases.generate_tutorial import Providers
+    from wiedunflow.cli.output import init_console
+    from wiedunflow.cli.signals import SigintHandler
+    from wiedunflow.use_cases.generate_tutorial import Providers
 
     started_at = datetime.now(UTC)
 

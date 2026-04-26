@@ -11,32 +11,32 @@ from typing import TYPE_CHECKING
 import structlog
 from pydantic import BaseModel, ConfigDict
 
-from codeguide import __version__ as _codeguide_version
-from codeguide.adapters.jinja_renderer import JinjaRenderer, _markdown_to_html
-from codeguide.adapters.pygments_highlighter import highlight_python as _highlight_python
-from codeguide.cli.cost_estimator import CostEstimate
-from codeguide.cli.cost_estimator import estimate as _estimate_cost
-from codeguide.cli.editor_resolver import open_in_editor as _open_in_editor
-from codeguide.cli.stage_reporter import NoOpReporter, StageReporter
-from codeguide.entities.lesson import HelperAppendixEntry, Lesson
-from codeguide.entities.lesson_manifest import (
+from wiedunflow import __version__ as _codeguide_version
+from wiedunflow.adapters.jinja_renderer import JinjaRenderer, _markdown_to_html
+from wiedunflow.adapters.pygments_highlighter import highlight_python as _highlight_python
+from wiedunflow.cli.cost_estimator import CostEstimate
+from wiedunflow.cli.cost_estimator import estimate as _estimate_cost
+from wiedunflow.cli.editor_resolver import open_in_editor as _open_in_editor
+from wiedunflow.cli.stage_reporter import NoOpReporter, StageReporter
+from wiedunflow.entities.lesson import HelperAppendixEntry, Lesson
+from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
     LessonSpec,
     ManifestMetadata,
 )
-from codeguide.entities.lesson_plan import LessonPlan
-from codeguide.entities.skipped_lesson import SkippedLesson
-from codeguide.use_cases.doc_coverage import compute_doc_coverage
-from codeguide.use_cases.entry_point_detector import detect_entry_points
-from codeguide.use_cases.grounding_retry import narrate_with_grounding_retry
-from codeguide.use_cases.ingestion import ingest
-from codeguide.use_cases.inject_source_excerpts import inject_source_excerpts
-from codeguide.use_cases.offline_linter import validate_offline_invariant
-from codeguide.use_cases.outline_builder import build_outline
-from codeguide.use_cases.plan_lesson_manifest import PlanningFatalError, plan_with_retry
-from codeguide.use_cases.rag_corpus import build_and_index
-from codeguide.use_cases.readme_excerpt import load_readme_excerpt
-from codeguide.use_cases.skip_trivial import filter_trivial_helpers
+from wiedunflow.entities.lesson_plan import LessonPlan
+from wiedunflow.entities.skipped_lesson import SkippedLesson
+from wiedunflow.use_cases.doc_coverage import compute_doc_coverage
+from wiedunflow.use_cases.entry_point_detector import detect_entry_points
+from wiedunflow.use_cases.grounding_retry import narrate_with_grounding_retry
+from wiedunflow.use_cases.ingestion import ingest
+from wiedunflow.use_cases.inject_source_excerpts import inject_source_excerpts
+from wiedunflow.use_cases.offline_linter import validate_offline_invariant
+from wiedunflow.use_cases.outline_builder import build_outline
+from wiedunflow.use_cases.plan_lesson_manifest import PlanningFatalError, plan_with_retry
+from wiedunflow.use_cases.rag_corpus import build_and_index
+from wiedunflow.use_cases.readme_excerpt import load_readme_excerpt
+from wiedunflow.use_cases.skip_trivial import filter_trivial_helpers
 
 # v0.3.0 Fix (P0 from rubber-duck code review): markdown→HTML for the
 # standalone Project README lesson reuses jinja_renderer._markdown_to_html so
@@ -46,10 +46,10 @@ from codeguide.use_cases.skip_trivial import filter_trivial_helpers
 # any real repo with external links in the README).
 
 if TYPE_CHECKING:
-    from codeguide.entities.code_symbol import CodeSymbol
-    from codeguide.entities.doc_coverage import DocCoverage
-    from codeguide.entities.ranked_graph import RankedGraph
-    from codeguide.interfaces.ports import (
+    from wiedunflow.entities.code_symbol import CodeSymbol
+    from wiedunflow.entities.doc_coverage import DocCoverage
+    from wiedunflow.entities.ranked_graph import RankedGraph
+    from wiedunflow.interfaces.ports import (
         Cache,
         Clock,
         LLMProvider,
@@ -721,7 +721,7 @@ def _build_closing_spec(
         ranked: Stage 3 ranked graph for picking omitted high-rank symbols.
 
     Returns:
-        A :class:`~codeguide.entities.lesson_manifest.LessonSpec` with
+        A :class:`~wiedunflow.entities.lesson_manifest.LessonSpec` with
         ``is_closing=True`` and no ``code_refs`` (closing lesson is not
         grounded in specific symbols).
     """

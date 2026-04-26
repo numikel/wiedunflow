@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.use_cases.ingestion import ingest
+from wiedunflow.use_cases.ingestion import ingest
 
 _TINY_REPO = Path(__file__).parent.parent.parent / "fixtures" / "tiny_repo"
 

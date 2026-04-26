@@ -5,11 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import LessonSpec
-from codeguide.entities.skipped_lesson import SkippedLesson
-from codeguide.use_cases.grounding_retry import (
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.lesson import Lesson
+from wiedunflow.entities.lesson_manifest import LessonSpec
+from wiedunflow.entities.skipped_lesson import SkippedLesson
+from wiedunflow.use_cases.grounding_retry import (
     _MAX_WORDS,
     _MIN_WORDS_COMPLEX,
     _MIN_WORDS_DEFAULT,

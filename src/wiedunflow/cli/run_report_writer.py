@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from codeguide.entities.run_report import RunReport
+from wiedunflow.entities.run_report import RunReport
 
 __all__ = ["RunReportWriter", "write_run_report"]
 

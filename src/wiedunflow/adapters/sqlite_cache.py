@@ -27,13 +27,13 @@ from pathlib import Path
 import platformdirs
 import structlog
 
-from codeguide.entities.cache_entry import (
+from wiedunflow.entities.cache_entry import (
     CheckpointEntry,
     FileCacheEntry,
     PageRankSnapshot,
     PlanCacheEntry,
 )
-from codeguide.entities.cache_key import build_plan_key
+from wiedunflow.entities.cache_key import build_plan_key
 
 log = structlog.get_logger(__name__)
 

@@ -16,7 +16,7 @@ from pathlib import Path
 
 _SRC_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "codeguide"
 _ALLOWLIST = {
-    "src/codeguide/cli/menu.py",
+    "src/wiedunflow/cli/menu.py",
 }
 
 
@@ -32,6 +32,6 @@ def test_no_questionary_outside_cli_menu() -> None:
             if stripped.startswith("from questionary") or stripped.startswith("import questionary"):
                 offenders.append(f"{rel}: {stripped}")
     assert offenders == [], (
-        "questionary imports must live in src/codeguide/cli/menu.py only; offenders:\n"
+        "questionary imports must live in src/wiedunflow/cli/menu.py only; offenders:\n"
         + "\n".join(offenders)
     )

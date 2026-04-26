@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.adapters.git_context import get_git_context
+from wiedunflow.adapters.git_context import get_git_context
 
 # ---------------------------------------------------------------------------
 # Helpers

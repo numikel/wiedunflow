@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.cli.config import CodeguideConfig, load_config
-from codeguide.cli.main import _resolve_output_path
+from wiedunflow.cli.config import CodeguideConfig, load_config
+from wiedunflow.cli.main import _resolve_output_path
 
 # ---------------------------------------------------------------------------
 # CodeguideConfig — output_path field

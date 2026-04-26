@@ -9,7 +9,7 @@ on every iteration to keep scrollback navigable.
 
 from __future__ import annotations
 
-from codeguide import __version__
+from wiedunflow import __version__
 
 _BANNER = r"""
  ██████╗ ██████╗ ██████╗ ███████╗ ██████╗ ██╗   ██╗██╗██████╗ ███████╗

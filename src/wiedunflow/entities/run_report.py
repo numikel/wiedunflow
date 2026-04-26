@@ -4,7 +4,7 @@
 
 Produced at the end of every invocation (successful, degraded, failed, or
 interrupted) and written atomically to ``.codeguide/run-report.json`` by
-:mod:`codeguide.cli.run_report_writer`.
+:mod:`wiedunflow.cli.run_report_writer`.
 
 Acceptance criteria covered:
 - US-029: ``status="failed"`` carries ``failed_at_lesson`` + ``stack_trace``

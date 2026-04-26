@@ -24,8 +24,8 @@ from pathlib import Path
 
 import structlog
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.lesson_manifest import LessonManifest, LessonSpec
 
 __all__ = ["inject_source_excerpts"]
 
@@ -66,7 +66,7 @@ def inject_source_excerpts(
             to keep prompt token counts bounded.  Defaults to 30.
 
     Returns:
-        A new :class:`~codeguide.entities.lesson_manifest.LessonManifest` with
+        A new :class:`~wiedunflow.entities.lesson_manifest.LessonManifest` with
         ``source_excerpt`` populated where eligible.  The original manifest is
         not mutated.
     """

@@ -21,8 +21,8 @@ from typing import TYPE_CHECKING, Any
 import mistune
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from codeguide import __version__ as _codeguide_version
-from codeguide.adapters.pygments_highlighter import highlight_python
+from wiedunflow import __version__ as _codeguide_version
+from wiedunflow.adapters.pygments_highlighter import highlight_python
 
 
 class _OfflineHTMLRenderer(mistune.HTMLRenderer):
@@ -55,10 +55,10 @@ _markdown_to_html = mistune.create_markdown(
 )
 
 if TYPE_CHECKING:
-    from codeguide.entities.code_symbol import CodeSymbol
-    from codeguide.entities.doc_coverage import DocCoverage
-    from codeguide.entities.lesson import Lesson
-    from codeguide.entities.lesson_plan import LessonPlan
+    from wiedunflow.entities.code_symbol import CodeSymbol
+    from wiedunflow.entities.doc_coverage import DocCoverage
+    from wiedunflow.entities.lesson import Lesson
+    from wiedunflow.entities.lesson_plan import LessonPlan
 
 # Hard ceiling for a single code-panel render (very large files can inflate HTML
 # size past the 8 MB PERFORMANCE_BUDGETS target; clamp here as a safety net).
@@ -328,7 +328,7 @@ class JinjaRenderer:
         Args:
             lesson_plan: Ordered collection of lessons to embed.
             repo_name: Human-readable repository name.
-            codeguide_version: Package version string (defaults to :mod:`codeguide.__version__`).
+            codeguide_version: Package version string (defaults to :mod:`wiedunflow.__version__`).
             generated_at: ISO-8601 timestamp string.
             doc_coverage: Optional resolver coverage metrics (footer badge).
             has_readme: False triggers info banner about missing README.

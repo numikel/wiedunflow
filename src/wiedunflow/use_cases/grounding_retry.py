@@ -7,11 +7,11 @@ import re
 
 import structlog
 
-from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import LessonSpec
-from codeguide.entities.skipped_lesson import SkippedLesson
-from codeguide.interfaces.ports import LLMProvider
-from codeguide.use_cases.snippet_validator import validate_narrative_snippets
+from wiedunflow.entities.lesson import Lesson
+from wiedunflow.entities.lesson_manifest import LessonSpec
+from wiedunflow.entities.skipped_lesson import SkippedLesson
+from wiedunflow.interfaces.ports import LLMProvider
+from wiedunflow.use_cases.snippet_validator import validate_narrative_snippets
 
 __all__ = [
     "count_words",
@@ -143,7 +143,7 @@ def _spec_to_json(spec: LessonSpec, *, project_context: str | None = None) -> st
     exact signatures rather than inventing them (v0.2.1 anti-hallucination fix).
 
     When *project_context* is supplied (typically the README excerpt loaded by
-    :func:`~codeguide.use_cases.readme_excerpt.load_readme_excerpt`), the LLM
+    :func:`~wiedunflow.use_cases.readme_excerpt.load_readme_excerpt`), the LLM
     receives the project-level intent alongside the per-symbol code refs so
     it can keep narrations tight rather than padding with generic prose.
     """
@@ -190,7 +190,7 @@ def _build_reinforcement_spec_json(
 
     Appends a ``grounding_error`` field to the spec JSON so the LLM provider
     can inject it into the narration prompt.  Mirrors the pattern used in
-    :func:`~codeguide.use_cases.plan_lesson_manifest._build_reinforcement` for
+    :func:`~wiedunflow.use_cases.plan_lesson_manifest._build_reinforcement` for
     consistency (ADR-0007).
     """
     allowed_preview = ", ".join(sorted(allowed_symbols)[:30])
@@ -271,7 +271,7 @@ def narrate_with_grounding_retry(  # noqa: PLR0912 — grounding+snippet validat
         spec: The ``LessonSpec`` to narrate.
         allowed_symbols: Frozenset of allowed symbol names from Stage 3.  Pass
             an empty frozenset for closing lessons (no grounding constraint).
-        llm: Provider used to call :meth:`~codeguide.interfaces.ports.LLMProvider.narrate`.
+        llm: Provider used to call :meth:`~wiedunflow.interfaces.ports.LLMProvider.narrate`.
         concepts_introduced: Concepts already taught; forwarded verbatim to
             each ``narrate`` call to prevent re-teaching.
         hallucination_accumulator: Optional mutable list into which any invalid
@@ -286,8 +286,8 @@ def narrate_with_grounding_retry(  # noqa: PLR0912 — grounding+snippet validat
             skip snippet validation entirely (bypass for debugging / rollback).
 
     Returns:
-        A :class:`~codeguide.entities.lesson.Lesson` on success or a
-        :class:`~codeguide.entities.skipped_lesson.SkippedLesson` on double failure.
+        A :class:`~wiedunflow.entities.lesson.Lesson` on success or a
+        :class:`~wiedunflow.entities.skipped_lesson.SkippedLesson` on double failure.
     """
     spec_json = _spec_to_json(spec, project_context=project_context)
 

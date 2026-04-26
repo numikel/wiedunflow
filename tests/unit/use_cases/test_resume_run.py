@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
-from codeguide.use_cases.resume_run import slice_manifest_at_first_incomplete
+from wiedunflow.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
+from wiedunflow.use_cases.resume_run import slice_manifest_at_first_incomplete
 
 # ---------------------------------------------------------------------------
 # Helpers

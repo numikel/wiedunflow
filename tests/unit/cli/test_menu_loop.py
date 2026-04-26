@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from codeguide.cli.menu import (
+from wiedunflow.cli.menu import (
     MENU_EXIT,
     MENU_GENERATE,
     MENU_HELP,
@@ -26,7 +26,7 @@ from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 def _suppress_banner(monkeypatch: pytest.MonkeyPatch) -> None:
     """Silence the ASCII banner so test output stays clean."""
-    monkeypatch.setattr("codeguide.cli.menu.print_banner", lambda: None)
+    monkeypatch.setattr("wiedunflow.cli.menu.print_banner", lambda: None)
 
 
 def test_exit_choice_terminates_loop_immediately(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,7 +111,7 @@ def test_each_menu_choice_dispatches_then_returns(
         "_run_recent_from_menu",
         "_run_help_from_menu",
     ):
-        monkeypatch.setattr(f"codeguide.cli.menu.{helper}", lambda *a, **k: None)
+        monkeypatch.setattr(f"wiedunflow.cli.menu.{helper}", lambda *a, **k: None)
     io = FakeMenuIO(responses=[choice, MENU_EXIT])
 
     main_menu_loop(io)
@@ -129,7 +129,7 @@ def test_menu_io_protocol_satisfied_by_fake() -> None:
 
 def test_menu_io_protocol_satisfied_by_questionary_impl() -> None:
     """``QuestionaryMenuIO`` must satisfy the Protocol — production guarantee."""
-    from codeguide.cli.menu import QuestionaryMenuIO
+    from wiedunflow.cli.menu import QuestionaryMenuIO
 
     io: MenuIO = QuestionaryMenuIO()
     assert isinstance(io, MenuIO)

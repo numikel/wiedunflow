@@ -18,7 +18,7 @@ Bypass conditions (Q4 in plan, Sprint 8):
 When the user declines (``[N]``) the orchestrator raises
 :class:`CostGateAbortedError`; the CLI translates this into exit code 0
 (user-initiated abort, not a failure) and prints the spec-mandated abort
-message via :func:`codeguide.cli.output.print_cost_abort`.
+message via :func:`wiedunflow.cli.output.print_cost_abort`.
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ from collections.abc import Callable
 
 import click
 
-from codeguide.cli.cost_estimator import CostEstimate
-from codeguide.cli.output import CostGateRow, render_cost_gate
+from wiedunflow.cli.cost_estimator import CostEstimate
+from wiedunflow.cli.output import CostGateRow, render_cost_gate
 
 
 class CostGateAbortedError(RuntimeError):

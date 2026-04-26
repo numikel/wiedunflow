@@ -117,7 +117,7 @@ def _tokenize(text: str) -> list[str]:
 class Bm25Store:
     """BM25-powered VectorStore adapter backed by ``rank_bm25.BM25Okapi``.
 
-    Implements the :class:`~codeguide.interfaces.ports.VectorStore` protocol via
+    Implements the :class:`~wiedunflow.interfaces.ports.VectorStore` protocol via
     duck typing (no explicit base class to keep the entities layer clean).
 
     The store is *not* thread-safe — callers must serialise ``index`` and

@@ -12,7 +12,7 @@ from pathlib import Path
 
 _SRC_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "codeguide"
 _ALLOWLIST = {
-    "src/codeguide/cli/output.py",
+    "src/wiedunflow/cli/output.py",
 }
 
 
@@ -28,6 +28,6 @@ def test_no_rich_outside_cli_output() -> None:
             if stripped.startswith("from rich") or stripped.startswith("import rich"):
                 offenders.append(f"{rel}: {stripped}")
     assert offenders == [], (
-        "rich imports must live in src/codeguide/cli/output.py only; offenders:\n"
+        "rich imports must live in src/wiedunflow/cli/output.py only; offenders:\n"
         + "\n".join(offenders)
     )

@@ -16,14 +16,14 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.lesson_manifest import (
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
     LessonSpec,
     ManifestMetadata,
 )
-from codeguide.entities.ranked_graph import RankedGraph, RankedSymbol
-from codeguide.use_cases.skip_trivial import filter_trivial_helpers
+from wiedunflow.entities.ranked_graph import RankedGraph, RankedSymbol
+from wiedunflow.use_cases.skip_trivial import filter_trivial_helpers
 
 
 def _build_ref(

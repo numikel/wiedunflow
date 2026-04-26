@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.cli.secret_filter import redact, redact_path, truncate_source
+from wiedunflow.cli.secret_filter import redact, redact_path, truncate_source
 
 _REDACTED = "[REDACTED]"
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from codeguide.entities.call_graph import CallGraph
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.resolution_stats import ResolutionStats
+from wiedunflow.entities.call_graph import CallGraph
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.resolution_stats import ResolutionStats
 
 
 class StubJediResolver:

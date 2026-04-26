@@ -176,7 +176,7 @@ def test_repo_hallucinations(
 
     assert count is not None, (
         "run-report.json is missing 'hallucinated_symbols_count' field. "
-        "Ensure src/codeguide/entities/run_report.py is up to date."
+        "Ensure src/wiedunflow/entities/run_report.py is up to date."
     )
     assert count == 0, (
         f"Repo '{repo_name}' produced {count} hallucinated symbols: "

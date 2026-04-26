@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from codeguide.use_cases.entry_point_detector import detect_entry_points
+from wiedunflow.use_cases.entry_point_detector import detect_entry_points
 
 # ---------------------------------------------------------------------------
 # Helpers

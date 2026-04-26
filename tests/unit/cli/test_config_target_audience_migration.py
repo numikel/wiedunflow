@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from codeguide.cli.config import (
+from wiedunflow.cli.config import (
     _normalize_target_audience,
     load_config,
 )
@@ -72,7 +72,7 @@ def test_unknown_string_falls_back_to_mid_with_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """An unmappable value must default to ``mid`` and log a warning."""
-    with caplog.at_level(logging.WARNING, logger="codeguide.cli.config"):
+    with caplog.at_level(logging.WARNING, logger="wiedunflow.cli.config"):
         result = _normalize_target_audience("astronaut")
     assert result == "mid"
     assert any(

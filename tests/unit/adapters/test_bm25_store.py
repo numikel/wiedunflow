@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from codeguide.adapters.bm25_store import Bm25Store, _tokenize
+from wiedunflow.adapters.bm25_store import Bm25Store, _tokenize
 
 # ---------------------------------------------------------------------------
 # Tokeniser tests

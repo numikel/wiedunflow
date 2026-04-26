@@ -9,7 +9,7 @@ Mirrors the ``codeguide`` console script defined in ``pyproject.toml``
 
 from __future__ import annotations
 
-from codeguide.cli.main import cli
+from wiedunflow.cli.main import cli
 
 if __name__ == "__main__":
     cli()

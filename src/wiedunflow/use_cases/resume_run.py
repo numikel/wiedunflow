@@ -18,7 +18,7 @@ Design notes
 
 from __future__ import annotations
 
-from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec
+from wiedunflow.entities.lesson_manifest import LessonManifest, LessonSpec
 
 
 def slice_manifest_at_first_incomplete(

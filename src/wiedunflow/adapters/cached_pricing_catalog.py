@@ -22,7 +22,7 @@ from pathlib import Path
 import platformdirs
 import structlog
 
-from codeguide.interfaces.pricing_catalog import PricingCatalog
+from wiedunflow.interfaces.pricing_catalog import PricingCatalog
 
 logger = structlog.get_logger(__name__)
 

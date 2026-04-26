@@ -8,7 +8,7 @@ is ``cost_estimator.MODEL_PRICES`` so the maintenance surface stays single.
 
 from __future__ import annotations
 
-from codeguide.cli.cost_estimator import MODEL_PRICES
+from wiedunflow.cli.cost_estimator import MODEL_PRICES
 
 
 class StaticPricingCatalog:

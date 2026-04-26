@@ -2,8 +2,8 @@
 # Copyright 2026 Michał Kamiński
 from __future__ import annotations
 
-from codeguide.use_cases.generate_tutorial import Providers, generate_tutorial
-from codeguide.use_cases.offline_linter import OfflineLinterError, validate_offline_invariant
+from wiedunflow.use_cases.generate_tutorial import Providers, generate_tutorial
+from wiedunflow.use_cases.offline_linter import OfflineLinterError, validate_offline_invariant
 
 __all__ = [
     "OfflineLinterError",
