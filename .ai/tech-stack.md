@@ -1,11 +1,11 @@
 # Tech Stack - WiedunFlow
 
-Wersja dokumentu: 0.1.0
-Ostatnia aktualizacja: 2026-04-24
+Wersja dokumentu: v0.2.0
+Ostatnia aktualizacja: 2026-04-26
 Właściciel: Michał Kamiński
-Wydanie docelowe: WiedunFlow v0.1.0 (MVP) — zamknięty
+Wydanie docelowe: WiedunFlow v0.6.0+ (post-MVP polish)
 
-> **Lock wersji (2026-04-24)**: Tech-stack MVP zamknięty na v0.1.0. Późniejsze doprecyzowania jako `0.1.1-draft` (patch), większe zmiany technologiczne na `0.2.0-draft` (roadmap).
+> **Tech-stack po post-MVP polish (v0.6.0)**: aktualne wybory zwalidowane w 4 sprintach (v0.2.0 animacje → v0.3.0 quality enforcement → v0.4.0 TUI menu → v0.5.0 dynamic pricing → v0.6.0 rebrand). sqlite-vec + multi-language parser deferred do roadmap (patrz `.ai/implementation-plan.md`).
 
 Dokument opisuje proponowany stos technologiczny dla WiedunFlow v0.1.0 zgodnie z wymaganiami `.ai/prd.md`. Każdy wybór jest zakotwiczony w konkretnym wymaganiu funkcjonalnym (FR-XX) lub ograniczeniu produktu.
 
@@ -48,7 +48,7 @@ Kluczowe decyzje:
 | Komponent | Wybór | Uzasadnienie |
 |---|---|---|
 | AST | `tree-sitter-python` | Inkrementalny parser odporny na błędy składni — niezbędny przy ingestii dowolnych repozytoriów. Brak CPython‑specific edge cases. |
-| Rozwiązywanie nazw i call graph | `Jedi` | Wystarczające pokrycie dla celu >80% (zielony poziom) bez instalacji zależności docelowego repo. `pyright` adapter zdeklarowany jako v2+ (FR-47). |
+| Rozwiązywanie nazw i call graph | `Jedi` | Wystarczające pokrycie dla celu >80% (zielony poziom) bez instalacji zależności docelowego repo. **`pyright` adapter status (v2+)**: ADR-0006 (AST snapshot schema) bazuje na Jedi resolver — pyright wymaga zmiany kontraktu w `interfaces/parser.py` (Protocol). Decyzja zostanie podjęta w osobnym sprincie po pomiarze accuracy Jedi vs pyright na tym samym corpusie eval (post-v0.7.0). Trigger: FR-47. |
 | Hashowanie plików | `hashlib.sha256` (stdlib) | Granularność inwalidacji cache na poziomie pliku (FR-29). |
 | Filtrowanie plików | `pathspec` (kompatybilny z `.gitignore`) + hard‑refuse list | FR-09, FR-12: `.env*`, `*.pem`, `*_rsa`, `credentials.*` itd. wykluczane przed jakimkolwiek exclude/include użytkownika. |
 | Uncertainty markers | Własna warstwa metadanych w `entities` | Oznaczanie dynamic import / reflection / unresolved Jedi jako `uncertain`; narracja o tym mówi wprost. |
@@ -66,7 +66,7 @@ Kluczowe decyzje:
 
 | Komponent | Wybór | Uzasadnienie |
 |---|---|---|
-| Index store | `rank_bm25` (BM25Okapi) | Zero infrastruktury, zero binarnych rozszerzeń SQLite, deterministyczny ranking — idealny dla testów eval. Wystarczający dla korpusu jednego repo (README + docs + docstrings + commit messages). sqlite-vec + embeddingi zaplanowane do v2 po pomiarze jakości. |
+| Index store | `rank_bm25` (BM25Okapi) | Zero infrastruktury, zero binarnych rozszerzeń SQLite, deterministyczny ranking — idealny dla testów eval. Wystarczający dla korpusu jednego repo (README + docs + docstrings + commit messages). sqlite-vec + embeddingi zaplanowane do v2 po pomiarze jakości. **Status walidacji** (post-v0.6.0): BM25 zwalidowany w v0.7.0 release gate na 5 pinned repos (`tests/eval/corpus/repos.yaml`: click, requests, starlette, python-sdk-mcp, dateutil). Decyzja o sqlite-vec + embeddings (ADR-0015 TBD) wymaga porównania jakości retrieval BM25 vs hybrid na tym samym corpusie — eval baseline z v0.7.0 jest pre-req. ADR-0002 zostaje w mocy do decyzji ADR-0015. |
 | Źródła indeksowane | Docstringi, `README.md`, `docs/**/*.md`, `CONTRIBUTING.md`, commit messages, inline comments (niższa waga) | Zgodnie z PRD sekcja 1. |
 | Normalizacja i tokenizacja | Własny tokenizer (lowercase, snake/camelCase split, stopwords) | Niezależność od modelu embedding; deterministyczność. |
 | Migracja do embeddings (v2) | Port `VectorStore` w `interfaces/` — wymiana adaptera BM25 → sqlite-vec bez zmian w `use_cases/` | Trigger w ADR-0002. |
@@ -140,7 +140,35 @@ Kluczowe decyzje:
 | Pygments → tok-\* classes | Pygments `TokenType` mapped to custom CSS classes via a `HtmlFormatter` subclass: `tok-kw` (Keyword), `tok-str` (String), `tok-com` (Comment), `tok-fn` (Name.Function), `tok-cls` (Name.Class), `tok-num` (Number). Colors in oklch color space. | Details per `.ai/ux-spec.md` §Tutorial.tokens. |
 | CSS strategy | Single CSS source: `src/wiedunflow/renderer/templates/tokens.css` (design tokens / CSS custom properties) + `tutorial.css` (layout + component styles), included via Jinja2 `{% include %}` and inlined into the final HTML at build time. No PostCSS, no Tailwind, no build step. Vanilla CSS only. | Inline-everything constraint (FR-51, `file://` guarantee). |
 
-## 12. Testowanie
+## 12. Pricing & Cost Estimation (v0.5.0+)
+
+**Architecture**: `PricingCatalog` Protocol + 4 adaptery (ADR-0014, 2026-04-26).
+
+| Komponent | Wybór | Uzasadnienie |
+|---|---|---|
+| Port abstrakcji | `interfaces/pricing_catalog.py`: `blended_price_per_mtok(model_id: str) -> float \| None` | Blending formula: 60% input + 40% output, USD/MTok. Empiryczne proporcje dla planning (Stage 4) + narration (Stage 6). |
+| StaticPricingCatalog | Hardcoded `MODEL_PRICES` dict z `cli/cost_estimator.py` | Fallback leaf adapter; gwarancja działania bez network. |
+| LiteLLMPricingCatalog | HTTP fetch via `httpx` z BerriAI/litellm GitHub JSON (~3500 modeli) | Timeout 3s. Dostaje ~3500 modeli; auto-update po LiteLLM publish (bez WiedunFlow release). |
+| CachedPricingCatalog | 24h disk cache decorator (`~/.cache/wiedunflow/pricing-<provider>.json`) | TTL 86400s. Per-provider cache file. |
+| ChainedPricingCatalog | Fallback chain: `[CachedPricingCatalog(LiteLLM), StaticPricingCatalog()]` | Live → static; first non-None wins. Default chain w `cli/main.py:_build_pricing_chain()`. |
+| Network failure handling | Graceful timeout/5xx/404 → empty dict, no crash, fallback to static | Nigdy nie blocka generacji. Partial failure = use best-effort. |
+| Three-sink extension | `import httpx` ONLY w `adapters/litellm_pricing_catalog.py` | Test: `test_no_httpx_outside_litellm_pricing.py`. Lint enforce. |
+| Prefix stripping | `gpt-4.1` i `openai/gpt-4.1` mapują na tę samą cenę | Provider-agnostic pricing lookup. |
+
+**Effect**: nowe modele (`gpt-5.4-mini`, `claude-opus-4-8`) wycenione automatycznie po LiteLLM publish, bez WiedunFlow release.
+
+## 13. CLI / UI Frameworks (v0.4.0+)
+
+| Komponent | Wybór | Uzasadnienie |
+|---|---|---|
+| `rich>=13.7` | CLI panels (cost gate, run-report card, info panels) | Użyto ONLY w: `cli/output.py` ONLY. Lint test: `test_no_rich_outside_output.py`. |
+| `questionary>=2.1.1,<3.0` | TUI menu, sub-wizard prompts, picker | Decyzja: ADR-0013 (Sprint 10/v0.4.0). Used in: `cli/menu.py` ONLY. Lint test: `test_no_questionary_outside_menu.py`. Transitive: `prompt_toolkit` ~600KB. |
+| `click>=8.1.7` | CLI argument parsing (groups, commands, options) | Używane across `cli/`. |
+| Plain `print()` | Diagnostic output, ASCII banner (`cli/menu_banner.py`) | Dla testów i debugowania. |
+
+**Three-sink rule** (ADR-0011 D#8 + ADR-0013 D#9 + ADR-0014 §Alt #2): każdy z 4 wymienionych ma **dokładnie jeden** sink moduł. Żaden inny `src/wiedunflow/**` nie może ich importować — enforced przez lint testy (`test_no_rich_outside_output.py`, `test_no_questionary_outside_menu.py`, `test_no_httpx_outside_litellm_pricing.py`).
+
+## 14. Testowanie
 
 | Komponent | Wybór | Uzasadnienie |
 |---|---|---|
@@ -152,7 +180,7 @@ Kluczowe decyzje:
 | Eval corpus | Git submodules, pinned commits w `tests/eval/corpus/repos.yaml` | FR-74: requests, click, starlette, mcp python‑sdk, dateutil. |
 | Rubryka jakości | 5‑punktowa na coverage/accuracy/narrative flow, avg ≥3 na MCP Python SDK | FR-76. Autor + 2 zaufanych dev. |
 
-## 13. CI/CD
+## 15. CI/CD
 
 | Komponent | Wybór | Uzasadnienie |
 |---|---|---|
@@ -167,7 +195,45 @@ Kluczowe decyzje:
 | Eval workflow | Oddzielny, ręczny trigger z sekretnym API key | FR-77, US-064. |
 | Skan CVE | `pip-audit` (lub `uv audit` gdy dojrzeje) w release workflow | FR-78, US-067. HIGH+ blokuje release. Nie w default matrix. |
 
-## 14. Bezpieczeństwo i prywatność
+## 14. Production Dependencies (v0.1.0+v0.6.0)
+
+**Core pipeline & analysis**:
+- `tree-sitter>=0.25.0`, `tree-sitter-python>=0.25.0` — AST parsing (Etap 1)
+- `jedi>=0.19.2` — call graph resolver (Etap 2)
+- `networkx>=3.3` — graph ranking + PageRank (Etap 3)
+- `rank-bm25>=0.2.2` — BM25Okapi RAG (Etap 4)
+
+**Orchestration & LLM**:
+- `anthropic>=0.40.0` — Anthropic SDK (default provider)
+- `openai>=1.50.0` — OpenAI SDK (alt provider)
+- `tenacity>=9.0.0` — exponential backoff retry (FR-68)
+
+**Config & validation**:
+- `pydantic>=2.7` + `pydantic-settings>=2.6.0` — config validation
+- `pyyaml>=6.0` — YAML parsing
+- `pathspec>=0.12.1` — `.gitignore` compatibility
+
+**Rendering & output**:
+- `jinja2>=3.1` + `markupsafe>=2.1` — HTML templating
+- `pygments>=2.17` — syntax highlighting pre-rendering
+- `mistune>=3.2.0` — markdown rendering w tutorials
+
+**CLI & TUI (v0.4.0+)**:
+- `click>=8.1.7` — CLI framework
+- `rich>=13.7` — cost-gate panels, run-report card, progress bar (sink: `cli/output.py` ONLY)
+- `questionary>=2.1.1,<3.0` — TUI menu, picker, sub-wizard (sink: `cli/menu.py` ONLY; ADR-0013)
+
+**Pricing & cost estimation (v0.5.0+)**:
+- `httpx>=0.27` — **EXPLICIT hard dep** (PricingCatalog adapter, ADR-0014; previously transitive via anthropic/openai). Sink: `adapters/litellm_pricing_catalog.py` ONLY.
+
+**Infrastructure & logging**:
+- `structlog>=24.1` — structured logging (JSON mode, SecretFilter)
+- `platformdirs>=4.3.0` — cross-platform cache + config paths
+- `numpy>=1.24` — linear algebra utilities
+
+**Three-sink rule**: `rich` → `cli/output.py`, `questionary` → `cli/menu.py`, `httpx` → `adapters/litellm_pricing_catalog.py`. Lint-enforced przez `test_no_rich_outside_output.py`, `test_no_questionary_outside_menu.py`, `test_no_httpx_outside_litellm_pricing.py`.
+
+## 16. Bezpieczeństwo i prywatność
 
 | Obszar | Mechanizm | FR |
 |---|---|---|
@@ -182,7 +248,7 @@ Kluczowe decyzje:
 | SecretFilter w logach | `logging.Filter`: API keys, external paths, verbatim source >INFO | FR-80, US-069, FR-26 |
 | LangChain CVE expozycja | N/A — LangChain wycięty z MVP | ADR-0001 |
 
-## 15. Dokumentacja
+## 17. Dokumentacja
 
 | Komponent | Wybór | Uzasadnienie |
 |---|---|---|
@@ -191,7 +257,7 @@ Kluczowe decyzje:
 | Changelog | `CHANGELOG.md`, Keep a Changelog | CLAUDE.md |
 | Schema `tutorial.config.yaml` | JSON Schema w `/docs` + Pydantic model + przykład w README (spójne w jednym PR) | CLAUDE.md |
 
-## 16. Architektura (Clean Architecture, warstwy)
+## 18. Architektura (Clean Architecture, warstwy)
 
 Warstwy i zależności kierują się do wewnątrz (CLAUDE.md → Clean Architecture):
 
@@ -203,7 +269,7 @@ Warstwy i zależności kierują się do wewnątrz (CLAUDE.md → Clean Architect
 
 Ta struktura bezpośrednio umożliwia BYOK (wymiana adaptera LLM) oraz plugin‑ready parser dla TS/JS w v2 (wymiana `Parser`).
 
-## 17. Ryzyka i decyzje do rozstrzygnięcia
+## 19. Ryzyka i decyzje do rozstrzygnięcia
 
 | Ryzyko / otwarta kwestia | Mitigation |
 |---|---|
@@ -216,7 +282,7 @@ Ta struktura bezpośrednio umożliwia BYOK (wymiana adaptera LLM) oraz plugin‑
 | BM25 jakość retrieval na repach z ubogą dokumentacją | FR-46/US-038: warning o niskim pokryciu docstrings; migracja do sqlite-vec w v2 jeśli pomiar wykaże regresję w rubryce jakości (trigger w ADR-0002). |
 | UX pixel-drift during template iteration (Medium) | Playwright visual regression tests (golden snapshots per viewport 1440×900 + 375×812, per theme light + dark) + manual review release gate comparing rendered HTML against `.ai/ux-spec.md` values. |
 
-## 18. Co jest explicite POZA stackiem MVP
+## 20. Co jest explicite POZA stackiem MVP
 
 Zgodnie z sekcją 4.2 PRD i CLAUDE.md:
 
@@ -239,3 +305,15 @@ Zgodnie z sekcją 4.2 PRD i CLAUDE.md:
 - **External font CDN** — fonts self-hosted WOFF2 (ADR-0011 §6, offline-first guarantee).
 
 Każde przesunięcie tej granicy wymaga osobnego ADR i zmiany boundary w PRD.
+
+## Appendix: Cross-References (v0.6.0+)
+
+| ADR | Decyzja | Sprint | Sekcje powiązane | Status |
+|-----|---------|--------|------------------|--------|
+| **ADR-0001** | LLM stack — direct SDK over LangChain/LangGraph | 3 | Orkiestracja LLM (§7) | Accepted 2026-04-16 |
+| **ADR-0002** | RAG in MVP — BM25 over sqlite-vec + embeddings | 3 | RAG & embeddingi (§6) | Accepted 2026-04-16 |
+| **ADR-0013** | Interactive menu-driven TUI ("centrum dowodzenia") | 10 | CLI/UI Frameworks (§13) | Accepted 2026-04-25 |
+| **ADR-0014** | Dynamic pricing catalog — LiteLLM-backed | 11 | Pricing & Cost Estimation (§12) | Accepted 2026-04-26 |
+| **ADR-0015** | sqlite-vec + embeddings evaluation & decision | TBD | RAG & embeddingi (§6) | Pending post-v0.7.0 eval baseline |
+
+**Ścieżka walidacji tech-stack**: eval baseline (v0.7.0 na 5 repos) → BM25 vs hybrid porównanie (pre-req dla ADR-0015) → decyzja sqlite-vec → v0.8.0+ implementacja.

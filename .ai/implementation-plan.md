@@ -1,8 +1,11 @@
 # Plan implementacji WiedunFlow v0.1.0 — sprint breakdown dla delegacji per-US
 
+> **Plan version**: v0.2.0 (backfilled 2026-04-26 z v0.1.x do uwzględnienia Sprint 10/11/12 zrealizowanych post-Sprint 9)
+> **Codebase version**: v0.6.0 (rebrand WiedunFlow); roadmap dalszy w `~/.claude/plans/zapoznaj-si-z-ai-implementation-plan-md-buzzing-ember.md`
+
 ## Context
 
-**WiedunFlow** (rebrand z WiedunFlow, v0.6.0+) to greenfield Python CLI (3.11+) generujący pojedynczy self-contained HTML z tutorialem po lokalnym repo Git. Spec docelowy: `.ai/prd.md` (v0.1.2-draft, 90 FR / 80 US), tech stack: `.ai/tech-stack.md`, reguły projektu: `D:\WiedunFlow\CLAUDE.md`, ADRy w `docs/adr/`.
+**WiedunFlow** (rebrand z CodeGuide w v0.6.0) to Python CLI (3.11+) generujący pojedynczy self-contained HTML z tutorialem po lokalnym repo Git. Spec docelowy: `.ai/prd.md` (v0.1.3-draft, 99 US / FR-91), tech stack: `.ai/tech-stack.md` (v0.2.0), reguły projektu: `D:\WiedunFlow\CLAUDE.md`, ADRy w `docs/adr/` (0001-0014 Accepted).
 
 **Stan startowy (potwierdzony rekonesansem)**: repo jest w 100% greenfield na początku S0 — istnieją tylko `CLAUDE.md`, `.gitignore` oraz `docs/adr/0001*` i `docs/adr/0002*`. Brak `pyproject.toml`, brak `src/`, brak `.github/`, brak `LICENSE`, brak `README.md`, brak `tests/`, brak pre-commit.
 
@@ -57,6 +60,9 @@ Każde PR zamykające jeden US musi zawierać:
 | 7 | Release Candidate + Release Gate | v0.1.0-rc.1 → v0.1.0 | Pełny 5-repo eval, rubric sign-off, cross-OS fixes, release workflow | **gate: 5/5 repos + rubric ≥3** | A: eval runner · B: rubric coordination · C: CI/release |
 | 8 | CLI UX wiring + animations | v0.2.0 | Wiring `StageReporter`/`render_cost_gate`/`render_run_report` z v0.1.0 do orchestratora + nowe animacje (Stage 2 replace-line, Stage 5 scroll, live counters) + cost-gate prompt domyślnie ON dla TTY + banner | — | A: orchestrator hooks · B: CLI wiring · C: tests + docs |
 | 9 | Interactive repo picker | v0.3.0 | `wiedun-flow` bez argumentów (TTY) → questionary picker (recent / discover / manual path) | — | A: picker UI · B: sources + cache · C: ADR-0012 + tests |
+| 10 | TUI menu | v0.4.0 | Interactive menu-driven CLI ("centrum dowodzenia") + Generate sub-wizard 5 sekcji + ModelCatalog dynamic fetch | — | A: menu UI · B: sub-wizard · C: ModelCatalog port |
+| 11 | Pricing catalog | v0.5.0 | Dynamic pricing catalog (4 adaptery + 24h cache); shared release z Sprint 9 picker | — | A: pricing chain · B: ux-spec/ADR |
+| 12 | Rebrand | v0.6.0 | Hard cut CodeGuide → WiedunFlow (zero aliasów, BREAKING) | — | A: src/ rename · B: docs/UI · C: tests + CI |
 
 ## Sprint 0 — Foundation (v0.0.0)
 
@@ -460,23 +466,125 @@ cost-gate prompt domyślnie ON, run-report card. Plan szczegółowy:
 
 **Nowa dep**: `questionary>=2.0` (transitive `prompt_toolkit` ~600 KB).
 
-**DoD sprintu 9**: tag `v0.3.0`, ADR-0012, UX-spec §4.0, FR-91, recent.json cross-platform.
+**DoD sprintu 9**: tag `v0.5.0` (originally planned `v0.3.0` — bumped post-Sprint 10 v0.4.0 TUI menu insertion), ADR-0014 (Dynamic pricing catalog), UX-spec §4.0, FR-91, `recent-runs.json` cross-platform.
+
+**Status**: faktyczna realizacja w 2026-04-26 (PR #6 — `feat(cli)!: ship Sprint 9 v0.5.0 — repo picker + dynamic pricing`). Sprint 11 w sekcji poniżej został SCALONY ze Sprintem 9 (oba opisywały tę samą realizację v0.5.0); zachowany tylko jako wzmianka cross-reference.
+
+---
+
+## Sprint 10 — Interactive menu-driven TUI (v0.4.0) — DELIVERED
+
+**Status**: DELIVERED (2026-04-25)
+
+**Cel**: hybrid CLI/menu — bare `wiedun-flow` w TTY → 7-item picker; istniejący `wiedun-flow generate` zachowany (Sprint 7 release-gate CI nieaffected)
+
+**Parallel tracks** (3 agenty):
+
+- **Track A — `python-pro` + `frontend-developer`**: top-level menu UI (`cli/menu.py` NEW), 7-item picker, ASCII banner, ESC handling
+- **Track B — `python-pro` + `ai-engineer`**: Generate sub-wizard 5 sekcji (§1-§5), express path, render_generate_summary
+- **Track C — `python-pro`**: ModelCatalog port (`interfaces/model_catalog.py` NEW) + 2 adaptery (Anthropic, OpenAI) + 24h disk cache + filter `ft:*`
+
+### US (Sprint 10)
+
+- Menu top-level (US-pre-088 — wprowadzony pre-PRD bump, opisany w ADR-0013)
+- Sub-wizard 5 sekcji
+- ModelCatalog port + dynamic fetch + 24h cache
+- `target_audience` 5-level enum (BREAKING)
+- OpenAI default `gpt-4.1` (BREAKING)
+- Three-sink rule extension (questionary → menu.py)
+- `WIEDUNFLOW_NO_MENU=1` escape hatch
+
+**Nowe ADR**: ADR-0013 (TUI menu system, partially supersedes ADR-0011 D#1)
+
+**DoD sprintu 10**: tag `v0.4.0`, CHANGELOG sekcja, `cli/menu.py` + `cli/menu_banner.py`, ModelCatalog z 2 adapterami, lint test `test_no_questionary_outside_menu.py`, smoke test e2e na tiny_repo
+
+**Cross-references**: ADR-0013 (`docs/adr/0013-tui-menu-system.md`), CHANGELOG `## [0.4.0] - 2026-04-25`
+
+---
+
+## Sprint 11 — Dynamic pricing catalog (v0.5.0) — DELIVERED
+
+**Status**: DELIVERED (2026-04-26) — wraz ze Sprintem 9 picker w jednym releaseie v0.5.0
+
+**Cel**: LiteLLM live pricing dla cost-gate (zamiast hardcoded `MODEL_PRICES`). Nowe modele wycenione automatycznie po LiteLLM publish, bez WiedunFlow release.
+
+**Note on numbering**: faktycznie Sprint 9 (picker, US-088..092) i Sprint 11 (pricing, US-093..099) zostały zrealizowane w jednym tagu `v0.5.0` 2026-04-26 (PR #6). Rozdzielone na 2 sprinty w planie dla czytelności scope (picker vs pricing są ortogonalne).
+
+**Parallel tracks** (z PR #6):
+
+- **Track A — `python-pro`**: pricing chain (`adapters/static_pricing_catalog.py`, `adapters/litellm_pricing_catalog.py`, `adapters/cached_pricing_catalog.py` NEW) + `interfaces/pricing_catalog.py` Protocol + integration w `cli/cost_estimator.py`
+- **Track B — `technical-writer`**: ADR-0014 + UX-spec §6 Pricing display formalization
+
+### US (Sprint 11 — pricing only)
+
+- **US-093** PricingCatalog port — `Protocol` z `blended_price_per_mtok(model_id) -> float | None`
+- **US-094** StaticPricingCatalog (hardcoded fallback z `MODEL_PRICES`)
+- **US-095** LiteLLMPricingCatalog (HTTP fetch z BerriAI/litellm, 3s timeout, network failure → empty dict)
+- **US-096** CachedPricingCatalog (24h decorator, `~/.cache/wiedunflow/pricing-<provider>.json`)
+- **US-097** ChainedPricingCatalog (fallback chain `[Cached(LiteLLM), Static]`)
+- **US-098** httpx jako EXPLICIT hard dep (PEP-621 honesty, NOT optional, ADR-0014 §Alt #2)
+- **US-099** ux-spec §4.0 picker mode formalization (cross-cutting z Sprint 9 picker)
+
+**Note**: US-088..092 (picker) opisane w Sprint 9 powyżej.
+
+**Nowe ADR**: ADR-0014 (Dynamic pricing catalog) — 4 adaptery + three-sink rule extension dla httpx
+
+**DoD sprintu 11**: tag `v0.5.0` (shared z Sprint 9), CHANGELOG sekcja, LiteLLM live pricing → cost-gate accuracy dla nowych modeli (np. `gpt-5.4-mini`, `claude-opus-4-8`) automatycznie po LiteLLM publish, lint test `test_no_httpx_outside_litellm_pricing.py`
+
+**Cross-references**: ADR-0014, CHANGELOG `## [0.5.0] - 2026-04-26`, FR-91, Sprint 9 (picker)
+
+---
+
+## Sprint 12 — Rebrand to WiedunFlow (v0.6.0) — DELIVERED
+
+**Status**: DELIVERED (2026-04-26)
+
+**Cel**: HARD CUT rebrand CodeGuide → WiedunFlow. Zero aliasów, zero shim. Reinstall required.
+
+**Parallel tracks** (3 agenty, 5-fazowy workflow z PR #7):
+
+- **Phase 1 — `python-pro`**: `git mv src/codeguide → src/wiedunflow` + rewrite imports (1729470, b1b2c09)
+- **Phase 2 — `technical-writer`**: rebrand docs, ADRs, .ai specs, templates, skills, GitHub config (ccef1c0)
+- **Phase 3 — `test-automator`**: update tests for rebrand + add hard-cut env tests + default output filename tests (a7a7c35)
+- **Phase 4 — `devops-engineer`**: bump 0.5.0 → 0.6.0 + rebrand pyproject + ci.yml + lockfile (7984afc)
+- **Phase 5 — `python-pro`**: ruff auto-fix import organization (74fe014)
+
+### BREAKING changes (pre-1.0)
+
+- Package: `codeguide` → `wiedunflow`
+- CLI command: `codeguide` → `wiedun-flow`
+- ENV prefix: `CODEGUIDE_*` → `WIEDUNFLOW_*`
+- Cache namespace: `~/.cache/codeguide/` → `~/.cache/wiedunflow/`
+- localStorage: `codeguide:*` → `wiedunflow:*`
+- Default output filename: `tutorial.html` → `wiedunflow-<repo>.html`
+- Per-repo state dir: `.codeguide/` → `.wiedunflow/`
+
+**Nazwa**: "Wiedun" — Old Polish for sage/wise one
+
+**Nowe ADR**: brak (rebrand to ops/marketing decision, no architectural)
+
+**DoD sprintu 12**: tag `v0.6.0`, CHANGELOG sekcja, ASCII banner WIEDUNFLOW (post-rebrand), zero stale `codeguide` references, GitHub Release manual fallback (gdy release.yml billing-fail)
+
+**Cross-references**: CHANGELOG `## [0.6.0] - 2026-04-26`, PR #7
 
 ## ADR queue
 
 | ADR | Temat | Sprint | Status |
 |---|---|---|---|
-| 0001 | LLM stack direct SDK | — | Accepted (pre-plan) |
-| 0002 | RAG BM25 MVP | — | Accepted (pre-plan) |
-| 0011 | UX design system — palette, typography, CLI direction | S0 (pre-dev decision) | Accepted 2026-04-19 |
-| 0003 | Clean Architecture layering | S0 | do napisania |
-| 0004 | UV-exclusive toolchain | S0 | do napisania |
-| 0005 | Frozen vanilla JS output | S1 | do napisania |
-| 0006 | AST snapshot schema + grounding | S2 | do napisania |
-| 0007 | Planning prompt contract + retry | S3 | do napisania |
-| 0008 | Cache schema v1 | S4 | do napisania |
-| 0009 | Output JSON schema v1.0.0 | S5 | do napisania |
+| 0001 | LLM stack direct SDK | — | Accepted 2026-04-16 |
+| 0002 | RAG BM25 MVP | — | Accepted 2026-04-16 |
+| 0003 | Clean Architecture layering | S0 | Accepted 2026-04-20 |
+| 0004 | UV-exclusive toolchain | S0 | Accepted 2026-04-20 |
+| 0005 | Frozen vanilla JS output | S1 | Accepted 2026-04-20 |
+| 0006 | AST snapshot schema + grounding | S2 | Accepted 2026-04-20 |
+| 0007 | Planning prompt contract + retry | S3 | Accepted (revised 2026-04-25) |
+| 0008 | Cache schema v1 | S4 | Accepted 2026-04-20 |
+| 0009 | Output JSON schema v1.0.0 | S5 | Accepted 2026-04-21 |
 | 0010 | Secret redaction + zero-telemetry | S6 | Accepted 2026-04-22 |
+| 0011 | UX design system — palette, typography, CLI direction | S0 (pre-dev decision) | Accepted 2026-04-19 |
+| 0012 | Tutorial quality enforcement | post-MVP | Accepted 2026-04-25 |
+| 0013 | Interactive menu-driven TUI ("centrum dowodzenia") | S10 | Accepted 2026-04-25 |
+| 0014 | Dynamic pricing catalog — LiteLLM-backed | S11 | Accepted 2026-04-26 |
 
 ## Delegation playbook — jak rozmawiać z agentem
 
@@ -526,11 +634,7 @@ W każdym sprincie S2-S7 identyfikuję 2-3 niezależne tracks (A/B/C). Delegacja
 
 ## Version bump recommendation
 
-**Poziom zmian**: MINOR — wprowadzamy nowe FR-81..90, US-070..080 oraz AC additions bez łamania istniejących wymagań (brak breaking changes).
-
-- `.ai/prd.md` — bump do `0.1.2-draft` (z `0.1.1-draft`; MINOR — new FR-81..90, US-070..080, AC additions — no breaking changes to existing requirements)
-- `.ai/tech-stack.md` — bump do `0.1.2-draft` (PATCH — refinement of §9/§11/§17/§18, no new technology decisions)
-- `implementation-plan.md` — no version bump; add CHANGELOG entry: `Unreleased — Integrated wiedunflow-ux-skill: T-000.14 fonts pre-work, S5 tracks A/B/C extended for pixel-perfect UX + CLI UX polish, ADR-0011 queued`
+**Plan v0.2.0 (backfilled 2026-04-26)**: post-Sprint-9 plan obejmuje Sprint 10 (v0.4.0), Sprint 11 (v0.5.0), Sprint 12 (v0.6.0). Roadmap dalszy (Sprint 13: v0.7.0 release gate, Sprint 14: v0.8.0 PyPI, Sprint 15: v0.9.0 Docker) w `~/.claude/plans/zapoznaj-si-z-ai-implementation-plan-md-buzzing-ember.md`
 
 ## Weryfikacja końcowa — po implementacji każdego sprintu
 

@@ -1,11 +1,13 @@
 ---
-version: 0.1.0-draft
+version: 0.2.0
 status: Accepted
-last_updated: 2026-04-19
+last_updated: 2026-04-26
 depends_on:
   - .ai/prd.md
   - .ai/tech-stack.md
   - docs/adr/0011-ux-design-system.md
+  - docs/adr/0013-interactive-menu-driven-tui.md
+  - docs/adr/0014-dynamic-pricing-catalog.md
 skill_reference: .claude/skills/wiedunflow-ux-skill/
 ---
 
@@ -30,7 +32,9 @@ This document is the **single source of truth** for all user-facing surfaces in 
 
 **Relationship to skill and ADR:**
 - The skill `wiedunflow-ux-skill` contains immutable hi-fi prototypes in HTML (`reference/tutorial/design/` and `reference/cli/design/`). Those prototypes are design references only — not production code.
-- ADR-0011 documents seven binary design decisions that constrain this spec (palette, fonts, CLI direction, surface hierarchy). All decisions are final for MVP; any reversal requires a new ADR.
+- ADR-0011 documents seven binary design decisions that constrain the tutorial reader and core CLI (palette, fonts, CLI direction, surface hierarchy). All decisions are final for MVP; any reversal requires a new ADR.
+- ADR-0013 documents twelve binary decisions for the interactive menu-driven TUI ("centrum dowodzenia") launched in v0.4.0, including hybrid CLI/menu, questionary framework, ModelCatalog port, and three-sink rule.
+- ADR-0014 documents the dynamic pricing catalog launched in v0.5.0, including PricingCatalog port, four adapters (Static/LiteLLM/Cached/Chained), and httpx hard dependency.
 - This spec is the **living specification** for implementers. When you build the tutorial renderer or CLI output, follow this document's pixel values, copy, color roles, and state-management contracts.
 
 ## §2. Binary design decisions (per ADR-0011)
@@ -46,7 +50,6 @@ These seven decisions are **closed** for MVP. Reversing any of them requires a n
 | 5 | Surface hierarchy: topbar darkest, narration lightest (~20% closer to white) | Accepted 2026-04-19 | Non-negotiable constraint. Defines the visual reading priority in both light and dark modes. |
 | 6 | Fonts self-hosted as WOFF2 (offline-first, no CDN) | Accepted 2026-04-19 | Satisfies FR-14 (offline-capable). Single HTTP request from CDN breaks the `file://` guarantee. |
 | 7 | Syntax highlighting: Pygments pre-rendered during build (no runtime highlight.js / Prism) | Accepted 2026-04-19 | Avoids 15 KB+ JS bundle. Rendering happens in the Python pipeline (stage 7), HTML ships with tokenized spans. |
-| (Rebranding) | CLI command: `wiedun-flow` → `wiedun-flow`; output filename: `tutorial.html` → `wiedunflow-<repo>.html`; cache dir: `.wiedunflow/` → `.wiedunflow/`; localStorage: `wiedunflow:*` → `wiedunflow:*` | Accepted 2026-04-26 | Brand identity change. Hard cut, no aliases or shim. |
 
 ---
 
@@ -113,7 +116,7 @@ Three-column layout, full viewport height:
 - **Layout**: horizontal flex, `gap: 16px`, `padding: 0 24px`, items vertically centered.
 
 **Contents:**
-- **Brand square**: `22×22px`, `background: var(--ink)`, `color: var(--bg)`, `border-radius: 5px`, mono font, text "cg" (10px) stacked with "WiedunFlow" label (11px/600).
+- **Brand square**: `22×22px`, `background: var(--ink)`, `color: var(--bg)`, `border-radius: 5px`, mono font, text "wf" (10px) stacked with "WiedunFlow" label (11px/600).
 - **Breadcrumb**: flex 1, `font-size: 13px`, `color: var(--ink-dim)`, structure `owner/repo › cluster-label › lesson-num lesson-title`. Overflow ellipsis on narrow viewports.
 - **3 icon buttons** (left-to-right): direction toggle (A|B, for prototype only; production omits), theme toggle (☾), tweaks panel toggle (⚙). Each: `32×32px`, `border: 1px solid var(--border)`, `border-radius: 7px`, 13px mono or icon.
 
@@ -502,39 +505,6 @@ Any palette change must pass this sanity check.
 - A1 Paper palette only.
 - Inter body font only.
 - Light and dark themes.
-
----
-
-## §4.0 Picker mode (§1 Generate sub-wizard) — v0.5.0
-
-**Triggered when**: user selects "Generate tutorial" from top-level menu in v0.4.0+ and enters the §1 Repo+Output section of the Generate sub-wizard.
-
-**Flow**:
-1. **Source selector**: `io.select("How do you want to provide the repo?", ["Recent runs", "Discover in cwd", "Type path manually", "Back"])`
-2. Drill-down per source:
-   - **Recent runs** → `io.select("Recent runs:", [...top 10 paths sorted by mtime DESC..., "Back"])`. Empty list → message "No recent runs found. Choose another source." → re-render source selector.
-   - **Discover in cwd** → walk current directory depth=1 (max subdirs, no nesting), skip hardcoded ignored dirs (`node_modules`, `.venv`, `venv`, `__pycache__`, `dist`, `build`, `target`, `.tox`, `.idea`, `.vscode`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`) and any paths matching `cwd/.gitignore` (if present, parsed via `pathspec.PathSpec.from_lines("gitwildmatch", ...)`). Return each dir with `.git/` subdir, sorted mtime DESC. Display each as `[YYYY-MM-DD HH:MM] /path/to/repo` (format mtime as ISO date + time). Cap UI to 20 results. Empty → message "No git repositories found in current directory." → re-render.
-   - **Type path manually** → `io.path("Repo path:", only_directories=True)`. Walidacja: directory must exist + contain `.git/` subdir. On validation failure: print error + retry path prompt.
-3. **Back semantics**:
-   - "Back" in sub-listach (Recent/Discover) → return to source selector
-   - "Back" in source selector, or Esc from any screen → cancel entire picker → fall-through to menu top-level (user returns to main menu)
-4. **Validation**: post-selekcji `_validate_repo_path(path)` (cli/menu.py:1137) sprawdza czy path istnieje + has `.git/` (recent entry mogł być deleted; manual path jest validated immediately).
-
-**Empty states (exact copy)**:
-- Recent: `"No recent runs found. Choose another source."`
-- Discover empty: `"No git repositories found in current directory."`
-- Discover all `.gitignore`d: `"All discovered repositories are ignored by .gitignore."`
-- Manual invalid path: standard `_validate_repo_path` error message (e.g., `"Error: not a git repository (missing .git)"`).
-
-**Discovery scope** (§4.0.1):
-- max_depth=1 (only direct subdirectories of cwd, no nested walking)
-- Skip hardcoded: `node_modules`, `.venv`, `venv`, `__pycache__`, `dist`, `build`, `target`, `.tox`, `.idea`, `.vscode`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`
-- Honor `cwd/.gitignore` (if exists, parse + filter against matched paths using `pathspec`)
-- Sort by `.git/HEAD` mtime DESC (newest first)
-- Cap 20 results (UI), silently drop tail if >20 found
-- Format mtime as ISO 8601 date + time for readability (e.g., `2026-04-26 14:32`)
-
-**Acceptance criteria** (US-088/090/091): each source working, Back semantics honored, validation enforced, empty states render exact copy, mtime sorting DESC.
 
 ---
 
@@ -949,7 +919,201 @@ On terminals that support hyperlinks (iTerm, modern VSCode terminal, Windows Ter
 
 ---
 
-## §5. Mapping to PRD functional requirements
+## §5. Menu mode (v0.4.0+)
+
+**Triggered when**: user runs `wiedun-flow` without arguments in a TTY environment (`sys.stdin.isatty() and sys.stdout.isatty()`) and enters `main_menu_loop()` from `cli/menu.py`. Bypass mechanisms: running any subcommand (e.g., `wiedun-flow generate <repo>`, `wiedun-flow init`), non-TTY context (CI/pipes), or `WIEDUNFLOW_NO_MENU=1` env var.
+
+### §5.1 Top-level menu
+
+Seven-item menu displayed with arrow navigation (`↑↓ Enter Esc`):
+
+```
+WIEDUNFLOW v0.4.0+
+
+┌─────────────────────────────────────┐
+│ 1. Initialize config                │
+│ 2. Generate tutorial                │
+│ 3. Show config                      │
+│ 4. Estimate cost                    │
+│ 5. Resume last run                  │
+│ 6. Help                             │
+│ 7. Exit                             │
+└─────────────────────────────────────┘
+```
+
+**Item 1: Initialize config** — equivalent to `wiedun-flow init <repo>`. Launches inline repo picker (3-source, patrz §5.2).
+
+**Item 2: Generate tutorial** — opens 5-section sub-wizard (patrz §5.3).
+
+**Item 3: Show config** — renders current `tutorial.config.yaml` as rich panel with syntax highlighting.
+
+**Item 4: Estimate cost** — displays cost-gate panel (copy from §4.4) based on current config + repo file count.
+
+**Item 5: Resume last run** — enabled only when `SQLiteCache.has_checkpoint(repo_abs)` returns true. Disabled (dimmed) otherwise. On selection, continues from last checkpoint (Stage N).
+
+**Item 6: Help** — displays help text covering menu navigation and command overview.
+
+**Item 7: Exit** — closes menu, returns to shell prompt.
+
+### §5.2 Generate sub-wizard (5 sections)
+
+Entered when user selects "Generate tutorial" from top-level menu.
+
+**§5.2.1 Section 1: Repo + Output**
+
+Three-source picker for repository path:
+1. **Recent runs** — list of last 10 repo paths sorted by `.git/HEAD` mtime DESC, formatted as `[YYYY-MM-DD HH:MM] /path/to/repo`. Empty state: `"No recent runs found. Choose another source."`
+2. **Discover in cwd** — auto-discover `.git/` repositories in current directory (max depth 1, no nesting). Skip hardcoded dirs (`node_modules`, `.venv`, `venv`, `__pycache__`, `dist`, `build`, `target`, `.tox`, `.idea`, `.vscode`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`). Respect `.gitignore` if present. Sort by mtime DESC, cap 20 results. Empty states: `"No git repositories found in current directory."` or `"All discovered repositories are ignored by .gitignore."`
+3. **Type path manually** — prompt user for directory path, validate it contains `.git/` subdir. On failure, show error + re-prompt.
+
+Back semantics: selecting "Back" returns to top-level menu.
+
+**§5.2.2 Section 2: Provider + Models**
+
+Dropdown to select LLM provider (Anthropic or OpenAI), then model picker.
+
+**ModelCatalog port** (ADR-0013 D#11):
+- Interface: `interfaces/model_catalog.py` Protocol with `list_models() -> list[str]` method.
+- Adapters: `AnthropicModelCatalog` (via `anthropic.Anthropic().models.list()`) and `OpenAIModelCatalog` (via `openai.OpenAI().models.list()`).
+- **OpenAI filter**: strips `ft:*` (fine-tuned models) and non-chat models (audio, realtime, image, tts, whisper, embedding, moderation, transcribe, dall-e, sora, codex, search, deep-research).
+- **24h disk cache**: `~/.cache/wiedunflow/models-<provider>.json` (e.g., `models-anthropic.json`, `models-openai.json`).
+- **Hardcoded fallback list**: activates only when API call fails (offline, missing key, rate limit, 5xx).
+- **Express path**: if user has saved config, auto-fill provider + model and skip sections §3–§4, jumping directly to §5 (Summary + Launch).
+- **OpenAI default model**: `gpt-4.1` (BREAKING change from `gpt-4o`).
+
+**§5.2.3 Section 3: File Filters (optional)**
+
+Dynamic add/edit/remove list manager for `exclude` and `include` patterns. Allows user to customize which files are analyzed. Skipped on express path.
+
+**§5.2.4 Section 4: Limits + Audience (optional)**
+
+Configurable settings:
+- **max_lessons**: cap on total lessons (default from config, e.g., 30).
+- **max_cost_usd**: hard limit on API spend (default from config, e.g., 10.0).
+- **target_audience**: 5-level enum (`noob`, `junior`, `mid`, `senior`, `expert`), default `mid`. Narration adapts language and pacing to audience.
+
+Skipped on express path.
+
+**§5.2.5 Section 5: Summary + Launch**
+
+Displays:
+- **File count** from discovered repo.
+- **Estimated lesson count** (heuristic from file count + symbol coverage).
+- **Estimated cost** (blended from PricingCatalog, patrz §6).
+- **Two buttons**: `Cancel` (returns to top-level menu) or `Launch` (begins 7-stage pipeline).
+
+After Launch, the existing `rich.Live` 7-stage pipeline takes over terminal. On completion, menu loop redraws (returns to top-level menu).
+
+### §5.3 Three-sink rule (ADR-0013 + ADR-0014 extension)
+
+Architectural constraint for dependency isolation:
+
+- **`import rich` ONLY in `cli/output.py`**: Stage reporter, panel rendering, live region management.
+  - Test: `test_no_rich_outside_output.py` (parametrized Grep over all `.py` files).
+- **`import questionary` ONLY in `cli/menu.py`**: Menu prompts, list navigation, input validation.
+  - Test: `test_no_questionary_outside_menu.py`.
+  - Exception: `cost_gate.py` receives `confirm_fn: Callable | None` parameter (dependency injection) instead of importing questionary directly.
+- **`import httpx` ONLY in `adapters/litellm_pricing_catalog.py`**: HTTP fetch for live pricing.
+  - Test: `test_no_httpx_outside_litellm_pricing.py`.
+- **Plain `print()` in `cli/menu_banner.py`** and everywhere else for diagnostics/debugging (not user-facing UI prompts).
+
+---
+
+## §6. Pricing display (v0.5.0+)
+
+**Objective**: Cost gate and pipeline use LIVE pricing from LiteLLM instead of hardcoded `MODEL_PRICES` dict. New models (e.g., `gpt-5.4-mini`, `claude-opus-4-8`) are automatically priced after LiteLLM publishes them—no WiedunFlow release required.
+
+### §6.1 Architecture (ADR-0014)
+
+**PricingCatalog Protocol** (`interfaces/pricing_catalog.py`):
+```python
+class PricingCatalog(Protocol):
+    def blended_price_per_mtok(self, model_id: str) -> float | None:
+        """
+        Returns blended price in USD per million tokens.
+        Blending formula: 0.6 * input_cost_per_token + 0.4 * output_cost_per_token
+        Empirical split based on typical planning (input-heavy) + narration (output-heavy) split.
+        Returns None if model not found (allows caller to chain fallbacks).
+        Never raises exceptions on network failure or unknown models.
+        """
+```
+
+### §6.2 Four adapters
+
+**1. StaticPricingCatalog** (`adapters/static_pricing_catalog.py`)
+- Backed by existing `cli/cost_estimator.MODEL_PRICES` dict.
+- Leaf adapter: guarantees cost gate never returns `None` (no crash on unknown model).
+- Hard-maintains ~50 popular models across Anthropic, OpenAI, and OSS endpoints.
+
+**2. LiteLLMPricingCatalog** (`adapters/litellm_pricing_catalog.py`)
+- Fetches from `https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json` (~3500 models).
+- HTTP timeout: 3 seconds.
+- Blending: `0.6 * input_cost_per_token + 0.4 * output_cost_per_token`, converted to USD/MTok.
+- **Provider-prefix stripping**: Maps `openai/gpt-4.1` and `gpt-4.1` to same price (removes `anthropic/`, `openai/` prefix).
+- Network failures (timeout, 5xx, 404) downgrades to empty dict per-query; caller chains fallback (no crash).
+
+**3. CachedPricingCatalog** (`adapters/cached_pricing_catalog.py`)
+- Decorator wrapping any upstream adapter (LiteLLM, Static, or Chained).
+- **Cache location**: `~/.cache/wiedunflow/pricing-<provider>.json` (e.g., `pricing-litellm.json`).
+- **TTL**: 24 hours (86400 seconds).
+- On cache miss or expiry, fetches from upstream, stores result.
+
+**4. ChainedPricingCatalog** (`adapters/cached_pricing_catalog.py`)
+- Fallback chain: `[CachedPricingCatalog(LiteLLMPricingCatalog), StaticPricingCatalog]`.
+- First non-`None` result wins.
+- Guarantees availability: if LiteLLM fetch fails, StaticPricingCatalog always returns a price for known models.
+
+### §6.3 Integration in cost gate
+
+During `§4.4 Cost gate` render, the cost estimator calls `pricing_catalog.blended_price_per_mtok(model_id)` for each model. If live pricing is available (LiteLLM not rate-limited, not offline), uses it. If unavailable, falls back to static list. Cost gate renders successfully in both cases—no user-facing "offline" message.
+
+---
+
+## §7. Brand identity (v0.6.0+)
+
+**Hard-cut rebrand on 2026-04-26**: CodeGuide → **WiedunFlow**. Zero aliases, zero migration shim. Reinstall required.
+
+### §7.1 Etymology and messaging
+
+- **"Wiedun"** — Old Polish for sage/wise one. Reflects the tool's role: it knows your code (via AST + call-graph analysis) and guides readers through it.
+- **Brand promise**: "Turn code into a guided tour, instantly."
+
+### §7.2 Nomenclature
+
+All strings updated post-rebrand v0.6.0:
+
+| Asset | Old (CodeGuide) | New (WiedunFlow) |
+|-------|---|---|
+| Package | `codeguide` | `wiedunflow` |
+| CLI command | `codeguide` | `wiedun-flow` |
+| ENV prefix | `CODEGUIDE_*` | `WIEDUNFLOW_*` |
+| Cache dir | `~/.cache/codeguide/` | `~/.cache/wiedunflow/` |
+| localStorage namespace | `codeguide:*` | `wiedunflow:*` (reserved; do not use for new keys) |
+| Default output filename | `tutorial.html` | `wiedunflow-<repo>.html` |
+| Per-repo state dir | `.codeguide/` | `.wiedunflow/` |
+| GitHub org/repo | `codeguide-ai/codeguide` | `numikel/wiedunflow` |
+| ASCII banner | (none) | `WIEDUNFLOW` (capital, displayed in TTY menu) |
+| Brand color (accent) | (unchanged) | `oklch(0.55 0.18 250)` — accent blue, same as A1 Paper palette |
+
+### §7.3 Footer in generated HTML
+
+Generated `wiedunflow-<repo>.html` files now display in footer:
+```
+WiedunFlow vX.Y.Z · Apache 2.0 — offline
+```
+
+Previous: `CodeGuide vX.Y.Z · Apache 2.0 — offline`.
+
+### §7.4 Documentation and messaging
+
+- GitHub README: updated all references (package, command, paths, brand name).
+- PyPI package: renamed to `wiedunflow`.
+- All CLI help text, error messages, and banners use `WiedunFlow` (capital W, capital F).
+- No legacy aliases in code or configuration — clean migration required.
+
+---
+
+## §8. Mapping to PRD functional requirements
 
 This table links new FR-81..FR-90 (added in design review 2026-04-19) to ux-spec sections.
 
@@ -973,7 +1137,7 @@ This table links new FR-81..FR-90 (added in design review 2026-04-19) to ux-spec
 
 ---
 
-## §6. Non-goals
+## §9. Non-goals
 
 The following are explicitly **out of scope** for MVP and require a new ADR if revisited:
 
@@ -987,9 +1151,16 @@ The following are explicitly **out of scope** for MVP and require a new ADR if r
 
 ---
 
-## §7. Changelog
+## §10. Changelog
 
 ```
+2026-04-26 v0.2.0
+  - Backfill §5 Menu mode (ADR-0013) — interactive TUI, 7-item top-level menu, 5-section Generate sub-wizard, ModelCatalog port, 24h model list cache.
+  - Backfill §6 Pricing display (ADR-0014) — PricingCatalog Protocol, four adapters (Static/LiteLLM/Cached/Chained), httpx hard dep, 24h pricing cache, graceful network-failure fallback.
+  - Backfill §7 Brand identity (v0.6.0+) — hard-cut rebrand CodeGuide → WiedunFlow, zero aliases, updated nomenclature (package, CLI, ENV, cache, localStorage, output filename, per-repo state).
+  - Renumber old §5/§6/§7 → §8/§9/§10 (PRD mapping, Non-goals, Changelog).
+  - Update header cross-references to ADR-0013 and ADR-0014.
+
 2026-04-19 v0.1.0-draft
   - Initial version ported from wiedunflow-ux-skill reference READMEs.
   - Integrated ADR-0011 seven binary decisions.
