@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from codeguide.cli.output import osc8_hyperlink
+from wiedunflow.cli.output import osc8_hyperlink
 
 
 def test_osc8_hyperlink_wraps_path_with_escape_sequences(tmp_path: Path) -> None:

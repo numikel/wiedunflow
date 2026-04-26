@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import pytest
 
-import codeguide.cli.consent as consent_module
-from codeguide.cli.consent import (
+import wiedunflow.cli.consent as consent_module
+from wiedunflow.cli.consent import (
     ConsentDeniedError,
     ConsentRequiredError,
     _provider_policy_url,

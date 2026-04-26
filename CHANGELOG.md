@@ -1,10 +1,24 @@
 # Changelog
 
-All notable changes to CodeGuide are documented here.
+All notable changes to WiedunFlow (formerly CodeGuide) are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.6.0] - 2026-04-26 — Rebrand to WiedunFlow
+
+### Changed (BREAKING — pre-1.0)
+- Package renamed `codeguide` → `wiedunflow`. CLI command `codeguide` → `wiedun-flow`.
+- ENV prefix `CODEGUIDE_*` → `WIEDUNFLOW_*`.
+- Cache namespace: `~/.cache/codeguide/` → `~/.cache/wiedunflow/`.
+- localStorage keys: `codeguide:*` → `wiedunflow:*`.
+- Default output filename: `tutorial.html` → `wiedunflow-<repo>.html`.
+- Per-repo state dir: `.codeguide/` → `.wiedunflow/`.
+- HARD CUT: zero aliases, zero shim. Reinstall required (`uv tool install wiedunflow`).
+
+### Note
+- "Wiedun" — Old Polish for sage/wise one. The brand reflects the tool's role: it knows the code (via AST + call graph) and guides the reader through it.
 
 ## [0.5.0] - 2026-04-26 — Repo Picker + Live Pricing
 

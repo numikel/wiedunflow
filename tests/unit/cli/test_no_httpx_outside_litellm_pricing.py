@@ -15,13 +15,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_SRC_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "codeguide"
+_SRC_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "wiedun-flow"
 _ALLOWLIST = {
     # Pricing catalog — the sole intentional live-fetch consumer of httpx for pricing.
-    "src/codeguide/adapters/litellm_pricing_catalog.py",
+    "src/wiedunflow/adapters/litellm_pricing_catalog.py",
     # OpenAI provider — uses httpx for configuring OpenAI-compatible base_url transports
     # (Ollama, LM Studio, vLLM).  This is an OpenAI SDK integration concern, not pricing.
-    "src/codeguide/adapters/openai_provider.py",
+    "src/wiedunflow/adapters/openai_provider.py",
 }
 
 
@@ -37,6 +37,6 @@ def test_no_httpx_outside_litellm_pricing() -> None:
             if stripped.startswith("import httpx") or stripped.startswith("from httpx"):
                 offenders.append(f"{rel}: {stripped}")
     assert offenders == [], (
-        "httpx imports must live in src/codeguide/adapters/litellm_pricing_catalog.py only; "
+        "httpx imports must live in src/wiedunflow/adapters/litellm_pricing_catalog.py only; "
         "offenders:\n" + "\n".join(offenders)
     )

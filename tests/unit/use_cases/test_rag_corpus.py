@@ -7,9 +7,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.entities.ingestion_result import IngestionResult
-from codeguide.use_cases.rag_corpus import build_and_index, build_corpus
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.entities.ingestion_result import IngestionResult
+from wiedunflow.use_cases.rag_corpus import build_and_index, build_corpus
 
 # ---------------------------------------------------------------------------
 # Helpers

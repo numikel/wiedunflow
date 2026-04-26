@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" data-dir="A" data-palette="a1" data-theme="light" data-font="sans">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WiedunFlow — kennethreitz/requests tutorial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tutorial-styles.css" />
+<script type="application/json" id="speaker-notes">[]</script>
+<script>
+window.CG_TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "direction": "A",
+  "theme": "light",
+  "font": "default",
+  "confidence": "high",
+  "degraded": false
+}/*EDITMODE-END*/;
+</script>
+</head>
+<body>
+
+<div class="progress-bar"><span id="progress" style="width:0%"></span></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#">
+      <span class="mark">wf</span>
+      <span>WiedunFlow</span>
+    </a>
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <div class="top-actions">
+      <button class="icon-btn" id="dir-btn" title="Switch visual direction (A/B)">A|B</button>
+      <button class="icon-btn" id="theme-btn" title="Toggle theme">☾</button>
+      <button class="icon-btn" id="tweak-toggle" title="Tweaks">⚙</button>
+    </div>
+  </div>
+</header>
+
+<div id="degraded-banner" class="degraded-banner" style="display:none">
+  <strong>DEGRADED run</strong>
+  <span>—&nbsp;<span id="degraded-count" class="count">0</span> lessons were skipped due to grounding failures. The tutorial is still usable; skipped sections are flagged inline.</span>
+</div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="content">
+    <section class="narration" id="narration"></section>
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Resize narration and code panels"><span class="grip"></span></div>
+    <section class="codepanel">
+      <div class="codepanel-header" id="code-header"></div>
+      <div class="codepanel-body" id="code-body"></div>
+    </section>
+  </main>
+</div>
+
+<footer id="tutorial-footer" class="tutorial-footer"></footer>
+
+<aside class="tweaks" id="tweaks">
+  <h3>Tweaks</h3>
+  <div class="sub">Compare two visual directions and explore footer states.</div>
+
+  <div class="tweak-row" data-tweak="palette">
+    <label>Light palette</label>
+    <div class="seg">
+      <button data-value="a1" class="on">A1 Paper</button>
+      <button data-value="a2">A2 Graphite</button>
+      <button data-value="a3">A3 Sage</button>
+    </div>
+  </div>
+
+  <div class="tweak-row" data-tweak="dir">
+    <label>Direction</label>
+    <div class="seg">
+      <button data-value="A" class="on">A · Clean technical</button>
+      <button data-value="B">B · Editorial</button>
+    </div>
+  </div>
+
+  <div class="tweak-row" data-tweak="theme">
+    <label>Theme</label>
+    <div class="seg">
+      <button data-value="light" class="on">Light</button>
+      <button data-value="dark">Dark</button>
+    </div>
+  </div>
+
+  <div class="tweak-row" data-tweak="font">
+    <label>Body font</label>
+    <div class="seg">
+      <button data-value="sans" class="on">Sans</button>
+      <button data-value="serif">Serif</button>
+      <button data-value="mono">Mono</button>
+    </div>
+  </div>
+
+  <div class="tweak-row" data-tweak="conf">
+    <label>Jedi confidence tier</label>
+    <div class="seg">
+      <button data-value="high" class="on">High</button>
+      <button data-value="medium">Medium</button>
+      <button data-value="low">Low</button>
+    </div>
+  </div>
+
+  <div class="tweak-row" data-tweak="deg">
+    <label>Degraded run (4/12 skipped)</label>
+    <div class="seg">
+      <button data-value="off" class="on">Off</button>
+      <button data-value="on">On</button>
+    </div>
+  </div>
+
+  <div class="fineprint">← / → to navigate · click TOC to jump · state is persisted in localStorage.</div>
+</aside>
+
+<script src="tutorial-data.js"></script>
+<script src="tutorial-app.js"></script>
+</body>
+</html>

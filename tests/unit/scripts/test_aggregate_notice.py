@@ -25,11 +25,11 @@ def test_header_contains_copyright(tmp_path: Path) -> None:
 
 
 def test_header_contains_project_name(tmp_path: Path) -> None:
-    """NOTICE must open with the project name 'CodeGuide'."""
+    """NOTICE must open with the project name 'WiedunFlow'."""
     output = tmp_path / "NOTICE"
     with patch("scripts.aggregate_notice._find_apache_deps", return_value=[]):
         aggregate(output, check=False)
-    assert output.read_text(encoding="utf-8").startswith("CodeGuide\n")
+    assert output.read_text(encoding="utf-8").startswith("WiedunFlow\n")
 
 
 def test_notice_content_included_when_present(tmp_path: Path) -> None:

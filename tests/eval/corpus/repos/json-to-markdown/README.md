@@ -1,7 +1,7 @@
 # json-to-markdown
 
 A tiny single-file Python CLI that converts arbitrary JSON content into a readable
-Markdown document — used as one of CodeGuide's evaluation corpus repos because it
+Markdown document — used as one of WiedunFlow's evaluation corpus repos because it
 exercises recursion, multiple rendering branches, and a small but real CLI surface.
 
 ## What it does

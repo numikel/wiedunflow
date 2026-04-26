@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Unit tests for ``codeguide.cli.picker_sources`` — discovery & cache helpers."""
+"""Unit tests for ``wiedunflow.cli.picker_sources`` — discovery & cache helpers."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.cli.picker_sources import discover_git_repos, load_recent_runs
+from wiedunflow.cli.picker_sources import discover_git_repos, load_recent_runs
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -115,7 +115,7 @@ def _mock_recent_runs_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> P
     """Redirect ``load_recent_runs`` to use a temp file."""
     fake_path = tmp_path / "recent-runs.json"
     monkeypatch.setattr(
-        "codeguide.cli.picker_sources._recent_runs_path",
+        "wiedunflow.cli.picker_sources._recent_runs_path",
         lambda: fake_path,
     )
     return fake_path
@@ -241,7 +241,7 @@ def test_discover_oserror_on_iterdir_returns_empty(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """OSError from cwd.iterdir() must return empty list, not propagate."""
-    import codeguide.cli.picker_sources as ps
+    import wiedunflow.cli.picker_sources as ps
 
     original_iterdir = Path.iterdir
 
@@ -267,7 +267,7 @@ def test_discover_oserror_on_gitignore_read_treated_as_no_spec(tmp_path: Path) -
 
     import unittest.mock
 
-    import codeguide.cli.picker_sources as ps
+    import wiedunflow.cli.picker_sources as ps
 
     # Patch read_text to raise OSError specifically for the gitignore file
     original_read_text = Path.read_text
@@ -300,10 +300,10 @@ def test_discover_head_mtime_oserror_falls_back_to_zero(tmp_path: Path) -> None:
 
 
 def test_recent_runs_path_uses_platformdirs() -> None:
-    """_recent_runs_path() must return a Path under the codeguide cache dir."""
-    from codeguide.cli.picker_sources import _recent_runs_path
+    """_recent_runs_path() must return a Path under the wiedunflow cache dir."""
+    from wiedunflow.cli.picker_sources import _recent_runs_path
 
     path = _recent_runs_path()
 
     assert path.name == "recent-runs.json"
-    assert "codeguide" in str(path)
+    assert "wiedunflow" in str(path)

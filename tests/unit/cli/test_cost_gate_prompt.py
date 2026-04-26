@@ -24,13 +24,13 @@ import click
 from click.testing import CliRunner
 from rich.console import Console
 
-from codeguide.cli.cost_estimator import estimate
-from codeguide.cli.cost_gate import (
+from wiedunflow.cli.cost_estimator import estimate
+from wiedunflow.cli.cost_gate import (
     CostGateAbortedError,
     prompt_cost_gate,
     should_skip_prompt,
 )
-from codeguide.cli.output import make_theme
+from wiedunflow.cli.output import make_theme
 
 
 def _make_console() -> tuple[Console, io.StringIO]:
@@ -125,7 +125,7 @@ def test_prompt_cost_gate_renders_panel_and_returns_user_choice() -> None:
     """When all bypass conditions are False, the panel renders and click.confirm decides."""
     console, buffer = _make_console()
 
-    with patch("codeguide.cli.cost_gate.click.confirm", return_value=True) as confirm_mock:
+    with patch("wiedunflow.cli.cost_gate.click.confirm", return_value=True) as confirm_mock:
         result = prompt_cost_gate(
             console,
             estimate=_sample_estimate(),  # type: ignore[arg-type]
@@ -143,7 +143,7 @@ def test_prompt_cost_gate_renders_panel_and_returns_user_choice() -> None:
 def test_prompt_cost_gate_returns_false_when_user_declines() -> None:
     console, buffer = _make_console()
 
-    with patch("codeguide.cli.cost_gate.click.confirm", return_value=False):
+    with patch("wiedunflow.cli.cost_gate.click.confirm", return_value=False):
         result = prompt_cost_gate(
             console,
             estimate=_sample_estimate(),  # type: ignore[arg-type]

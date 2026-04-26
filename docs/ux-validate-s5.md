@@ -2,7 +2,7 @@
 
 Side-by-side comparison of the 5 canonical CLI scenarios against
 `.ai/ux-spec.md §CLI` (exact copy) and the hi-fi prototype in
-`.claude/skills/codeguide-ux-skill/reference/cli/design/cli-session-data.js`.
+`.claude/skills/wiedunflow-ux-skill/reference/cli/design/cli-session-data.js`.
 
 Each scenario is reproducible via the integration suite
 `tests/integration/test_cli_5_scenarios.py` (see Sprint 5 plan T-005.B16).
@@ -17,9 +17,9 @@ a real terminal.
 - ⚠️ matches semantically but drifts from exact spec copy
 - ❌ regression or missing surface
 
-## 1. Happy path — `codeguide ./my-repo --yes`
+## 1. Happy path — `wiedunflow ./my-repo --yes`
 
-- [ ] Version banner on startup (`codeguide 0.0.5`)
+- [ ] Version banner on startup (`wiedunflow 0.0.5`)
 - [ ] Cost-gate panel (HEAVY border, "ESTIMATED COST" title, table rows, TOTAL row, runtime summary)
 - [ ] Stages `[1/7]` … `[7/7]` emit the exact stage names from ux-spec §CLI.stages
 - [ ] 5-space-indented detail lines beneath each stage header
@@ -57,7 +57,7 @@ a real terminal.
 - [ ] Final run-report card with `✗ failed` title (red border)
 - [ ] Run-report card contains `failed at`, `reason`, `resume` command
 - [ ] Exit code `1`
-- [ ] Partial cache retained for `--resume` (verify `.codeguide/` has checkpoint)
+- [ ] Partial cache retained for `--resume` (verify `.wiedunflow/` has checkpoint)
 
 **Reference**: ux-spec §CLI.error-scenarios.failed, cli-session-data.js `SCENARIO_FAILED`.
 
@@ -68,7 +68,7 @@ a real terminal.
 - [ ] `aborted by user. no API calls were made.`
 - [ ] `total cost: $0.00 · elapsed MM:SS` in `dim` tone
 - [ ] Exit code `0` (intentional early exit, not a failure)
-- [ ] No `.codeguide/run-report.json` mutation beyond the dry entry
+- [ ] No `.wiedunflow/run-report.json` mutation beyond the dry entry
 
 **Reference**: ux-spec §CLI.error-scenarios.cost-gate-abort, cli-session-data.js `SCENARIO_COST_ABORT`.
 

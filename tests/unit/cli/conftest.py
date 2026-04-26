@@ -16,7 +16,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _disable_menu_clear(monkeypatch: pytest.MonkeyPatch) -> None:
     """Suppress ``_clear_screen`` + ``_redraw_chrome`` ANSI escapes in every CLI test."""
-    monkeypatch.setenv("CODEGUIDE_NO_CLEAR", "1")
+    monkeypatch.setenv("WIEDUNFLOW_NO_CLEAR", "1")
 
 
 @pytest.fixture(autouse=True)
@@ -31,7 +31,7 @@ def _disable_litellm_pricing_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
     through to ``StaticPricingCatalog`` instantly.
     """
     monkeypatch.setattr(
-        "codeguide.adapters.litellm_pricing_catalog.LiteLLMPricingCatalog._ensure_loaded",
+        "wiedunflow.adapters.litellm_pricing_catalog.LiteLLMPricingCatalog._ensure_loaded",
         lambda self: {},
     )
 
@@ -43,10 +43,10 @@ def _isolate_user_config_path(
     """Redirect ``user_config_path()`` into a tmp dir for every CLI test.
 
     Without this, ``load_config()`` in tests like ``test_default_is_mid_when_not_specified``
-    silently merges values from the developer's real ``~/.config/codeguide/config.yaml``,
+    silently merges values from the developer's real ``~/.config/wiedunflow/config.yaml``,
     producing flaky results that depend on prior interactive runs.
     """
     target = tmp_path_factory.mktemp("user-config") / "config.yaml"
-    monkeypatch.setattr("codeguide.cli.config.user_config_path", lambda: target)
-    monkeypatch.setattr("codeguide.cli.menu.user_config_path", lambda: target)
+    monkeypatch.setattr("wiedunflow.cli.config.user_config_path", lambda: target)
+    monkeypatch.setattr("wiedunflow.cli.menu.user_config_path", lambda: target)
     return target

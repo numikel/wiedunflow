@@ -1,10 +1,10 @@
-# Plan implementacji CodeGuide v0.1.0 — sprint breakdown dla delegacji per-US
+# Plan implementacji WiedunFlow v0.1.0 — sprint breakdown dla delegacji per-US
 
 ## Context
 
-CodeGuide to greenfield Python CLI (3.11+) generujący pojedynczy self-contained HTML z tutorialem po lokalnym repo Git. Spec docelowy: `.ai/prd.md` (v0.1.2-draft, 90 FR / 80 US), tech stack: `.ai/tech-stack.md`, reguły projektu: `D:\CodeGuide\CLAUDE.md`, dwa ADR w `docs/adr/`.
+**WiedunFlow** (rebrand z WiedunFlow, v0.6.0+) to greenfield Python CLI (3.11+) generujący pojedynczy self-contained HTML z tutorialem po lokalnym repo Git. Spec docelowy: `.ai/prd.md` (v0.1.2-draft, 90 FR / 80 US), tech stack: `.ai/tech-stack.md`, reguły projektu: `D:\WiedunFlow\CLAUDE.md`, ADRy w `docs/adr/`.
 
-**Stan startowy (potwierdzony rekonesansem)**: repo jest w 100% greenfield — istnieją tylko `CLAUDE.md`, `.gitignore` oraz `docs/adr/0001*` i `docs/adr/0002*`. Brak `pyproject.toml`, brak `src/`, brak `.github/`, brak `LICENSE`, brak `README.md`, brak `tests/`, brak pre-commit.
+**Stan startowy (potwierdzony rekonesansem)**: repo jest w 100% greenfield na początku S0 — istnieją tylko `CLAUDE.md`, `.gitignore` oraz `docs/adr/0001*` i `docs/adr/0002*`. Brak `pyproject.toml`, brak `src/`, brak `.github/`, brak `LICENSE`, brak `README.md`, brak `tests/`, brak pre-commit.
 
 UX specification is maintained in `.ai/ux-spec.md` (single source of truth for design tokens, exact CLI copy, component dimensions, and state management contracts), anchored by ADR-0011 binary decisions. Pixel-perfect recreation of the UX is targeted for Sprint 5; the Sprint 1 walking skeleton uses minimal HTML without design tokens.
 
@@ -33,7 +33,7 @@ Każde PR zamykające jeden US musi zawierać:
 4. **Acceptance criteria z PRD** — każde wymienione jako osobny test (1-1 mapping gdzie to możliwe).
 5. **Docs update**: README (nowe flagi/config), CHANGELOG (Keep-a-Changelog), ADR jeśli decyzja architektoniczna, JSON schema `tutorial.config.yaml` jeśli dotknięte.
 6. **Conventional commit** ze scope zgodnym z PIPELINE (`ingestion|analysis|graph|rag|planning|generation|build|cli|cache|config`) + DCO `Signed-off-by:`.
-7. **Lint pass**: `ruff check` + `ruff format --check` + `mypy --strict src/codeguide/**`.
+7. **Lint pass**: `ruff check` + `ruff format --check` + `mypy --strict src/wiedunflow/**`.
 
 ## Definition of Done — per sprint
 
@@ -47,16 +47,16 @@ Każde PR zamykające jeden US musi zawierać:
 
 | # | Sprint | Tag | Główne deliverable | Mini-eval | Parallel tracks |
 |---|---|---|---|---|---|
-| 0 | Foundation | v0.0.0 | Scaffold: pyproject, LICENSE, NOTICE, README, CONTRIBUTING, pre-commit, CI, issue templates, src/codeguide skeleton, eval corpus submodules | — | liniowo |
+| 0 | Foundation | v0.0.0 | Scaffold: pyproject, LICENSE, NOTICE, README, CONTRIBUTING, pre-commit, CI, issue templates, src/wiedunflow skeleton, eval corpus submodules | — | liniowo |
 | 1 | Walking Skeleton | v0.0.1 | End-to-end pipeline na fixture repo z FakeLLMProvider. Output HTML otwiera się przez file:// | — | liniowo |
 | 2 | Analysis + Graph real | v0.0.2 | Stage 1 (tree-sitter + Jedi) + Stage 2 (PageRank + community) na realnym kodzie | — | A: parser · B: Jedi · C: graph |
 | 3 | RAG + Planning + Anthropic | v0.0.3 | Stage 3 (BM25) + Stage 4 (planning) + AnthropicProvider + atypical repos | canary: click | A: RAG · B: LLM port + Anthropic · C: planning |
 | 4 | Generation + Cache + BYOK | v0.0.4 | Stage 5 (generation orchestrator) + cache + checkpoint + interrupt + OpenAI/OSS adapters + grounding retry | canary: click + requests | A: generation · B: cache · C: BYOK providers |
 | 5 | Output HTML + Run modes + Reporting | v0.0.5 | Stage 6 (Jinja2 + Pygments + template linter) + CLI flags + navigation + run report + pixel-perfect UX recreation per ux-spec.md + CLI UX polish (rich.panel/rich.live/color roles) | smoke: click + requests + starlette | A: build · B: run modes · C: HTML frontend |
-| 6 | Privacy + Config + Hardening | v0.0.6 | Consent banner, hard-refuse list, `codeguide init`, config precedence, SecretFilter, shell injection hardening, pip-audit | smoke: 4/5 repos | A: privacy + init · B: config chain · C: hardening + SecretFilter |
+| 6 | Privacy + Config + Hardening | v0.0.6 | Consent banner, hard-refuse list, `wiedun-flow init`, config precedence, SecretFilter, shell injection hardening, pip-audit | smoke: 4/5 repos | A: privacy + init · B: config chain · C: hardening + SecretFilter |
 | 7 | Release Candidate + Release Gate | v0.1.0-rc.1 → v0.1.0 | Pełny 5-repo eval, rubric sign-off, cross-OS fixes, release workflow | **gate: 5/5 repos + rubric ≥3** | A: eval runner · B: rubric coordination · C: CI/release |
 | 8 | CLI UX wiring + animations | v0.2.0 | Wiring `StageReporter`/`render_cost_gate`/`render_run_report` z v0.1.0 do orchestratora + nowe animacje (Stage 2 replace-line, Stage 5 scroll, live counters) + cost-gate prompt domyślnie ON dla TTY + banner | — | A: orchestrator hooks · B: CLI wiring · C: tests + docs |
-| 9 | Interactive repo picker | v0.3.0 | `codeguide` bez argumentów (TTY) → questionary picker (recent / discover / manual path) | — | A: picker UI · B: sources + cache · C: ADR-0012 + tests |
+| 9 | Interactive repo picker | v0.3.0 | `wiedun-flow` bez argumentów (TTY) → questionary picker (recent / discover / manual path) | — | A: picker UI · B: sources + cache · C: ADR-0012 + tests |
 
 ## Sprint 0 — Foundation (v0.0.0)
 
@@ -68,31 +68,31 @@ Każde PR zamykające jeden US musi zawierać:
 
 Nie są to US z PRD, to infrastruktura pre-dev (wymuszona przez FR-02, FR-04, FR-69..72, US-001, US-059..063):
 
-- **T-000.1** `pyproject.toml` z `[tool.uv]`, `[project.scripts] codeguide = "codeguide.cli:main"`, classifiers, Apache-2.0, copyright Michał Kamiński. Python 3.11-3.13.
-- **T-000.2** Layout `src/codeguide/{entities,use_cases,interfaces,adapters,cli}/` z `__init__.py` i minimalnym `cli/__init__.py` eksportującym `main()`.
+- **T-000.1** `pyproject.toml` z `[tool.uv]`, `[project.scripts] wiedun-flow = "wiedunflow.cli:main"`, classifiers, Apache-2.0, copyright Michał Kamiński. Python 3.11-3.13.
+- **T-000.2** Layout `src/wiedunflow/{entities,use_cases,interfaces,adapters,cli}/` z `__init__.py` i minimalnym `cli/__init__.py` eksportującym `main()`.
 - **T-000.3** `LICENSE` (Apache 2.0) + `NOTICE` (Copyright 2026 Michał Kamiński — szkielet, auto-fill w S7).
 - **T-000.4** `README.md` (szkielet sekcji wymaganych przez FR-73), `CONTRIBUTING.md` (DCO), `CHANGELOG.md` (Keep-a-Changelog).
 - **T-000.5** `.pre-commit-config.yaml`: `ruff check`, `ruff format`, `mypy --strict`, `insert-license` (Apache header), `commitlint` via `cz-cli` (scopes: ingestion/analysis/graph/rag/planning/generation/build/cli/cache/config).
-- **T-000.6** `pyproject.toml` — sekcje `[tool.ruff]`, `[tool.mypy]` (strict, per-module dla `src/codeguide/**`), `[tool.pytest.ini_options]` z markerem `eval`.
+- **T-000.6** `pyproject.toml` — sekcje `[tool.ruff]`, `[tool.mypy]` (strict, per-module dla `src/wiedunflow/**`), `[tool.pytest.ini_options]` z markerem `eval`.
 - **T-000.7** `.github/workflows/ci.yml` — matrix 3.11/3.12/3.13 × ubuntu/windows/macos, `astral-sh/setup-uv`, steps: `uv sync` → `ruff check` → `ruff format --check` → `mypy --strict` → `pytest` (bez `-m eval`).
 - **T-000.8** `.github/workflows/dco.yml` — DCO check.
 - **T-000.9** `.github/ISSUE_TEMPLATE/{bug_report,feature_request,eval_regression}.yml` (US-063, FR-71).
 - **T-000.10** `tests/eval/corpus/repos.yaml` + git submodules na pinned commitach dla: kennethreitz/requests, pallets/click, encode/starlette, modelcontextprotocol/python-sdk, dateutil/dateutil (US-065, FR-74).
-- **T-000.11** `.gitignore` update: `.codeguide/`, `.venv/`, `__pycache__/`, `*.egg-info`, `dist/`, `build/`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`.
+- **T-000.11** `.gitignore` update: `.wiedunflow/`, `.venv/`, `__pycache__/`, `*.egg-info`, `dist/`, `build/`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`.
 - **T-000.12** ADR-0003 — Clean Architecture layering (entities/use_cases/interfaces/adapters/cli) — zrealizować w `docs/adr/`.
 - **T-000.13** ADR-0004 — UV-exclusive toolchain i wykluczenie pip/pipx/poetry/hatch.
 - **T-000.14** — Extract web fonts and design tokens stub
 _Owner: python-pro_
 
   - Download Inter 400/500/600/700 + JetBrains Mono 400/500/600 WOFF2 files (OFL-licensed, from Google Fonts or fontsource)
-  - Place in `src/codeguide/renderer/fonts/` with OFL license files; append license notice to `NOTICE` file (create if absent)
-  - Create `src/codeguide/renderer/templates/tokens.css` with CSS custom properties for A1 Paper light + dark palette per `.ai/ux-spec.md` §Tutorial.tokens (all `--bg`, `--panel`, `--surface`, `--topbar`, `--ink`, `--ink-dim`, `--accent`, `--warn`, `--border` values; dark palette under `[data-theme=dark]`)
-  - Create `src/codeguide/renderer/__init__.py` (empty, marks directory as Python package)
+  - Place in `src/wiedunflow/renderer/fonts/` with OFL license files; append license notice to `NOTICE` file (create if absent)
+  - Create `src/wiedunflow/renderer/templates/tokens.css` with CSS custom properties for A1 Paper light + dark palette per `.ai/ux-spec.md` §Tutorial.tokens (all `--bg`, `--panel`, `--surface`, `--topbar`, `--ink`, `--ink-dim`, `--accent`, `--warn`, `--border` values; dark palette under `[data-theme=dark]`)
+  - Create `src/wiedunflow/renderer/__init__.py` (empty, marks directory as Python package)
   - Test: `tests/unit/test_fonts_embedded.py` — assert WOFF2 magic bytes (`wOFF` / `wOF2`) for each font file; assert tokens.css contains all required custom properties
 
 **DoD sprintu 0**:
 
-- `uvx --from git+<local> codeguide --version` drukuje `0.0.0` (na fake stub `cli/main.py` zwracającym `print("codeguide 0.0.0")`).
+- `uvx wiedun-flow --version` drukuje `0.0.0` (na fake stub `cli/main.py` zwracającym `print("wiedun-flow 0.0.0")`).
 - `uv sync && pytest` zielone (zero testów jeszcze).
 - CI matrix przechodzi.
 - `pre-commit install && pre-commit run --all-files` zielone.
@@ -117,14 +117,14 @@ _Owner: python-pro_
 - **T-001.5** `use_cases/generate_tutorial.py` — orchestrator wywołujący 7 etapów po kolei, używający portów.
 - **T-001.6** `adapters/jinja_renderer.py` + minimalny template HTML (hardcoded CSS + vanilla JS navigation Prev/Next + `<script type="application/json">` z lesson data).
 - **T-001.7** `adapters/pygments_highlighter.py` — wrapping Pygments, pre-render code → HTML spans.
-- **T-001.8** `cli/main.py` — click entrypoint `codeguide <repo>`, wywołuje use case, zapisuje `tutorial.html` do cwd.
+- **T-001.8** `cli/main.py` — click entrypoint `wiedun-flow <repo>`, wywołuje use case, zapisuje `wiedunflow-<repo>.html` do cwd.
 - **T-001.9** Template-time offline linter (walidacja output HTML na `fetch(`, `Image(`, `<link rel="prefetch">`, `<link rel="preconnect">`, `http(s)://` poza whitelistą) — spełnia FR-14 częściowo.
 - **T-001.10** Golden file test: uruchom pipeline na `tests/fixtures/tiny_repo/` → porównaj z `tests/fixtures/expected_tutorial.html` (snapshot).
 - **T-001.11** Playwright test: otwórz `tutorial.html` w headless Chromium z wyłączonym network, sprawdź `console.error` == 0, kliknij Next → widać drugi lesson (US-040 baseline).
 
 **Nowe ADR**: ADR-0005 — Frozen vanilla JS output (brak Preact/React/bundlera), binarna decyzja.
 
-**DoD sprintu 1**: `codeguide tests/fixtures/tiny_repo/` produkuje `tutorial.html` < 500 KB, golden test zielony, Playwright zielony na `file://` bez sieci, tag `v0.0.1`.
+**DoD sprintu 1**: `wiedun-flow tests/fixtures/tiny_repo/` produkuje `wiedunflow-tiny-repo.html` < 500 KB, golden test zielony, Playwright zielony na `file://` bez sieci, tag `v0.0.1`.
 
 **US z PRD (częściowo)**: US-014 (default mode na fake), US-040 (file:// + zero external) — baseline.
 
@@ -132,7 +132,7 @@ _Owner: python-pro_
 
 ## Sprint 2 — Analysis + Graph real (v0.0.2)
 
-**Cel**: zastąp stub parsera/resolvera/rankingu realnymi implementacjami. `codeguide` działa na ≥5 losowych OSS Python repo bez crashu (ale nadal z `FakeLLMProvider`).
+**Cel**: zastąp stub parsera/resolvera/rankingu realnymi implementacjami. `wiedun-flow` działa na ≥5 losowych OSS Python repo bez crashu (ale nadal z `FakeLLMProvider`).
 
 **Parallel tracks** (3 agenty):
 
@@ -161,7 +161,7 @@ Track C:
 
 ### Integracja end-of-sprint
 
-- **T-002.INT**: uruchom `codeguide` (nadal z FakeLLMProvider) na 5 losowych OSS Python repo — asser zero crashów, loguj `resolution_coverage_pct`.
+- **T-002.INT**: uruchom `wiedun-flow` (nadal z FakeLLMProvider) na 5 losowych OSS Python repo — asser zero crashów, loguj `resolution_coverage_pct`.
 - Kontrakt cross-track: track A produkuje `IngestionResult`, B wzbogaca o `CallGraph`, C wzbogaca o `RankedGraph`.
 
 **Nowe ADR**: ADR-0006 — AST snapshot schema (klucze, invariants grounding).
@@ -201,7 +201,7 @@ Cross-cutting:
 
 ### Mini-eval
 
-- **T-003.EVAL**: uruchom `codeguide` z Anthropic na `pallets/click` (commit pinned), zapisz run-report, manualnie oceń spójność 3-5 pierwszych lekcji. Zapisz baseline do `tests/eval/results/s3-click-baseline.json`.
+- **T-003.EVAL**: uruchom `wiedun-flow` z Anthropic na `pallets/click` (commit pinned), zapisz run-report, manualnie oceń spójność 3-5 pierwszych lekcji. Zapisz baseline do `tests/eval/results/s3-click-baseline.json`.
 
 **Nowe ADR**: ADR-0007 — Planning prompt contract + retry strategy.
 
@@ -292,7 +292,7 @@ Track B:
 - **US-022** (`--log-format=json`)
 - **US-055** (stdout summary z OSC 8 hyperlink)
 - **US-056** (run-report.json schema)
-- **US-057** (`.codeguide/` do `.gitignore` auto-append)
+- **US-057** (`.wiedunflow/` do `.gitignore` auto-append)
 - **US-058** (historia 10 reports rotacja)
 - **US-070**: CLI prints boxed cost-gate estimate with `rich.panel`
 - **US-071**: CLI emits 7-stage output with exact copy and live counters
@@ -313,7 +313,7 @@ Track C:
 - **US-076**: Tutorial splitter resizable 28–72% persisted in localStorage
 - **US-077**: Tutorial Tweaks panel (theme toggle only in production)
 
-Splitter drag range 28–72%; `pointerdown/pointermove/pointerup` events on the splitter element; `localStorage` key `codeguide:tweak:narr-frac:v2`. Disabled on <1024px.
+Splitter drag range 28–72%; `pointerdown/pointermove/pointerup` events on the splitter element; `localStorage` key `wiedunflow:tweak:narr-frac:v2`. Disabled on <1024px.
 
 ### Mini-eval
 
@@ -331,14 +331,14 @@ Splitter drag range 28–72%; `pointerdown/pointermove/pointerup` events on the 
 
 **Parallel tracks** (3 agenty):
 
-- **Track A — `security-auditor` + `backend-developer`**: consent banner flow + hard-refuse list + `codeguide init` wizard + zero-telemetry integration test.
+- **Track A — `security-auditor` + `backend-developer`**: consent banner flow + hard-refuse list + `wiedun-flow init` wizard + zero-telemetry integration test.
 - **Track B — `python-pro`**: config precedence chain (CLI > env > `--config` > `./tutorial.config.yaml` > user-level > defaults) + Pydantic validator.
 - **Track C — `security-auditor` + `devops-engineer`**: SecretFilter (FR-80) + shell injection hardening dla `--review-plan` (FR-79) + pip-audit release workflow.
 
 ### US z PRD
 
 Track A:
-- **US-002** (codeguide init wizard)
+- **US-002** (wiedun-flow init wizard)
 - **US-005** (consent banner blocking first cloud-provider run)
 - **US-006** (`--no-consent-prompt`)
 - **US-007** (consent persisted per-provider)
@@ -402,7 +402,7 @@ Track C:
 ## Sprint 8 — CLI UX wiring + animations (v0.2.0)
 
 **Cel**: wire'ować istniejący UX-spec do pipeline'a + dodać animacje per-stage.
-Po sprintcie `codeguide ./repo` w TTY pokazuje banner, animowane stage'y,
+Po sprintcie `wiedun-flow ./repo` w TTY pokazuje banner, animowane stage'y,
 cost-gate prompt domyślnie ON, run-report card. Plan szczegółowy:
 `~/.claude/plans/ok-zastanawa-mnie-jednak-linear-wigderson.md` (zaakceptowany
 2026-04-25).
@@ -420,7 +420,7 @@ cost-gate prompt domyślnie ON, run-report card. Plan szczegółowy:
 - **US-083** Live counters footer (tokens / cost / elapsed) (Track A)
 - **US-084** Cost-gate domyślnie ON dla TTY + bypass: `--yes` / `--no-cost-prompt` / non-TTY (Track B)
 - **US-085** Run-report card dla success / degraded / failed / interrupted / cost-gate-abort (Track B)
-- **US-086** Banner startowy `CodeGuide vX.Y.Z` (Track B)
+- **US-086** Banner startowy `WiedunFlow vX.Y.Z` (Track B)
 - **US-087** Animation strategy doc (UX-spec §4.5.1) — Q3 decyzja zapisana (Track C)
 
 ### Founding decisions (Q1-Q6 z pytań Socratesowych, plan-mode 2026-04-25)
@@ -428,7 +428,7 @@ cost-gate prompt domyślnie ON, run-report card. Plan szczegółowy:
 | # | Decyzja | Rationale |
 |---|---|---|
 | Q1 | Sprint 8 wire'owanie spec'a, Sprint 9 picker (osobno) | Wire'owanie ~80% jest już zbudowane (martwy kod) — tani sprint, nie blokuje v0.1.0 |
-| Q2 | `codeguide` bez argumentów → picker tylko gdy `stdin.isatty()` | Non-TTY (CI, pipe) dalej wymaga argumentu — żaden release flow się nie zepsuje (Sprint 9) |
+| Q2 | `wiedun-flow` bez argumentów → picker tylko gdy `stdin.isatty()` | Non-TTY (CI, pipe) dalej wymaga argumentu — żaden release flow się nie zepsuje (Sprint 9) |
 | Q3 | Stage 2 = replace-line, Stage 5 = scroll | Mass scan (no-history) vs event log (auditable) |
 | Q4 | Cost gate domyślnie ON dla TTY, auto-bypass non-TTY, flaga `--no-cost-prompt` | Pierwszy run pyta o $$$; CI bez friction |
 | Q5 | `rich.live` + `rich.spinner` (Sprint 8) | Zero nowych deps; questionary dopiero w Sprint 9 |
@@ -442,7 +442,7 @@ cost-gate prompt domyślnie ON, run-report card. Plan szczegółowy:
 
 **Status**: DONE (2026-04-26)
 
-**Cel**: `codeguide` bez argumentów (TTY) → questionary picker z 3 sources (recent runs / discover git repos / manual path), potem flow Sprint 8. Równolegle: pricing catalog finalize (live LiteLLM + optional httpx).
+**Cel**: `wiedun-flow` bez argumentów (TTY) → questionary picker z 3 sources (recent runs / discover git repos / manual path), potem flow Sprint 8. Równolegle: pricing catalog finalize (live LiteLLM + optional httpx).
 
 **Parallel tracks** (3 agenty, ~5-7 dni):
 
@@ -452,8 +452,8 @@ cost-gate prompt domyślnie ON, run-report card. Plan szczegółowy:
 
 ### US (Sprint 9 — nowe)
 
-- **US-088** Picker entry — `codeguide` bez args + TTY → `run_repo_picker()`. Non-TTY zostaje bez zmian.
-- **US-089** Recent runs source — czytanie `~/.cache/codeguide/recent.json`, fallback gdy plik nie istnieje
+- **US-088** Picker entry — `wiedun-flow` bez args + TTY → `run_repo_picker()`. Non-TTY zostaje bez zmian.
+- **US-089** Recent runs source — czytanie `~/.cache/wiedunflow/recent.json`, fallback gdy plik nie istnieje
 - **US-090** Git-repo discovery — rekurencyjny walk cwd do max_depth=2, znajdź `.git/`
 - **US-091** Manual path source — `questionary.path()` z walidacją "is git repo"
 - **US-092** Recent runs cache writeback — po success run zapisz wpis (LRU 10)
@@ -483,7 +483,7 @@ cost-gate prompt domyślnie ON, run-report card. Plan szczegółowy:
 ### Standardowy prompt dla agenta per US
 
 ```
-Kontekst: projekt CodeGuide. Przeczytaj D:\CodeGuide\CLAUDE.md, sekcję <STAGE> z .ai/prd.md oraz odpowiednie ADR w docs/adr/.
+Kontekst: projekt WiedunFlow. Przeczytaj D:\WiedunFlow\CLAUDE.md, sekcję <STAGE> z .ai/prd.md oraz odpowiednie ADR w docs/adr/.
 
 Zadanie: zaimplementuj US-<NR> zgodnie z PRD §5 — wszystkie acceptance criteria jako osobne testy pytest.
 
@@ -530,13 +530,13 @@ W każdym sprincie S2-S7 identyfikuję 2-3 niezależne tracks (A/B/C). Delegacja
 
 - `.ai/prd.md` — bump do `0.1.2-draft` (z `0.1.1-draft`; MINOR — new FR-81..90, US-070..080, AC additions — no breaking changes to existing requirements)
 - `.ai/tech-stack.md` — bump do `0.1.2-draft` (PATCH — refinement of §9/§11/§17/§18, no new technology decisions)
-- `implementation-plan.md` — no version bump; add CHANGELOG entry: `Unreleased — Integrated codeguide-ux-skill: T-000.14 fonts pre-work, S5 tracks A/B/C extended for pixel-perfect UX + CLI UX polish, ADR-0011 queued`
+- `implementation-plan.md` — no version bump; add CHANGELOG entry: `Unreleased — Integrated wiedunflow-ux-skill: T-000.14 fonts pre-work, S5 tracks A/B/C extended for pixel-perfect UX + CLI UX polish, ADR-0011 queued`
 
 ## Weryfikacja końcowa — po implementacji każdego sprintu
 
-1. **Lokalnie**: `uv sync && ruff check && ruff format --check && mypy --strict src/codeguide/** && pytest` — zielone.
+1. **Lokalnie**: `uv sync && ruff check && ruff format --check && mypy --strict src/wiedunflow/** && pytest` — zielone.
 2. **CI**: matrix 3.11/3.12/3.13 × ubuntu/windows/macos zielony.
-3. **Smoke**: `codeguide tests/fixtures/tiny_repo/ --yes` produkuje `tutorial.html` i otwiera się w Playwright bez console error.
+3. **Smoke**: `wiedun-flow tests/fixtures/tiny_repo/ --yes` produkuje `wiedunflow-tiny-repo.html` i otwiera się w Playwright bez console error.
 4. **Canary eval (od S3)**: `pytest -m eval -k click` zielony (wymaga ANTHROPIC_API_KEY).
 5. **Full eval (tylko S7)**: `pytest -m eval` zielony na wszystkich 5 pinned repos.
 6. **Release gate (tylko S7)**: rubric avg ≥3 na MCP SDK podpisany przez autora + 2 trusted friends, 0 crashes, <5% hallucinations.
@@ -545,20 +545,20 @@ W każdym sprincie S2-S7 identyfikuję 2-3 niezależne tracks (A/B/C). Delegacja
 
 - `.ai/ux-spec.md` — single source of truth for UX
 - `docs/adr/0011-ux-design-system.md` — binary UX decisions
-- `src/codeguide/renderer/fonts/*.woff2` — Inter + JetBrains Mono WOFF2 (S0 T-000.14)
-- `src/codeguide/renderer/templates/tokens.css` — CSS custom properties (S0 T-000.14)
-- `src/codeguide/renderer/templates/tutorial.css` — layout + component styles (S5 track A)
+- `src/wiedunflow/renderer/fonts/*.woff2` — Inter + JetBrains Mono WOFF2 (S0 T-000.14)
+- `src/wiedunflow/renderer/templates/tokens.css` — CSS custom properties (S0 T-000.14)
+- `src/wiedunflow/renderer/templates/tutorial.css` — layout + component styles (S5 track A)
 - `pyproject.toml` — pełna konfiguracja UV + ruff + mypy + pytest
-- `src/codeguide/entities/*.py` — Pydantic modele
-- `src/codeguide/interfaces/ports.py` — wszystkie porty (LLMProvider, Parser, VectorStore, Cache, Editor, Clock)
-- `src/codeguide/use_cases/generate_tutorial.py` — orchestrator 7-stage
-- `src/codeguide/adapters/{anthropic,openai,openai_compatible}_provider.py` — BYOK
-- `src/codeguide/adapters/{tree_sitter_parser,jedi_resolver,bm25_store,sqlite_cache,jinja_renderer,pygments_highlighter}.py`
-- `src/codeguide/renderer/templates/tutorial.html.j2` — Jinja2 template (S5 track A)
-- `src/codeguide/cli/main.py` — click entry + run modes + signals + logger
-- `src/codeguide/cli/config.py` — Pydantic config + precedence chain
-- `src/codeguide/cli/logging.py` — structlog setup + SecretFilter
-- `src/codeguide/cli/output.py` — rich.panel cost gate, run report card (S5 track B)
+- `src/wiedunflow/entities/*.py` — Pydantic modele
+- `src/wiedunflow/interfaces/ports.py` — wszystkie porty (LLMProvider, Parser, VectorStore, Cache, Editor, Clock)
+- `src/wiedunflow/use_cases/generate_tutorial.py` — orchestrator 7-stage
+- `src/wiedunflow/adapters/{anthropic,openai,openai_compatible}_provider.py` — BYOK
+- `src/wiedunflow/adapters/{tree_sitter_parser,jedi_resolver,bm25_store,sqlite_cache,jinja_renderer,pygments_highlighter}.py`
+- `src/wiedunflow/renderer/templates/tutorial.html.j2` — Jinja2 template (S5 track A)
+- `src/wiedunflow/cli/main.py` — click entry + run modes + signals + logger
+- `src/wiedunflow/cli/config.py` — Pydantic config + precedence chain
+- `src/wiedunflow/cli/logging.py` — structlog setup + SecretFilter
+- `src/wiedunflow/cli/output.py` — rich.panel cost gate, run report card (S5 track B)
 - `tests/eval/corpus/repos.yaml` + submodules
 - `tests/fixtures/tiny_repo/` — fixture dla walking skeleton
 - `docs/adr/0003..0011-*.md`
@@ -570,7 +570,7 @@ W każdym sprincie S2-S7 identyfikuję 2-3 niezależne tracks (A/B/C). Delegacja
 | Ryzyko | Mitigacja |
 |---|---|
 | Walking skeleton w S1 za cienki → pogrubianie w S2-S6 odkrywa fundamentalne braki | S1 kończy się Playwright e2e + golden test — każda zmiana kontraktu entities wymusza świadomy update golden. |
-| Parallel tracks S2+ generują merge conflicts | Każdy track ma wyraźny scope plików (różne moduły src/codeguide). Kontrakt cross-track = typ danych, nie wspólne pliki. |
+| Parallel tracks S2+ generują merge conflicts | Każdy track ma wyraźny scope plików (różne moduły src/wiedunflow). Kontrakt cross-track = typ danych, nie wspólne pliki. |
 | Rubric sign-off (US-066) blokuje release jeśli 2 friends niedostępni | Przygotować listę friends w S6 (nie S7), umówić slot review z timeboxem. |
 | Eval cost eksploduje przy 5 repach × Anthropic (Opus drogi) | `--max-cost` na każdym eval run; logowanie kosztu per-repo; Opus z `claude-sonnet-4-6` fallback dla uboższych repos. |
 | Cross-OS Windows test zielone lokalnie, czerwone w CI przez ścieżki | `pathlib.Path` wszędzie + `platformdirs`; CI ma jobs per OS od S0 — łapiemy wcześnie. |
@@ -578,13 +578,13 @@ W każdym sprincie S2-S7 identyfikuję 2-3 niezależne tracks (A/B/C). Delegacja
 ## Session Journal
 
 **Status**: extracted
-**Session ref**: [[Sesje/2026-04-20-codeguide-sprint-0|Sprint 0 Foundation]]
+**Session ref**: [[Sesje/2026-04-20-wiedunflow-sprint-0|Sprint 0 Foundation]]
 
 ### Co zrobione
 - Sprint 0 plan zaakceptowany (2026-04-20) — 7 pytań Socratesowych, Context7 docs dla UV/ruff/pre-commit
 - T-000.1..T-000.13 wdrożone przez devops-engineer (1 liniowy agent) + technical-writer (równolegle ADR)
 - T-000.14 wdrożone przez python-pro (fonty WOFF2 z CDN, tokens.css, testy)
-- 11/11 testów PASS, ruff clean, mypy strict clean, `codeguide --version` → `0.0.0`
+- 11/11 testów PASS, ruff clean, mypy strict clean, `wiedun-flow --version` → `0.0.0`
 - Worktree isolation uwaga: agenty pisały do GŁÓWNEGO repo mimo `isolation: worktree` (znany issue)
 
 ### Co poszło dobrze
@@ -609,6 +609,6 @@ W każdym sprincie S2-S7 identyfikuję 2-3 niezależne tracks (A/B/C). Delegacja
 
 ### Wnioski dla następnej sesji
 - Sprint 1: Walking Skeleton — `python-pro` + `test-automator`. Trigger: "Zaimplementuj Sprint 1"
-- Przed pushem v0.0.0 tag: `git worktree remove -f -f D:/CodeGuide/.claude/worktrees/agent-*`
+- Przed pushem v0.0.0 tag: `git worktree remove -f -f D:/WiedunFlow/.claude/worktrees/agent-*`
 - Commit flow: `git checkout -b chore/sprint-0-scaffold && git add ... && git commit -s -m "chore(config): ..."`
 - Pre-commit autoupdate po pierwszym commit (pin najnowsze rev)

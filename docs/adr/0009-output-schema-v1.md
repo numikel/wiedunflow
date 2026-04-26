@@ -28,7 +28,7 @@ Three constraints drive the envelope:
 ## Decision
 
 The rendered `tutorial.html` embeds exactly **three JSON payloads** identified
-by stable DOM IDs. The namespace `window.CodeGuide.*` is reserved for the
+by stable DOM IDs. The namespace `window.WiedunFlow.*` is reserved for the
 reader runtime and documented below.
 
 ### DOM IDs (locked)
@@ -56,7 +56,7 @@ reader runtime and documented below.
 ```jsonc
 {
   "schema_version": "1.0.0",
-  "codeguide_version": "0.0.5",
+  "wiedunflow_version": "0.0.5",
   "repo": "modelcontextprotocol/python-sdk",
   "sha": "abc1234…",
   "branch": "main",
@@ -117,7 +117,7 @@ block immediately after the paragraph that cites them.
 ### JS namespace
 
 ```jsonc
-window.CodeGuide = {
+window.WiedunFlow = {
   init(): void,                 // bootstrap entry — called on DOMContentLoaded
   _errors: string[],            // populated when JSON parse or DOM lookup fails
   _meta, _clusters, _lessons,   // parsed payloads, available after init()
@@ -129,16 +129,16 @@ window.CodeGuide = {
 
 | Key | Type | Default |
 |---|---|---|
-| `codeguide:<repo>:last-lesson` | lesson id string | first lesson id |
-| `codeguide:tweak:theme:v2` | `"light"` \| `"dark"` | `"light"` |
-| `codeguide:tweak:narr-frac:v2` | float in `[0.28, 0.72]` | `0.5` |
+| `wiedunflow:<repo>:last-lesson` | lesson id string | first lesson id |
+| `wiedunflow:tweak:theme:v2` | `"light"` \| `"dark"` | `"light"` |
+| `wiedunflow:tweak:narr-frac:v2` | float in `[0.28, 0.72]` | `0.5` |
 
-Other keys prefixed with `codeguide:*` are reserved for future use.
+Other keys prefixed with `wiedunflow:*` are reserved for future use.
 
 ### Forward compatibility
 
 - **schema_version** is SemVer **MAJOR.MINOR.PATCH**. A reader that sees an
-  unknown version logs `console.warn("CodeGuide: unknown schema_version 'X', supported: 1.0.0")`
+  unknown version logs `console.warn("WiedunFlow: unknown schema_version 'X', supported: 1.0.0")`
   and continues rendering on a best-effort basis (decision #5 of Sprint 5 plan: **fail-open**,
   never block the read).
 - Additive fields in meta/clusters/lessons are **non-breaking**; readers MUST
@@ -164,7 +164,7 @@ Other keys prefixed with `codeguide:*` are reserved for future use.
   `json.dumps(ensure_ascii=False)` through Jinja2 `| safe`.
 - **Reader** (`renderer/templates/tutorial.js`) parses each payload via
   `JSON.parse(el.textContent)`; on parse failure, the error is recorded in
-  `window.CodeGuide._errors` so tests (`tests/integration/test_html_file_url.py`)
+  `window.WiedunFlow._errors` so tests (`tests/integration/test_html_file_url.py`)
   can assert zero parse errors.
 - **Tests** pin the shape: `tests/integration/test_walking_skeleton.py::test_tutorial_html_has_three_json_payloads`
   and `test_tutorial_html_has_schema_version` protect the envelope.

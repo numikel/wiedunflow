@@ -8,9 +8,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
-from codeguide.use_cases.inject_source_excerpts import inject_source_excerpts
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
+from wiedunflow.use_cases.inject_source_excerpts import inject_source_excerpts
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -21,7 +21,7 @@ _NOW = datetime(2026, 4, 20, 0, 0, 0, tzinfo=UTC)
 
 def _make_metadata(total_lessons: int = 1) -> ManifestMetadata:
     return ManifestMetadata(
-        codeguide_version="0.0.3",
+        wiedunflow_version="0.0.3",
         total_lessons=total_lessons,
         generated_at=_NOW,
         has_readme=True,

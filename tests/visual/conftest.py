@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.adapters import (
+from wiedunflow.adapters import (
     FakeClock,
     FakeLLMProvider,
     InMemoryCache,
@@ -23,7 +23,7 @@ from codeguide.adapters import (
     StubRanker,
     StubTreeSitterParser,
 )
-from codeguide.use_cases.generate_tutorial import Providers, generate_tutorial
+from wiedunflow.use_cases.generate_tutorial import Providers, generate_tutorial
 
 _TINY_REPO = Path(__file__).parent.parent / "fixtures" / "tiny_repo"
 

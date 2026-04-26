@@ -10,7 +10,7 @@ from types import FrameType
 
 import pytest
 
-from codeguide.cli.signals import SigintHandler, install_sigint_handler
+from wiedunflow.cli.signals import SigintHandler, install_sigint_handler
 
 
 class _AbortSpy:
@@ -27,7 +27,7 @@ def _fire_sigint(
     handler: SigintHandler, monotonic_value: float, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Invoke the private handler directly with a controlled monotonic clock."""
-    monkeypatch.setattr("codeguide.cli.signals.time.monotonic", lambda: monotonic_value)
+    monkeypatch.setattr("wiedunflow.cli.signals.time.monotonic", lambda: monotonic_value)
     handler._handle(signal.SIGINT, None)  # type: ignore[attr-defined]
 
 
@@ -106,7 +106,7 @@ def test_double_restore_is_safe() -> None:
 def test_handler_accepts_frame_none(monkeypatch: pytest.MonkeyPatch) -> None:
     spy = _AbortSpy()
     handler = SigintHandler(stderr=io.StringIO(), hard_abort=spy)
-    monkeypatch.setattr("codeguide.cli.signals.time.monotonic", lambda: 0.0)
+    monkeypatch.setattr("wiedunflow.cli.signals.time.monotonic", lambda: 0.0)
     frame: FrameType | None = None
     handler._handle(signal.SIGINT, frame)  # type: ignore[attr-defined]
     handler.restore()

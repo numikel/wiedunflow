@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from codeguide.adapters.yaml_consent_store import YamlConsentStore
+from wiedunflow.adapters.yaml_consent_store import YamlConsentStore
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.entities.code_symbol import CodeSymbol
-from codeguide.use_cases.doc_coverage import compute_doc_coverage
+from wiedunflow.entities.code_symbol import CodeSymbol
+from wiedunflow.use_cases.doc_coverage import compute_doc_coverage
 
 # ---------------------------------------------------------------------------
 # Helpers

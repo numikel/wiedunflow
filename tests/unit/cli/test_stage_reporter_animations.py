@@ -23,8 +23,8 @@ import io
 
 from rich.console import Console
 
-from codeguide.cli.output import make_theme
-from codeguide.cli.stage_reporter import NoOpReporter, StageReporter
+from wiedunflow.cli.output import make_theme
+from wiedunflow.cli.stage_reporter import NoOpReporter, StageReporter
 
 
 def _capture() -> tuple[Console, io.StringIO]:

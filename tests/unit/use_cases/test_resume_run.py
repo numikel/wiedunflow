@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from codeguide.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
-from codeguide.use_cases.resume_run import slice_manifest_at_first_incomplete
+from wiedunflow.entities.lesson_manifest import LessonManifest, LessonSpec, ManifestMetadata
+from wiedunflow.use_cases.resume_run import slice_manifest_at_first_incomplete
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -25,7 +25,7 @@ def _make_manifest(*lesson_ids: str) -> LessonManifest:
         for lid in lesson_ids
     )
     metadata = ManifestMetadata(
-        codeguide_version="0.0.4",
+        wiedunflow_version="0.0.4",
         total_lessons=len(specs),
         generated_at=datetime.now(UTC),
     )

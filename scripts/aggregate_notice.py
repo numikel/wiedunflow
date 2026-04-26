@@ -24,7 +24,7 @@ from importlib import metadata
 from pathlib import Path
 
 _HEADER = """\
-CodeGuide
+WiedunFlow
 Copyright 2026 Michał Kamiński
 
 This product includes software developed at Astral (https://astral.sh/)
@@ -32,12 +32,12 @@ This product includes software developed at Astral (https://astral.sh/)
 
 This product includes the Inter typeface, licensed under SIL OFL 1.1.
 Copyright 2016-2024 The Inter Project Authors (https://github.com/rsms/inter).
-See src/codeguide/renderer/fonts/OFL-Inter.txt for the full license.
+See src/wiedunflow/renderer/fonts/OFL-Inter.txt for the full license.
 
 This product includes the JetBrains Mono typeface, licensed under SIL OFL 1.1.
 Copyright 2020 The JetBrains Mono Project Authors
 (https://github.com/JetBrains/JetBrainsMono).
-See src/codeguide/renderer/fonts/OFL-JetBrainsMono.txt for the full license.
+See src/wiedunflow/renderer/fonts/OFL-JetBrainsMono.txt for the full license.
 
 This product includes software developed by third parties under the Apache-2.0
 license. Their NOTICE attribution blocks follow:
@@ -51,7 +51,7 @@ def _find_apache_deps() -> list[tuple[str, str]]:
     A distribution is considered Apache-2.0 when its ``Classifier`` field
     contains the string ``"Apache"`` or its ``License`` field does.
 
-    The ``codeguide`` package itself is excluded — it is the project being
+    The ``wiedun-flow`` package itself is excluded — it is the project being
     built, not a third-party runtime dependency.
     """
     apache_deps: list[tuple[str, str]] = []
@@ -66,7 +66,7 @@ def _find_apache_deps() -> list[tuple[str, str]]:
             continue
         # Exclude the project itself — its NOTICE is the file we are writing,
         # not a third-party attribution block.
-        if name.lower() == "codeguide":
+        if name.lower() == "wiedunflow":
             continue
         classifiers = dist.metadata.get_all("Classifier") or []
         # Use .get() to avoid DeprecationWarning from implicit None returns

@@ -1,14 +1,14 @@
 # Release Quality Review — Reviewer Kit
 
-Welcome! You are reviewing CodeGuide v0.1.0 for the MCP Python SDK. This kit walks you through setup, generation, scoring, and submission in 60–90 minutes.
+Welcome! You are reviewing WiedunFlow v0.6.0 for the MCP Python SDK. This kit walks you through setup, generation, scoring, and submission in 60–90 minutes.
 
 ## Setup (One-time, ~10 minutes)
 
 ### Step 1: Clone the repository with submodules
 
 ```bash
-git clone https://github.com/numikel/code-guide.git
-cd codeguide
+git clone https://github.com/numikel/wiedunflow.git
+cd wiedunflow
 git submodule update --init
 ```
 
@@ -20,7 +20,7 @@ uv sync
 
 ### Step 3: Set up API access
 
-CodeGuide requires an Anthropic API key. If you don't have one:
+WiedunFlow requires an Anthropic API key. If you don't have one:
 - Visit [console.anthropic.com](https://console.anthropic.com)
 - Create an account or sign in
 - Generate an API key
@@ -46,7 +46,7 @@ echo $ANTHROPIC_API_KEY
 The MCP Python SDK is already pinned as a Git submodule. Generate the tutorial:
 
 ```bash
-uv run codeguide tests/eval/corpus/repos/python-sdk-mcp \
+uv run wiedun-flow tests/eval/corpus/repos/python-sdk-mcp \
   --yes \
   --config tests/eval/configs/python-sdk-mcp.yaml
 ```
@@ -63,7 +63,7 @@ The first run typically takes 15–25 minutes depending on API latency and your 
 
 **Error: `ANTHROPIC_API_KEY not found`**
 - Ensure you ran `export ANTHROPIC_API_KEY=...` in the same terminal session.
-- Or: edit `~/.config/codeguide/config.yaml` and set `api_key: sk-ant-...` in the `anthropic` section.
+- Or: edit `~/.config/wiedunflow/config.yaml` and set `api_key: sk-ant-...` in the `anthropic` section.
 
 **Error: `tests/eval/corpus/repos/python-sdk-mcp: no such file`**
 - Run `git submodule update --init` to clone the reference repos.
@@ -101,7 +101,7 @@ Open `tutorial.html` in your browser (any modern browser, no server required).
    - No critical concepts skipped or taught twice unexpectedly
 
 **Compare against the reference** (Michał will provide the Anthropic Skilljar "Building MCP Clients" link privately, or email him):
-- Does the CodeGuide tutorial cover the same material?
+- Does the WiedunFlow tutorial cover the same material?
 - Is the depth appropriate for a developer learning MCP?
 - Are there obvious gaps?
 
@@ -167,6 +167,6 @@ A: Michał (author) + 2 trusted developer friends (names TBD). You can compare n
 
 ---
 
-**Thank you for reviewing CodeGuide.** Your feedback directly shapes the quality bar for the release.
+**Thank you for reviewing WiedunFlow.** Your feedback directly shapes the quality bar for the release.
 
 For questions, reach out to Michał Kamiński (michał@...).

@@ -15,14 +15,14 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.cli.menu import (
+from tests.unit.cli._fake_menu_io import FakeMenuIO
+from wiedunflow.cli.menu import (
     _pick_hosted_model,
     _saved_section_payload,
     _subwizard_provider_models,
     _subwizard_repo_output,
     _validate_repo_path,
 )
-from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 
 class _StubCatalog:
@@ -270,9 +270,9 @@ def test_provider_models_custom_optional_key(monkeypatch: pytest.MonkeyPatch) ->
 def test_provider_models_express_path_yes(monkeypatch: pytest.MonkeyPatch) -> None:
     """Saved config + Y → returns saved values + _express marker."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-saved")
-    from codeguide.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import WiedunflowConfig
 
-    saved = CodeguideConfig(
+    saved = WiedunflowConfig(
         llm_provider="anthropic",
         llm_model_plan="claude-sonnet-4-6",
         llm_model_narrate="claude-opus-4-7",
@@ -296,9 +296,9 @@ def test_provider_models_express_path_no_falls_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-saved")
-    from codeguide.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import WiedunflowConfig
 
-    saved = CodeguideConfig(
+    saved = WiedunflowConfig(
         llm_provider="anthropic",
         llm_model_plan="claude-sonnet-4-6",
         llm_model_narrate="claude-opus-4-7",
@@ -325,9 +325,9 @@ def test_provider_models_express_path_no_falls_through(
 
 
 def test_saved_section_payload_marks_express() -> None:
-    from codeguide.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import WiedunflowConfig
 
-    saved = CodeguideConfig(
+    saved = WiedunflowConfig(
         llm_provider="openai",
         llm_model_plan="gpt-4.1",
         llm_model_narrate="gpt-4.1",
@@ -386,9 +386,9 @@ def test_provider_models_abort_on_express_confirm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    from codeguide.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import WiedunflowConfig
 
-    saved = CodeguideConfig()
+    saved = WiedunflowConfig()
     io = FakeMenuIO(responses=[None])  # express confirm Esc
 
     assert (

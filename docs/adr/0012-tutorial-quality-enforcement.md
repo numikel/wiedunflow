@@ -7,7 +7,7 @@ Sprint: post-MVP (v0.2.1)
 ## Context
 
 The first generated tutorial against the `json-to-markdown` evaluation repo
-(commit `3527003`, CodeGuide v0.2.0) surfaced four systemic quality gaps that
+(commit `3527003`, WiedunFlow v0.2.0) surfaced four systemic quality gaps that
 the v0.1.0 / v0.2.0 release gates did not catch:
 
 1. **Hallucinated function signatures.** The narration LLM received only
@@ -130,17 +130,17 @@ attached to the closing lesson.
 - ADR-0007 (planning prompt contract) — extended additively.
 - ADR-0009 (output schema v1) — frozen DOM contract respected.
 - Code (new):
-  - `src/codeguide/use_cases/inject_source_excerpts.py`
-  - `src/codeguide/use_cases/snippet_validator.py`
-  - `src/codeguide/use_cases/entry_point_detector.py`
-  - `src/codeguide/use_cases/skip_trivial.py`
-- Code (modified): `src/codeguide/use_cases/grounding_retry.py`,
-  `src/codeguide/use_cases/plan_lesson_manifest.py`,
-  `src/codeguide/use_cases/generate_tutorial.py`,
-  `src/codeguide/adapters/anthropic_provider.py`,
-  `src/codeguide/adapters/openai_provider.py`,
-  `src/codeguide/entities/code_ref.py`,
-  `src/codeguide/entities/lesson_manifest.py`.
+  - `src/wiedunflow/use_cases/inject_source_excerpts.py`
+  - `src/wiedunflow/use_cases/snippet_validator.py`
+  - `src/wiedunflow/use_cases/entry_point_detector.py`
+  - `src/wiedunflow/use_cases/skip_trivial.py`
+- Code (modified): `src/wiedunflow/use_cases/grounding_retry.py`,
+  `src/wiedunflow/use_cases/plan_lesson_manifest.py`,
+  `src/wiedunflow/use_cases/generate_tutorial.py`,
+  `src/wiedunflow/adapters/anthropic_provider.py`,
+  `src/wiedunflow/adapters/openai_provider.py`,
+  `src/wiedunflow/entities/code_ref.py`,
+  `src/wiedunflow/entities/lesson_manifest.py`.
 - Config: `planning.entry_point_first`, `planning.skip_trivial_helpers`,
   `narration.min_words_trivial`, `narration.snippet_validation`
-  (`src/codeguide/cli/config.py`).
+  (`src/wiedunflow/cli/config.py`).

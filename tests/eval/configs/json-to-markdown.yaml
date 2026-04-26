@@ -10,4 +10,4 @@ tutorial:
   target_audience: "junior Python developer"
 exclude_patterns:
   - test_*.py
-output_path: ./reports/codeguide-json-to-markdown.html
+output_path: ./reports/wiedunflow-json-to-markdown.html

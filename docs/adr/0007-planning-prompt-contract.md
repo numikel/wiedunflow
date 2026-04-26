@@ -63,8 +63,8 @@ what gets rendered.
   US-033 (fatal fail on planning), US-048 (schema_version in output JSON).
 - ADR-0001 (LLM stack), ADR-0002 (RAG), ADR-0006 (AST snapshot schema).
 - ADR-0012 (tutorial quality enforcement) — extends this contract additively.
-- Code: `src/codeguide/use_cases/plan_lesson_manifest.py`,
-  `src/codeguide/entities/lesson_manifest.py`.
+- Code: `src/wiedunflow/use_cases/plan_lesson_manifest.py`,
+  `src/wiedunflow/entities/lesson_manifest.py`.
 
 ## Revision log
 

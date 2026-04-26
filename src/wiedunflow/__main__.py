@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
+"""Entry point for ``python -m wiedunflow``.
+
+Mirrors the ``wiedun-flow`` console script defined in ``pyproject.toml``
+(``[project.scripts]``) so eval tests and release workflows that prefer
+``sys.executable -m wiedunflow`` over PATH lookups work identically.
+"""
+
+from __future__ import annotations
+
+from wiedunflow.cli.main import cli
+
+if __name__ == "__main__":
+    cli()

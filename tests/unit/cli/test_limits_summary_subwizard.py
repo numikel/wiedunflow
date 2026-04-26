@@ -9,7 +9,8 @@ from typing import Any
 
 import pytest
 
-from codeguide.cli.menu import (
+from tests.unit.cli._fake_menu_io import FakeMenuIO
+from wiedunflow.cli.menu import (
     _SUMMARY_CANCEL,
     _SUMMARY_LAUNCH,
     _ask_int,
@@ -20,7 +21,6 @@ from codeguide.cli.menu import (
     _subwizard_summary_and_launch,
     _validate_int_in_range,
 )
-from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 # ---------------------------------------------------------------------------
 # _validate_int_in_range / _ask_int
@@ -85,9 +85,9 @@ def test_subwizard_limits_skip_returns_defaults() -> None:
 
 
 def test_subwizard_limits_skip_with_saved_uses_saved() -> None:
-    from codeguide.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import WiedunflowConfig
 
-    saved = CodeguideConfig(
+    saved = WiedunflowConfig(
         llm_concurrency=15,
         llm_max_retries=7,
         llm_max_wait_s=90,
@@ -246,7 +246,7 @@ def test_summary_cancel_does_not_launch(tmp_path: Path, monkeypatch: pytest.Monk
     def _fake_launch(_payload: dict[str, Any]) -> None:
         launched.append(True)
 
-    monkeypatch.setattr("codeguide.cli.menu._launch_pipeline", _fake_launch)
+    monkeypatch.setattr("wiedunflow.cli.menu._launch_pipeline", _fake_launch)
     io = FakeMenuIO(responses=[_SUMMARY_CANCEL])
 
     _subwizard_summary_and_launch(io, _make_payload(tmp_path))
@@ -257,7 +257,7 @@ def test_summary_cancel_does_not_launch(tmp_path: Path, monkeypatch: pytest.Monk
 def test_summary_esc_does_not_launch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     launched: list[bool] = []
     monkeypatch.setattr(
-        "codeguide.cli.menu._launch_pipeline",
+        "wiedunflow.cli.menu._launch_pipeline",
         lambda _p: launched.append(True),
     )
     io = FakeMenuIO(responses=[None])
@@ -270,7 +270,7 @@ def test_summary_esc_does_not_launch(tmp_path: Path, monkeypatch: pytest.MonkeyP
 def test_summary_launch_calls_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     captured: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "codeguide.cli.menu._launch_pipeline",
+        "wiedunflow.cli.menu._launch_pipeline",
         lambda payload: captured.append(payload),
     )
     # After the pipeline returns, the wizard waits on Enter so the run report
@@ -294,13 +294,13 @@ def test_run_generate_from_menu_full_cancel_flow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """End-to-end §1 → §2 → §3 → §4 → §5 cancel path with no saved config."""
-    from codeguide.cli.menu import _run_generate_from_menu
+    from wiedunflow.cli.menu import _run_generate_from_menu
 
-    monkeypatch.setattr("codeguide.cli.menu._try_load_saved_config", lambda: None)
+    monkeypatch.setattr("wiedunflow.cli.menu._try_load_saved_config", lambda: None)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     launched: list[bool] = []
     monkeypatch.setattr(
-        "codeguide.cli.menu._launch_pipeline",
+        "wiedunflow.cli.menu._launch_pipeline",
         lambda _p: launched.append(True),
     )
 

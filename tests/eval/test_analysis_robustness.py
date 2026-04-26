@@ -22,10 +22,10 @@ from typing import Any
 import pytest
 import yaml
 
-from codeguide.adapters.jedi_resolver import JediResolver
-from codeguide.adapters.networkx_ranker import NetworkxRanker
-from codeguide.adapters.tree_sitter_parser import TreeSitterParser
-from codeguide.use_cases.ingestion import ingest
+from wiedunflow.adapters.jedi_resolver import JediResolver
+from wiedunflow.adapters.networkx_ranker import NetworkxRanker
+from wiedunflow.adapters.tree_sitter_parser import TreeSitterParser
+from wiedunflow.use_cases.ingestion import ingest
 
 pytestmark = pytest.mark.eval_robustness
 

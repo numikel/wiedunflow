@@ -6,7 +6,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from codeguide.adapters import (
+from wiedunflow.adapters import (
     FakeClock,
     FakeLLMProvider,
     InMemoryCache,
@@ -15,8 +15,8 @@ from codeguide.adapters import (
     StubRanker,
     StubTreeSitterParser,
 )
-from codeguide.entities.lesson_manifest import LessonSpec, ManifestMetadata
-from codeguide.use_cases.generate_tutorial import Providers, generate_tutorial
+from wiedunflow.entities.lesson_manifest import LessonSpec, ManifestMetadata
+from wiedunflow.use_cases.generate_tutorial import Providers, generate_tutorial
 
 _TINY_REPO = Path(__file__).parent.parent.parent / "fixtures" / "tiny_repo"
 _NOW = datetime(2026, 4, 20, 0, 0, 0, tzinfo=UTC)
@@ -29,7 +29,7 @@ _NOW = datetime(2026, 4, 20, 0, 0, 0, tzinfo=UTC)
 
 def _make_metadata(total_lessons: int) -> ManifestMetadata:
     return ManifestMetadata(
-        codeguide_version="0.0.3",
+        wiedunflow_version="0.0.3",
         total_lessons=total_lessons,
         generated_at=_NOW,
         has_readme=True,

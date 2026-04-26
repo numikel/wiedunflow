@@ -9,7 +9,7 @@ import json
 import pytest
 import structlog
 
-from codeguide.cli.logging import configure, get_logger
+from wiedunflow.cli.logging import configure, get_logger
 
 
 @pytest.fixture(autouse=True)

@@ -61,12 +61,12 @@ def test_tutorial_html_has_three_json_payloads(tutorial_html: Path) -> None:
 
 
 def test_tutorial_html_has_schema_version(tutorial_html: Path) -> None:
-    """US-048: meta payload carries schema_version and codeguide_version."""
+    """US-048: meta payload carries schema_version and wiedunflow_version."""
     meta = _extract_json(tutorial_html.read_text(encoding="utf-8"), "tutorial-meta")
     assert isinstance(meta, dict)
     assert meta["schema_version"] == "1.0.0"
-    assert "codeguide_version" in meta
-    assert meta["codeguide_version"]
+    assert "wiedunflow_version" in meta
+    assert meta["wiedunflow_version"]
 
 
 def test_tutorial_html_has_topbar_and_footer(tutorial_html: Path) -> None:
@@ -84,3 +84,31 @@ def test_tutorial_html_offline_footer_message(tutorial_html: Path) -> None:
     html = tutorial_html.read_text(encoding="utf-8")
     assert "fully offline" in html
     assert "Apache 2.0" in html
+
+
+def test_default_output_filename_matches_wiedunflow_repo_pattern(
+    tiny_repo_path: Path,
+    providers,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """v0.6.0 rebrand: default output filename is `wiedunflow-<repo>.html` in cwd.
+
+    Regression guard for ADR-0015 (Phase 1.3 rename). Without an explicit
+    `output_path`, the generator writes `wiedunflow-{repo_path.name}.html`
+    relative to cwd — NOT the legacy `tutorial.html`.
+    """
+    from wiedunflow.use_cases.generate_tutorial import generate_tutorial
+
+    monkeypatch.chdir(tmp_path)
+    result = generate_tutorial(tiny_repo_path, providers)
+
+    expected = tmp_path / f"wiedunflow-{tiny_repo_path.name}.html"
+    assert result.output_path == expected, (
+        f"default output path drifted: expected {expected}, got {result.output_path}"
+    )
+    assert expected.exists(), "default output file was not actually written"
+    # Sanity: the legacy filename must NOT be created when default applies.
+    assert not (tmp_path / "tutorial.html").exists(), (
+        "legacy tutorial.html should not exist under default output rules"
+    )

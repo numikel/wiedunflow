@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from codeguide.entities import RankedGraph, RankedSymbol
+from wiedunflow.entities import RankedGraph, RankedSymbol
 
 
 def _sym(name: str, score: float = 0.1, community: int = 0) -> RankedSymbol:

@@ -12,7 +12,7 @@ PRD 0.1.0-draft specified LangGraph as the orchestration framework and LangChain
 
 Critical review of the tech stack against the PRD surfaced three concerns:
 
-1. **Pipeline shape** — the CodeGuide generation loop is linear: for each lesson in `lesson_manifest`, call the narration LLM, validate grounding, checkpoint, continue. There is no agentic branching, no dynamic tool selection, no multi-agent coordination. LangGraph's state-machine runtime is designed for exactly those use cases and adds overhead without payoff for a linear pipeline.
+1. **Pipeline shape** — the WiedunFlow generation loop is linear: for each lesson in `lesson_manifest`, call the narration LLM, validate grounding, checkpoint, continue. There is no agentic branching, no dynamic tool selection, no multi-agent coordination. LangGraph's state-machine runtime is designed for exactly those use cases and adds overhead without payoff for a linear pipeline.
 2. **Maintenance cost** — LangChain and LangGraph have a history of frequent breaking changes (module relocations, API renames, state-shape migrations) on a roughly quarterly cadence. For a single-maintainer project (MVP is author + two trusted reviewers) this cadence is a non-trivial tax. LangChain has also had multiple CVEs (prompt injection via tool descriptions, pickle deserialization in document loaders) — carrying LangChain in the dependency graph widens the attack surface even if we never use the affected loaders.
 3. **Provider fidelity** — provider-specific features (Anthropic tool use semantics, OpenAI structured outputs, reasoning fields for OpenRouter/DeepSeek) lag in LangChain. Calling the official SDKs directly is more faithful to each provider's current capabilities.
 

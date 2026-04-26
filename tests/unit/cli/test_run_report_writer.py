@@ -8,8 +8,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from codeguide.cli.run_report_writer import RunReportWriter, write_run_report
-from codeguide.entities.run_report import RunReport
+from wiedunflow.cli.run_report_writer import RunReportWriter, write_run_report
+from wiedunflow.entities.run_report import RunReport
 
 
 def _mk_report(status: str = "ok", **extra: object) -> RunReport:
@@ -28,20 +28,20 @@ def _mk_report(status: str = "ok", **extra: object) -> RunReport:
     return RunReport(**base)  # type: ignore[arg-type]
 
 
-def test_write_creates_codeguide_directory(tmp_path: Path) -> None:
+def test_write_creates_wiedunflow_directory(tmp_path: Path) -> None:
     write_run_report(_mk_report(), tmp_path)
-    assert (tmp_path / ".codeguide").is_dir()
-    assert (tmp_path / ".codeguide" / "run-report.json").is_file()
+    assert (tmp_path / ".wiedunflow").is_dir()
+    assert (tmp_path / ".wiedunflow" / "run-report.json").is_file()
 
 
 def test_write_returns_final_path(tmp_path: Path) -> None:
     path = write_run_report(_mk_report(), tmp_path)
-    assert path == tmp_path / ".codeguide" / "run-report.json"
+    assert path == tmp_path / ".wiedunflow" / "run-report.json"
 
 
 def test_written_json_is_valid_and_matches_payload(tmp_path: Path) -> None:
     write_run_report(_mk_report(status="degraded", degraded_ratio=0.5), tmp_path)
-    payload = json.loads((tmp_path / ".codeguide" / "run-report.json").read_text(encoding="utf-8"))
+    payload = json.loads((tmp_path / ".wiedunflow" / "run-report.json").read_text(encoding="utf-8"))
     assert payload["status"] == "degraded"
     assert payload["schema_version"] == "1.0.0"
     assert payload["degraded_ratio"] == 0.5
@@ -49,7 +49,7 @@ def test_written_json_is_valid_and_matches_payload(tmp_path: Path) -> None:
 
 def test_write_is_atomic_no_tmp_left_behind(tmp_path: Path) -> None:
     write_run_report(_mk_report(), tmp_path)
-    tmp_files = list((tmp_path / ".codeguide").glob("*.tmp"))
+    tmp_files = list((tmp_path / ".wiedunflow").glob("*.tmp"))
     assert tmp_files == []
 
 
@@ -60,7 +60,7 @@ def test_failure_report_serialises_stack_trace(tmp_path: Path) -> None:
         failed_at_lesson="lesson-004",
     )
     write_run_report(report, tmp_path)
-    payload = json.loads((tmp_path / ".codeguide" / "run-report.json").read_text(encoding="utf-8"))
+    payload = json.loads((tmp_path / ".wiedunflow" / "run-report.json").read_text(encoding="utf-8"))
     assert payload["status"] == "failed"
     assert payload["failed_at_lesson"] == "lesson-004"
     assert "RuntimeError: boom" in payload["stack_trace"]
@@ -76,7 +76,7 @@ def test_writer_class_wraps_function(tmp_path: Path) -> None:
 def test_second_write_overwrites_first(tmp_path: Path) -> None:
     write_run_report(_mk_report(status="ok"), tmp_path)
     write_run_report(_mk_report(status="interrupted"), tmp_path)
-    payload = json.loads((tmp_path / ".codeguide" / "run-report.json").read_text(encoding="utf-8"))
+    payload = json.loads((tmp_path / ".wiedunflow" / "run-report.json").read_text(encoding="utf-8"))
     assert payload["status"] == "interrupted"
 
 
@@ -93,7 +93,7 @@ def test_hallucinated_field_emitted(tmp_path: Path) -> None:
         hallucinated_symbols_count=2,
     )
     write_run_report(report, tmp_path)
-    payload = json.loads((tmp_path / ".codeguide" / "run-report.json").read_text(encoding="utf-8"))
+    payload = json.loads((tmp_path / ".wiedunflow" / "run-report.json").read_text(encoding="utf-8"))
 
     assert payload["hallucinated_symbols_count"] == 2
     assert payload["hallucinated_symbols"] == ["bar_undefined", "foo_ghost"]

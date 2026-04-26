@@ -9,4 +9,4 @@ on a graph with:
 - utility layer consumed by both `pkg` and `cli`
 - no cycles, no dynamic imports — Jedi should hit ≥50% resolution
 
-This fixture is NOT executed as code — it is parsed as input to CodeGuide.
+This fixture is NOT executed as code — it is parsed as input to WiedunFlow.

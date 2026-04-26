@@ -118,10 +118,10 @@ CREATE TABLE IF NOT EXISTS pagerank_snapshots (
 
 ### Default cache location
 
-Delegated to ``platformdirs.user_cache_path("codeguide", appauthor=False)``:
-- **Linux**: ``~/.cache/codeguide/cache.db``
-- **Windows**: ``%LOCALAPPDATA%\codeguide\Cache\cache.db``
-- **macOS**: ``~/Library/Caches/codeguide/cache.db``
+Delegated to ``platformdirs.user_cache_path("wiedunflow", appauthor=False)``:
+- **Linux**: ``~/.cache/wiedunflow/cache.db``
+- **Windows**: ``%LOCALAPPDATA%\wiedunflow\Cache\cache.db``
+- **macOS**: ``~/Library/Caches/wiedunflow/cache.db``
 
 The ``--cache-path`` flag (US-020) overrides the default.
 
@@ -157,10 +157,10 @@ forward-compatible migration statement added to ``_init_schema``.
 ### Negative / trade-offs
 
 - SQLite is a single-file lock: under heavy parallel *writes* (not typical for
-  CodeGuide's pipeline) contention may appear.  The `threading.Lock` mitigates
+  WiedunFlow's pipeline) contention may appear.  The `threading.Lock` mitigates
   this but does not eliminate it.
 - The cache file is local to the machine — no cross-machine cache sharing in
-  MVP.  Team scenarios where multiple developers run CodeGuide on the same repo
+  MVP.  Team scenarios where multiple developers run WiedunFlow on the same repo
   gain no benefit from each other's caches.
 - JSON stored as TEXT loses type information at the SQL layer; queries on JSON
   fields require loading into Python first.
@@ -181,8 +181,8 @@ forward-compatible migration statement added to ``_init_schema``.
 - US-017 (resume), US-018 (regenerate-plan), US-020 (cache-path),
   US-023 (incremental <5 min), US-024 (PageRank diff), US-025 (platformdirs),
   US-026 (SHA-256 file granularity)
-- Code: `src/codeguide/adapters/sqlite_cache.py`,
-  `src/codeguide/entities/cache_entry.py`,
-  `src/codeguide/entities/cache_key.py`,
-  `src/codeguide/use_cases/resume_run.py`,
-  `src/codeguide/use_cases/graph_diff.py`
+- Code: `src/wiedunflow/adapters/sqlite_cache.py`,
+  `src/wiedunflow/entities/cache_entry.py`,
+  `src/wiedunflow/entities/cache_key.py`,
+  `src/wiedunflow/use_cases/resume_run.py`,
+  `src/wiedunflow/use_cases/graph_diff.py`

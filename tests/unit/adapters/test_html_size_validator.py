@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from codeguide.adapters.html_size_validator import validate_size
+from wiedunflow.adapters.html_size_validator import validate_size
 
 
 def _write_sized_file(path: Path, size_bytes: int) -> None:

@@ -8,7 +8,7 @@ import io
 
 from rich.console import Console
 
-from codeguide.cli.output import CostGateRow, make_theme, render_cost_gate
+from wiedunflow.cli.output import CostGateRow, make_theme, render_cost_gate
 
 
 def _capture() -> tuple[Console, io.StringIO]:

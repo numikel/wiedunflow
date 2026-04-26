@@ -11,13 +11,13 @@ from typing import Any
 import httpx
 import pytest
 
-from codeguide.adapters.litellm_pricing_catalog import (
+from wiedunflow.adapters.litellm_pricing_catalog import (
     LiteLLMPricingCatalog,
     _entry_to_blended_price,
     _parse_pricing_payload,
     _provider_strip,
 )
-from codeguide.interfaces.pricing_catalog import PricingCatalog
+from wiedunflow.interfaces.pricing_catalog import PricingCatalog
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -122,7 +122,7 @@ class _FakeResponse:
 
 def _patch_httpx(monkeypatch: pytest.MonkeyPatch, payload: Any) -> None:
     monkeypatch.setattr(
-        "codeguide.adapters.litellm_pricing_catalog.httpx.get",
+        "wiedunflow.adapters.litellm_pricing_catalog.httpx.get",
         lambda *_a, **_k: _FakeResponse(payload),
     )
 
@@ -168,7 +168,7 @@ def test_http_error_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     def _raise(*_a: Any, **_k: Any) -> None:
         raise httpx.ConnectError("offline")
 
-    monkeypatch.setattr("codeguide.adapters.litellm_pricing_catalog.httpx.get", _raise)
+    monkeypatch.setattr("wiedunflow.adapters.litellm_pricing_catalog.httpx.get", _raise)
     cat = LiteLLMPricingCatalog()
     assert cat.blended_price_per_mtok("gpt-4.1") is None
 
@@ -202,7 +202,7 @@ def test_hydrate_bypasses_http(monkeypatch: pytest.MonkeyPatch) -> None:
         pytest.fail("httpx.get was invoked despite hydrate()")
 
     monkeypatch.setattr(
-        "codeguide.adapters.litellm_pricing_catalog.httpx.get", _should_not_be_called
+        "wiedunflow.adapters.litellm_pricing_catalog.httpx.get", _should_not_be_called
     )
     cat = LiteLLMPricingCatalog()
     cat.hydrate({"my-llama": 0.10})
@@ -255,12 +255,12 @@ def test_fixture_prefixed_and_bare_gpt41(sample_payload: dict[str, Any]) -> None
 
 def test_build_pricing_chain_wires_litellm_then_static() -> None:
     """``_build_pricing_chain()`` returns a chain of [Cached(LiteLLM), Static]."""
-    from codeguide.adapters.cached_pricing_catalog import (
+    from wiedunflow.adapters.cached_pricing_catalog import (
         CachedPricingCatalog,
         ChainedPricingCatalog,
     )
-    from codeguide.adapters.static_pricing_catalog import StaticPricingCatalog
-    from codeguide.cli.main import _build_pricing_chain
+    from wiedunflow.adapters.static_pricing_catalog import StaticPricingCatalog
+    from wiedunflow.cli.main import _build_pricing_chain
 
     chain = _build_pricing_chain()
 

@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from codeguide.entities.run_report import RunReport
+from wiedunflow.entities.run_report import RunReport
 
 
 def _base_kwargs(**overrides: object) -> dict[str, object]:

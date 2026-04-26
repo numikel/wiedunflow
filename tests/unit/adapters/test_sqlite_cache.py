@@ -11,14 +11,14 @@ from unittest.mock import patch
 
 import pytest
 
-from codeguide.adapters.sqlite_cache import SQLiteCache, _default_db_path
-from codeguide.entities.cache_entry import (
+from wiedunflow.adapters.sqlite_cache import SQLiteCache, _default_db_path
+from wiedunflow.entities.cache_entry import (
     CheckpointEntry,
     FileCacheEntry,
     PageRankSnapshot,
     PlanCacheEntry,
 )
-from codeguide.entities.cache_key import build_cache_key, build_plan_key
+from wiedunflow.entities.cache_key import build_cache_key, build_plan_key
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -351,13 +351,13 @@ def test_us_023_concurrent_writes_no_corruption(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_us_025_default_db_path_contains_codeguide(tmp_path: Path) -> None:
-    """Default DB path includes 'codeguide' in the path."""
-    with patch("platformdirs.user_cache_path", return_value=tmp_path / "codeguide") as mock_fn:
+def test_us_025_default_db_path_contains_wiedunflow(tmp_path: Path) -> None:
+    """Default DB path includes 'wiedunflow' (cache namespace) in the path."""
+    with patch("platformdirs.user_cache_path", return_value=tmp_path / "wiedunflow") as mock_fn:
         # Ensure the returned path exists
-        (tmp_path / "codeguide").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "wiedunflow").mkdir(parents=True, exist_ok=True)
         db_path = _default_db_path()
-        mock_fn.assert_called_once_with("codeguide", appauthor=False, ensure_exists=True)
+        mock_fn.assert_called_once_with("wiedunflow", appauthor=False, ensure_exists=True)
         assert db_path.name == "cache.db"
 
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from codeguide.entities.lesson import CodeRef, Lesson, NarrationSegment
+from wiedunflow.entities.lesson import CodeRef, Lesson, NarrationSegment
 
 
 def test_narration_segment_is_frozen() -> None:

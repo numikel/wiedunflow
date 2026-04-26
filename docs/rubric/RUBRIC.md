@@ -1,4 +1,4 @@
-# Release Quality Rubric — CodeGuide v0.1.0
+# Release Quality Rubric — WiedunFlow v0.1.0
 
 ## Purpose
 

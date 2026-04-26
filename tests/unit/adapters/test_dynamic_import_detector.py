@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from codeguide.adapters.dynamic_import_detector import detect_dynamic_imports
+from wiedunflow.adapters.dynamic_import_detector import detect_dynamic_imports
 
 # ---------------------------------------------------------------------------
 # Parametrised positive cases — each pattern that MUST be detected

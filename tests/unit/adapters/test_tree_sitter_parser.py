@@ -9,8 +9,8 @@ from textwrap import dedent
 
 import pytest
 
-from codeguide.adapters.tree_sitter_parser import TreeSitterParser
-from codeguide.entities.code_symbol import CodeSymbol
+from wiedunflow.adapters.tree_sitter_parser import TreeSitterParser
+from wiedunflow.entities.code_symbol import CodeSymbol
 
 # ---------------------------------------------------------------------------
 # Fixtures

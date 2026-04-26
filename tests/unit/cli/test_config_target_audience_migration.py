@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from codeguide.cli.config import (
+from wiedunflow.cli.config import (
     _normalize_target_audience,
     load_config,
 )
@@ -72,7 +72,7 @@ def test_unknown_string_falls_back_to_mid_with_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """An unmappable value must default to ``mid`` and log a warning."""
-    with caplog.at_level(logging.WARNING, logger="codeguide.cli.config"):
+    with caplog.at_level(logging.WARNING, logger="wiedunflow.cli.config"):
         result = _normalize_target_audience("astronaut")
     assert result == "mid"
     assert any(
@@ -96,7 +96,7 @@ def test_yaml_legacy_freetext_loads_as_enum(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A legacy ``mid-level Python developer`` YAML loads cleanly as ``mid``."""
-    monkeypatch.delenv("CODEGUIDE_TARGET_AUDIENCE", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_TARGET_AUDIENCE", raising=False)
     cfg_file = tmp_path / "tutorial.config.yaml"
     _write_yaml(cfg_file, {"target_audience": "mid-level Python developer"})
 
@@ -107,7 +107,7 @@ def test_yaml_legacy_freetext_loads_as_enum(
 
 def test_yaml_enum_value_loads_directly(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """v0.4.0 YAML with bare ``senior`` enum value loads without warning."""
-    monkeypatch.delenv("CODEGUIDE_TARGET_AUDIENCE", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_TARGET_AUDIENCE", raising=False)
     cfg_file = tmp_path / "tutorial.config.yaml"
     _write_yaml(cfg_file, {"target_audience": "senior"})
 
@@ -118,7 +118,7 @@ def test_yaml_enum_value_loads_directly(tmp_path: Path, monkeypatch: pytest.Monk
 
 def test_default_is_mid_when_not_specified(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Pydantic default must be ``mid`` (not the old free-text default)."""
-    monkeypatch.delenv("CODEGUIDE_TARGET_AUDIENCE", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_TARGET_AUDIENCE", raising=False)
     cfg_file = tmp_path / "tutorial.config.yaml"
     _write_yaml(cfg_file, {})
 

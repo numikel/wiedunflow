@@ -14,14 +14,14 @@ from typing import Any
 import pytest
 import yaml
 
-from codeguide.cli.menu import (
+from tests.unit.cli._fake_menu_io import FakeMenuIO
+from wiedunflow.cli.menu import (
     _run_config_from_menu,
     _run_estimate_from_menu,
     _run_help_from_menu,
     _run_init_from_menu,
     _run_resume_from_menu,
 )
-from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 # Backward-compat alias for tests written against the pre-merge name.
 _run_show_config_from_menu = _run_config_from_menu
@@ -61,8 +61,8 @@ def _init_kwargs() -> dict[str, Any]:
 def isolated_user_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Redirect ``user_config_path()`` into a tmp dir for write/read tests."""
     target = tmp_path / "config.yaml"
-    monkeypatch.setattr("codeguide.cli.menu.user_config_path", lambda: target)
-    monkeypatch.setattr("codeguide.cli.config.user_config_path", lambda: target)
+    monkeypatch.setattr("wiedunflow.cli.menu.user_config_path", lambda: target)
+    monkeypatch.setattr("wiedunflow.cli.config.user_config_path", lambda: target)
     return target
 
 
@@ -312,7 +312,7 @@ def test_show_config_with_saved_renders_panel(
         "llm:\n  provider: anthropic\n  model_plan: claude-sonnet-4-6\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_LLM_PROVIDER", raising=False)
     # Render once → user picks [Done] → loop exits without edits.
     io = FakeMenuIO(responses=["[Done]"])
 
@@ -334,7 +334,7 @@ def test_show_config_edit_audience_persists_to_yaml(
         "target_audience: mid\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_TARGET_AUDIENCE", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_TARGET_AUDIENCE", raising=False)
     io = FakeMenuIO(
         responses=[
             "Audience",  # field selector
@@ -358,7 +358,7 @@ def test_show_config_edit_max_lessons_persists(
         "llm:\n  provider: anthropic\n  model_plan: claude-sonnet-4-6\n  model_narrate: claude-opus-4-7\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_MAX_LESSONS", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_MAX_LESSONS", raising=False)
     io = FakeMenuIO(responses=["Max lessons", "12", "[Done]"])
 
     _run_show_config_from_menu(io)
@@ -376,7 +376,7 @@ def test_show_config_edit_concurrency_persists(
         "llm:\n  provider: anthropic\n  model_plan: claude-sonnet-4-6\n  model_narrate: claude-opus-4-7\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_LLM_CONCURRENCY", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_LLM_CONCURRENCY", raising=False)
     io = FakeMenuIO(responses=["Concurrency", "15", "[Done]"])
 
     _run_show_config_from_menu(io)
@@ -395,7 +395,7 @@ def test_show_config_edit_base_url_empty_clears(
         "  base_url: http://localhost:11434/v1\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_LLM_BASE_URL", raising=False)
     io = FakeMenuIO(responses=["Base URL", "", "[Done]"])
 
     _run_show_config_from_menu(io)
@@ -415,7 +415,7 @@ def test_show_config_esc_on_field_keeps_existing_value(
         "max_lessons: 30\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_MAX_LESSONS", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_MAX_LESSONS", raising=False)
     io = FakeMenuIO(responses=["Max lessons", None, "[Done]"])
 
     _run_show_config_from_menu(io)
@@ -428,7 +428,7 @@ def test_show_config_edit_excludes_uses_list_manager(
     isolated_user_config: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from codeguide.cli.menu import _LIST_ADD, _LIST_DONE
+    from wiedunflow.cli.menu import _LIST_ADD, _LIST_DONE
 
     isolated_user_config.parent.mkdir(parents=True, exist_ok=True)
     isolated_user_config.write_text(
@@ -519,12 +519,12 @@ def test_resume_no_checkpoint_returns_to_menu(
             return False
 
     monkeypatch.setattr(
-        "codeguide.adapters.sqlite_cache.SQLiteCache",
+        "wiedunflow.adapters.sqlite_cache.SQLiteCache",
         lambda *_a, **_k: _StubCache(),
     )
     launched: list[bool] = []
     monkeypatch.setattr(
-        "codeguide.cli.menu._launch_pipeline",
+        "wiedunflow.cli.menu._launch_pipeline",
         lambda _p: launched.append(True),
     )
     io = FakeMenuIO(responses=[str(git_repo)])
@@ -552,12 +552,12 @@ def test_resume_with_checkpoint_calls_launch(
             return True
 
     monkeypatch.setattr(
-        "codeguide.adapters.sqlite_cache.SQLiteCache",
+        "wiedunflow.adapters.sqlite_cache.SQLiteCache",
         lambda *_a, **_k: _StubCache(),
     )
     launched: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "codeguide.cli.menu._launch_pipeline",
+        "wiedunflow.cli.menu._launch_pipeline",
         lambda payload: launched.append(payload),
     )
     io = FakeMenuIO(responses=[str(git_repo)])
@@ -592,9 +592,9 @@ def test_help_renders_panel(capsys: pytest.CaptureFixture[str]) -> None:
     _run_help_from_menu(io)
 
     out = capsys.readouterr().out
-    assert "CODEGUIDE MENU" in out
+    assert "WIEDUNFLOW MENU" in out
     assert "Generate tutorial" in out
-    assert "CODEGUIDE_NO_MENU" in out
+    assert "WIEDUNFLOW_NO_MENU" in out
 
 
 # ---------------------------------------------------------------------------
@@ -603,9 +603,9 @@ def test_help_renders_panel(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_cost_gate_uses_confirm_fn_when_provided() -> None:
-    from codeguide.cli.cost_estimator import estimate
-    from codeguide.cli.cost_gate import prompt_cost_gate
-    from codeguide.cli.output import init_console
+    from wiedunflow.cli.cost_estimator import estimate
+    from wiedunflow.cli.cost_gate import prompt_cost_gate
+    from wiedunflow.cli.output import init_console
 
     captured: list[str] = []
 
@@ -632,9 +632,9 @@ def test_cost_gate_uses_confirm_fn_when_provided() -> None:
 def test_cost_gate_falls_back_to_click_when_confirm_fn_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from codeguide.cli.cost_estimator import estimate
-    from codeguide.cli.cost_gate import prompt_cost_gate
-    from codeguide.cli.output import init_console
+    from wiedunflow.cli.cost_estimator import estimate
+    from wiedunflow.cli.cost_gate import prompt_cost_gate
+    from wiedunflow.cli.output import init_console
 
     monkeypatch.setattr("click.confirm", lambda _msg, default=False: True)
     console = init_console()
@@ -657,7 +657,7 @@ def test_cost_gate_falls_back_to_click_when_confirm_fn_none(
 
 
 def test_sqlite_has_checkpoint_returns_false_when_empty(tmp_path: Path) -> None:
-    from codeguide.adapters.sqlite_cache import SQLiteCache
+    from wiedunflow.adapters.sqlite_cache import SQLiteCache
 
     cache = SQLiteCache(path=tmp_path / "cache.db")
 
@@ -667,8 +667,8 @@ def test_sqlite_has_checkpoint_returns_false_when_empty(tmp_path: Path) -> None:
 def test_sqlite_has_checkpoint_returns_true_after_save(tmp_path: Path) -> None:
     from datetime import UTC, datetime
 
-    from codeguide.adapters.sqlite_cache import SQLiteCache
-    from codeguide.entities.cache_entry import CheckpointEntry
+    from wiedunflow.adapters.sqlite_cache import SQLiteCache
+    from wiedunflow.entities.cache_entry import CheckpointEntry
 
     cache = SQLiteCache(path=tmp_path / "cache.db")
     repo = tmp_path / "myrepo"

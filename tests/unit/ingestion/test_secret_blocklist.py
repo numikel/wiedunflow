@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.ingestion.secret_blocklist import HARD_REFUSE_PATTERNS, is_hard_refused
+from wiedunflow.ingestion.secret_blocklist import HARD_REFUSE_PATTERNS, is_hard_refused
 
 # ---------------------------------------------------------------------------
 # Parametrized: files that MUST be refused

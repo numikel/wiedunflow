@@ -19,15 +19,15 @@ from pathlib import Path
 
 import pytest
 
-import codeguide.cli.consent as consent_module
-from codeguide.adapters.yaml_consent_store import YamlConsentStore
-from codeguide.cli.consent import (
+import wiedunflow.cli.consent as consent_module
+from wiedunflow.adapters.yaml_consent_store import YamlConsentStore
+from wiedunflow.cli.consent import (
     ConsentDeniedError,
     ConsentRequiredError,
     _reset_for_tests,
     ensure_consent_granted,
 )
-from codeguide.ingestion.secret_blocklist import is_hard_refused
+from wiedunflow.ingestion.secret_blocklist import is_hard_refused
 
 # ---------------------------------------------------------------------------
 # Fixtures

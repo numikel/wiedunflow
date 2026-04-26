@@ -56,7 +56,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Type check (mypy)
-        run: uv run mypy src/codeguide
+        run: uv run mypy src/wiedunflow
 
       - name: Test
         run: uv run pytest -v

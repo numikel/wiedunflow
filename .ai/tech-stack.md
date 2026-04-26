@@ -1,17 +1,17 @@
-# Tech Stack - CodeGuide
+# Tech Stack - WiedunFlow
 
 Wersja dokumentu: 0.1.0
 Ostatnia aktualizacja: 2026-04-24
 Właściciel: Michał Kamiński
-Wydanie docelowe: CodeGuide v0.1.0 (MVP) — zamknięty
+Wydanie docelowe: WiedunFlow v0.1.0 (MVP) — zamknięty
 
 > **Lock wersji (2026-04-24)**: Tech-stack MVP zamknięty na v0.1.0. Późniejsze doprecyzowania jako `0.1.1-draft` (patch), większe zmiany technologiczne na `0.2.0-draft` (roadmap).
 
-Dokument opisuje proponowany stos technologiczny dla CodeGuide v0.1.0 zgodnie z wymaganiami `.ai/prd.md`. Każdy wybór jest zakotwiczony w konkretnym wymaganiu funkcjonalnym (FR-XX) lub ograniczeniu produktu.
+Dokument opisuje proponowany stos technologiczny dla WiedunFlow v0.1.0 zgodnie z wymaganiami `.ai/prd.md`. Każdy wybór jest zakotwiczony w konkretnym wymaganiu funkcjonalnym (FR-XX) lub ograniczeniu produktu.
 
 ## 1. Podsumowanie
 
-CodeGuide to jednoprocesowe CLI w Pythonie 3.11+, którego jedynym zewnętrznym zależnym ruchem sieciowym jest wywołanie LLM skonfigurowanego przez użytkownika (BYOK). Cały pipeline (7 etapów) działa lokalnie, artefakt wyjściowy to pojedynczy samodzielny plik HTML działający przez `file://` bez runtime'owych zależności po stronie odbiorcy (FR-14, FR-51).
+WiedunFlow to jednoprocesowe CLI w Pythonie 3.11+, którego jedynym zewnętrznym zależnym ruchem sieciowym jest wywołanie LLM skonfigurowanego przez użytkownika (BYOK). Cały pipeline (7 etapów) działa lokalnie, artefakt wyjściowy to pojedynczy samodzielny plik HTML działający przez `file://` bez runtime'owych zależności po stronie odbiorcy (FR-14, FR-51).
 
 Kluczowe decyzje:
 
@@ -29,15 +29,15 @@ Kluczowe decyzje:
 | Język | Python 3.11+ | Pattern matching, `tomllib`, `ExceptionGroup`, ulepszony `TypedDict` — wszystko używane w pipeline. FR-04 wymaga macierzy 3.11/3.12/3.13. |
 | Typowanie | `from __future__ import annotations` + `mypy --strict` | Obowiązkowe adnotacje na publicznych API warstw `entities`/`use cases`/`interfaces`. Pre-commit blokuje regresje (FR-69). |
 | Styl kodu | `ruff check` + `ruff format` | Jedno źródło prawdy dla lint + format; w pre-commicie (FR-69). Eliminuje konflikty `black` vs `isort` vs `flake8`. |
-| Struktura pakietu | Layout `src/codeguide/` | Zapobiega importom z CWD w testach, standardowy dla UV. |
+| Struktura pakietu | Layout `src/wiedunflow/` | Zapobiega importom z CWD w testach, standardowy dla UV. |
 
 ## 3. Packaging, dystrybucja i toolchain
 
 | Komponent | Wybór | Uzasadnienie |
 |---|---|---|
 | Manager zależności i środowisk | **UV** (Astral) | FR-02: UV‑exclusive. `pyproject.toml` zawiera `[tool.uv]`; `uv sync` to jedyna udokumentowana ścieżka dev. |
-| Dystrybucja MVP | Bare Git repo + `uvx --from git+https://github.com/<org>/codeguide codeguide` | FR-01, FR-03. Brak PyPI do v2. |
-| Definicja projektu | `pyproject.toml` (PEP 621) + `[project.scripts]` | `codeguide = "codeguide.cli:main"`. |
+| Dystrybucja MVP | Bare Git repo + `uvx --from git+https://github.com/<org>/wiedunflow wiedunflow` | FR-01, FR-03. Brak PyPI do v2. |
+| Definicja projektu | `pyproject.toml` (PEP 621) + `[project.scripts]` | `wiedunflow = "wiedunflow.cli:main"`. |
 | Nagłówki licencji | `insert-license` (pre-commit) | FR-69: wstrzykuje nagłówek Apache 2.0 do nowych plików `.py`. |
 | Conventional commits | `commitlint` via `cz-cli` (pre-commit) | FR-69. Scope'y: `ingestion`, `analysis`, `graph`, `rag`, `planning`, `generation`, `build`, `cli`, `cache`, `config`. |
 | Zasygnalizowanie DCO | GitHub Action, nie lokalny hook | FR-70. Weryfikacja `Signed-off-by:` przy każdym PR. |
@@ -107,9 +107,9 @@ Kluczowe decyzje:
 | Logger | `structlog` (preferowany) lub stdlib `logging` z JSON formatter | Zakaz `print()` w pipeline (CLAUDE.md). FR-26: `--log-format=json` → JSON per line do stderr. |
 | SecretFilter | `logging.Filter` subclass w `interfaces/ports.py` | FR-80, US-069: redakcja API keys, external paths, verbatim source >INFO. Zastosowany do obu handlerów (human + JSON). |
 | Terminal UI | `rich` | Progress bar (7 etapów), liczniki LLM, kolorowanie; OSC 8 hyperlinks dla końcowego `file://` URL (US-055). **Terminal UI**: `rich.panel.Panel` for cost-gate box (HEAVY border), `rich.live.Live` for real-time stage counters (elapsed / cumulative cost / tokens in/out), `rich.box.HEAVY` for framed run-report card. Color roles (`good / warn / err / accent / link / dim / default / prompt`) mapped to `rich.style.Style` constants — exact role→ANSI mapping and usage per `.ai/ux-spec.md` §CLI.color-roles. |
-| Run report | Własny zapis `.codeguide/run-report.json` | FR-61, US-056. Schemat walidowany testem. |
-| Historia runów | Rotacja 10 plików w `.codeguide/history/` | FR-63. |
-| Auto‑gitignore | Idempotentny append `.codeguide/` | FR-62. |
+| Run report | Własny zapis `.wiedunflow/run-report.json` | FR-61, US-056. Schemat walidowany testem. |
+| Historia runów | Rotacja 10 plików w `.wiedunflow/history/` | FR-63. |
+| Auto‑gitignore | Idempotentny append `.wiedunflow/` | FR-62. |
 
 ## 10. Cache i persystencja
 
@@ -132,13 +132,13 @@ Kluczowe decyzje:
 | Inlining | Własny builder | FR-51: całość (CSS, JS, lesson JSON, Pygments HTML) w jednym pliku. |
 | Offline linter | Template‑time AST/regex check na output | FR-14: fail build na `fetch(`, `Image(`, `<link rel="prefetch">`, `<link rel="preconnect">`, `http(s)://` poza whitelistą attribution. |
 | Layout | CSS breakpoint 1024 px | FR-53: ≥1024 split‑view z scroll‑sync; <1024 stacked. Jedno źródło danych (embedded JSON). |
-| Persystencja UI | `localStorage` pod kluczem `codeguide:<tutorial-id>:last-lesson` | FR-55, US-046. |
+| Persystencja UI | `localStorage` pod kluczem `wiedunflow:<tutorial-id>:last-lesson` | FR-55, US-046. |
 | Schema version | `metadata.schema_version = "1.0.0"` | FR-56. Template JS branchuje na unknown version (console warning). |
 | Rozmiar outputu | Budżet <8 MB / warn >20 MB | FR-59; assertion w CI dla MCP Python SDK. |
 | Fonty | Inter 400/500/600/700 + JetBrains Mono 400/500/600, self-hosted as WOFF2 (OFL license; license notice appended to `NOTICE` file) | System fallbacks: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` / `ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace`. Rationale: FR-85, ADR-0011 §6, `.ai/ux-spec.md` §Tutorial.assets. |
 | Paleta | A1 Paper only (dove white + graphite) using CSS custom properties: `--bg / --panel / --surface / --topbar / --ink / --ink-dim / --ink-micro / --accent / --warn / --border`. Dark palette via `[data-theme=dark]` attribute override. A2/A3 palettes and Direction B dropped (ADR-0011). | Rationale: ADR-0011, `.ai/ux-spec.md` §Tutorial.tokens. |
 | Pygments → tok-\* classes | Pygments `TokenType` mapped to custom CSS classes via a `HtmlFormatter` subclass: `tok-kw` (Keyword), `tok-str` (String), `tok-com` (Comment), `tok-fn` (Name.Function), `tok-cls` (Name.Class), `tok-num` (Number). Colors in oklch color space. | Details per `.ai/ux-spec.md` §Tutorial.tokens. |
-| CSS strategy | Single CSS source: `src/codeguide/renderer/templates/tokens.css` (design tokens / CSS custom properties) + `tutorial.css` (layout + component styles), included via Jinja2 `{% include %}` and inlined into the final HTML at build time. No PostCSS, no Tailwind, no build step. Vanilla CSS only. | Inline-everything constraint (FR-51, `file://` guarantee). |
+| CSS strategy | Single CSS source: `src/wiedunflow/renderer/templates/tokens.css` (design tokens / CSS custom properties) + `tutorial.css` (layout + component styles), included via Jinja2 `{% include %}` and inlined into the final HTML at build time. No PostCSS, no Tailwind, no build step. Vanilla CSS only. | Inline-everything constraint (FR-51, `file://` guarantee). |
 
 ## 12. Testowanie
 
@@ -159,7 +159,7 @@ Kluczowe decyzje:
 | Platforma | GitHub Actions | FR-04, FR-70. |
 | Matryca | Python 3.11/3.12/3.13 × Ubuntu/Windows/macOS | FR-04, FR-61. |
 | Setup UV | `astral-sh/setup-uv` | FR-04. |
-| Kroki CI | `uv sync` → `ruff check` → `ruff format --check` → `mypy --strict src/codeguide/**` → `pytest` (bez `-m eval`) | CLAUDE.md + FR-69. |
+| Kroki CI | `uv sync` → `ruff check` → `ruff format --check` → `mypy --strict src/wiedunflow/**` → `pytest` (bez `-m eval`) | CLAUDE.md + FR-69. |
 | Branch protection | Required checks na `main`: pytest, ruff, mypy, DCO | CLAUDE.md. |
 | DCO check | GitHub Action | FR-70. |
 | Issue templates | `.github/ISSUE_TEMPLATE/{bug_report,feature_request,eval_regression}.yml` | FR-71, US-063. |

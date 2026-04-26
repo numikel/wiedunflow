@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.use_cases.snippet_validator import validate_narrative_snippets
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.use_cases.snippet_validator import validate_narrative_snippets
 
 # ---------------------------------------------------------------------------
 # Helpers

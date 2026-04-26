@@ -1,7 +1,7 @@
 # Visual regression baselines
 
 Golden PNG snapshots captured on **Ubuntu Linux** (per Sprint 5 plan decision
-#2) comparing the rendered `tutorial.html` against 4 combinations:
+#2) comparing the rendered `wiedunflow-<repo>.html` against 4 combinations:
 
 | Viewport | Theme | Filename |
 |---|---|---|
@@ -20,7 +20,7 @@ renderer; when an intentional visual change is being merged, regenerate via:
 
 ```bash
 # Ubuntu / WSL / Linux CI
-CODEGUIDE_VISUAL_UPDATE=1 uv run pytest tests/visual/
+WIEDUNFLOW_VISUAL_UPDATE=1 uv run pytest tests/visual/
 ```
 
 Then commit the updated `linux/*.png` files in the same PR as the change. The

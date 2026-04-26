@@ -1,0 +1,156 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * Copyright 2026 Michał Kamiński
+ *
+ * WiedunFlow design tokens — A1 Paper palette (ux-spec §3.7).
+ * Binary choice anchored by ADR-0011.
+ */
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  --bg:        oklch(0.97 0.004 100);
+  --panel:     oklch(0.93 0.006 100);
+  --surface:   oklch(0.89 0.008 100);
+  --topbar:    oklch(0.22 0.01 250);
+  --ink:       oklch(0.18 0.01 250);
+  --ink-2:     oklch(0.31 0.01 250);
+  --ink-dim:   oklch(0.50 0.01 250);
+  --accent:    oklch(0.55 0.18 250);
+  --warn:      oklch(0.35 0.16 35);
+  --border:    oklch(0.82 0.006 100);
+  --border-2:  oklch(0.77 0.008 100);
+  --code-bg:   oklch(0.91 0.008 100);
+  /* v0.3.0: highlight-row colour bumped from a near-grey to a warmer
+   * accent-tinted shade so the focused code lines stand out clearly. */
+  --hl:        oklch(0.92 0.10 90);
+  --hl-line:   oklch(0.45 0.18 80);
+
+  /* Confidence pills (US-080) */
+  --conf-hi-bg:   oklch(0.93 0.08 145);
+  --conf-hi-ink:  oklch(0.32 0.12 145);
+  --conf-med-bg:  oklch(0.93 0.09 80);
+  --conf-med-ink: oklch(0.35 0.12 75);
+  --conf-low-bg:  oklch(0.93 0.08 30);
+  --conf-low-ink: oklch(0.35 0.10 25);
+
+  /* Degraded banner (US-079) */
+  --degraded-bg:     oklch(0.94 0.10 40);
+  --degraded-ink:    oklch(0.35 0.16 35);
+  --degraded-border: oklch(0.82 0.14 40);
+
+  /* Syntax tokens (decision #4: .tok-*) — v0.2.0 saturation bump for contrast.
+   * Pre-v0.2.0 saturations 0.13–0.16 made code panels look uniformly dark gray
+   * (user feedback: "highlight is barely visible"). Lifted to 0.18–0.22 with
+   * lower L for better separation from ``--ink``. New ``--tok-builtin`` and
+   * ``--tok-deco`` decouple builtins from class names and decorators from
+   * function names. */
+  --tok-kw:      oklch(0.50 0.20 300);
+  --tok-str:     oklch(0.45 0.16 145);
+  --tok-com:     oklch(0.55 0.04 250);
+  --tok-fn:      oklch(0.50 0.20 240);
+  --tok-cls:     oklch(0.52 0.20 40);
+  --tok-builtin: oklch(0.55 0.16 200);
+  --tok-deco:    oklch(0.52 0.18 320);
+  --tok-num:     oklch(0.50 0.18 25);
+  --tok-op:      oklch(0.45 0.06 250);
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+[data-theme="dark"] {
+  --bg:        oklch(0.14 0.01 250);
+  --panel:     oklch(0.18 0.01 250);
+  --surface:   oklch(0.22 0.01 250);
+  --topbar:    oklch(0.08 0.01 250);
+  --ink:       oklch(0.92 0.01 250);
+  --ink-2:     oklch(0.77 0.01 250);
+  --ink-dim:   oklch(0.65 0.01 250);
+  --accent:    oklch(0.55 0.18 250);
+  --warn:      oklch(0.82 0.14 45);
+  --border:    oklch(0.27 0.01 250);
+  --border-2:  oklch(0.19 0.01 250);
+  --code-bg:   oklch(0.11 0.01 250);
+  /* v0.3.0: dark-theme highlight uses an accent-tinted backdrop so the
+   * focused range is obvious against the near-black code panel. */
+  --hl:        oklch(0.30 0.10 250);
+  --hl-line:   oklch(0.75 0.18 80);
+
+  --conf-hi-bg:   oklch(0.28 0.08 145);
+  --conf-hi-ink:  oklch(0.75 0.14 145);
+  --conf-med-bg:  oklch(0.30 0.09 75);
+  --conf-med-ink: oklch(0.80 0.14 80);
+  --conf-low-bg:  oklch(0.30 0.09 30);
+  --conf-low-ink: oklch(0.75 0.14 30);
+
+  --degraded-bg:     oklch(0.30 0.10 35);
+  --degraded-ink:    oklch(0.82 0.14 45);
+  --degraded-border: oklch(0.40 0.12 35);
+
+  /* Dark mode — v0.2.0 saturation bump matches light-mode pairs. */
+  --tok-kw:      oklch(0.80 0.18 310);
+  --tok-str:     oklch(0.80 0.16 140);
+  --tok-com:     oklch(0.62 0.04 250);
+  --tok-fn:      oklch(0.80 0.16 235);
+  --tok-cls:     oklch(0.80 0.18 55);
+  --tok-builtin: oklch(0.78 0.14 200);
+  --tok-deco:    oklch(0.80 0.16 320);
+  --tok-num:     oklch(0.78 0.16 40);
+  --tok-op:      oklch(0.72 0.06 250);
+}

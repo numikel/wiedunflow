@@ -1,6 +1,6 @@
-# AI Rules for CodeGuide
+# AI Rules for WiedunFlow
 
-CodeGuide is a Python CLI that turns a local Git repository into a single, self-contained HTML file acting as an interactive, tutorial-style guided tour of the code — opened directly in the browser via `file://`, with no server and no runtime dependencies on the recipient's side. Pipeline: tree-sitter + Jedi → PageRank graph → BM25 RAG → direct-SDK LLM orchestration (BYOK: Anthropic/OpenAI/Ollama) → Jinja2 + Pygments → one HTML. Full product spec: `.ai/mvp-codeguide.md`.
+WiedunFlow is a Python CLI that turns a local Git repository into a single, self-contained HTML file acting as an interactive, tutorial-style guided tour of the code — opened directly in the browser via `file://`, with no server and no runtime dependencies on the recipient's side. Pipeline: tree-sitter + Jedi → PageRank graph → BM25 RAG → direct-SDK LLM orchestration (BYOK: Anthropic/OpenAI/Ollama) → Jinja2 + Pygments → one HTML. Full product spec: `.ai/mvp-wiedunflow.md`.
 
 ## STACK
 
@@ -9,7 +9,7 @@ CodeGuide is a Python CLI that turns a local Git repository into a single, self-
 - **Graph**: `networkx` (PageRank, community detection, topological sort)
 - **RAG**: `rank_bm25` (BM25Okapi, zero infra). sqlite-vec + embeddings planowane na v2 — patrz ADR-0002.
 - **Cache**: SQLite + file-level hash invalidation
-- **LLM orchestration**: oficjalne SDK (`anthropic`, `openai`) + `httpx` dla OpenAI-compatible endpoints (Ollama / LM Studio / vLLM). Własny port `LLMProvider` w `interfaces/`. Bez LangChain — patrz ADR-0001.
+- **LLM orchestration**: oficjalne SDK (`anthropic`, `openai`) + `httpx` dla OpenAI-compatible endpoints (Ollama / LM Studio / vLLM). Własny port `LLMProvider` w `interfaces/`. Bez LangChain — patrz ADR-0001.	
 - **Rendering**: `Jinja2` (template), `Pygments` (syntax highlighting → inline HTML)
 - **Frontend output**: vanilla JS (binarnie, bez Preact) — **everything inlined** into one HTML (the `file://` constraint forbids `fetch()` and ES module imports)
 - **Packaging**: `pyproject.toml` → PyPI. No Docker in MVP (roadmap v2+)
@@ -34,7 +34,7 @@ CodeGuide is a Python CLI that turns a local Git repository into a single, self-
 
 - Target Python **3.11+** (pattern matching, `tomllib`, improved `TypedDict`, exception groups)
 - Type hints are **mandatory** on public APIs of pipeline modules; prefer `from __future__ import annotations`
-- Lint + format: `ruff` (lint + format) as the single source of truth; `mypy --strict` on `src/codeguide/**`
+- Lint + format: `ruff` (lint + format) as the single source of truth; `mypy --strict` on `src/wiedunflow/**`
 - Use `pathlib.Path`, never raw `os.path` strings
 - Use async only where it genuinely pays off (concurrent LLM calls in the generation stage) — keep the rest synchronous
 - Structured logs (`structlog` or stdlib `logging` with a JSON formatter), never `print()` inside the pipeline
@@ -197,13 +197,13 @@ The generator has 7 ordered stages; conventional-commit scopes mirror them 1:1:
 
 ## CLI_UX
 
-- **Entry point**: `[project.scripts]` in `pyproject.toml` exposes the CLI (e.g. `codeguide = "codeguide.cli:main"`).
-- **Output filename**: default `tutorial.html` in cwd. `<repo-name>-tutorial-<short-commit>.html` is an opt-in flag (better for sharing in Slack).
+- **Entry point**: `[project.scripts]` in `pyproject.toml` exposes the CLI (e.g. `wiedun-flow = "wiedunflow.cli:main"`).
+- **Output filename**: default `wiedunflow-<repo>.html` in cwd. `<repo-name>-tutorial-<short-commit>.html` is an opt-in flag (better for sharing in Slack).
 - **Progress reporting**: stage-level progress bar (7 stages) + LLM call counter. Structured JSON logs behind `--log-format json`; never `print()` in the pipeline.
 - **Config resolution order**: CLI flags → `--config <path>` → `./tutorial.config.yaml` → defaults. User `exclude`/`include` patterns are additive over `.gitignore`.
 - **Resume**: next run after a crash auto-detects the checkpoint and prompts to resume; `--resume` / `--no-resume` overrides.
 - **Audience default**: `tutorial.target_audience = "mid-level Python developer"`; narration language is English-only in MVP (do not add i18n scaffolding speculatively).
-- **Output metadata**: footer of the generated HTML must include `commit_hash`, `branch`, `generated_at`, and the CodeGuide version — this is the tutorial versioning contract.
+- **Output metadata**: footer of the generated HTML must include `commit_hash`, `branch`, `generated_at`, and the WiedunFlow version — this is the tutorial versioning contract.
 
 ## EVAL
 
@@ -220,11 +220,11 @@ The generator has 7 ordered stages; conventional-commit scopes mirror them 1:1:
 
 ## UX
 
-CodeGuide ma dwie user-facing surfaces: CLI (`codeguide init` terminal output) i generated `tutorial.html` (offline reader). Pełna spec w `.ai/ux-spec.md`; binarne decyzje zakotwiczone w ADR-0011.
+WiedunFlow ma dwie user-facing surfaces: CLI (`wiedun-flow init` terminal output) i generated `wiedunflow-<repo>.html` (offline reader). Pełna spec w `.ai/ux-spec.md`; binarne decyzje zakotwiczone w ADR-0011.
 
 **Triggery**:
-- Edytujesz `src/codeguide/renderer/templates/**` (Jinja2, CSS)
-- Edytujesz `src/codeguide/cli/**` (rich output, stage rendering, cost gate, run report)
+- Edytujesz `src/wiedunflow/renderer/templates/**` (Jinja2, CSS)
+- Edytujesz `src/wiedunflow/cli/**` (rich output, stage rendering, cost gate, run report)
 - Design change request ("zmień kolor", "dodaj komponent", "przenieś panel")
 
 **Core rules** (non-negotiable bez nowego ADR):
@@ -232,10 +232,10 @@ CodeGuide ma dwie user-facing surfaces: CLI (`codeguide init` terminal output) i
 - **CLI**: Modern direction, color roles `good/warn/err/accent/link/dim/default/prompt` mapowane na `rich.style.Style`. Stage headers `[N/7] <Name>`, detail lines indented 5 spaces, `✓ done · <summary>` na końcu stage. **Animations wired in v0.2.0+** — Stage 2 = replace-line, Stage 6 = scrolling event log, LLM stages = live counters footer (`.ai/ux-spec.md §4.5.1`). Stage names używają obecnego pipeline (Ingestion / Analysis / Graph / RAG / Planning / Generation / Build), NIE spec'owych nazw §4.5 (które są wishful v0.5+).
 - **Cost-gate prompt**: domyślnie ON dla TTY w v0.2.0+. Bypass: `--yes`, `--no-cost-prompt`, non-TTY (`stdin.isatty() == False`). ADR-0011 decision 9.
 - **Offline HTML**: fonts WOFF2 self-hosted inline, Pygments pre-rendered, vanilla JS (no Preact), wszystko w jednym pliku HTML.
-- **Exact copy**: CLI stage output, cost gate text, error scenarios — literalnie per `.ai/ux-spec.md` §CLI (źródło: `.claude/skills/codeguide-ux-skill/reference/cli/design/cli-session-data.js`).
-- **localStorage keys**: `codeguide:<repo>:last-lesson`, `codeguide:tweak:theme:v2`, `codeguide:tweak:narr-frac:v2`. Namespace `codeguide:*` jest zarezerwowany.
+- **Exact copy**: CLI stage output, cost gate text, error scenarios — literalnie per `.ai/ux-spec.md` §CLI (źródło: `.claude/skills/wiedunflow-ux-skill/reference/cli/design/cli-session-data.js`).
+- **localStorage keys**: `wiedunflow:<repo>:last-lesson`, `wiedunflow:tweak:theme:v2`, `wiedunflow:tweak:narr-frac:v2`. Namespace `wiedunflow:*` jest zarezerwowany.
 - **Three-sink rule (Sprint 5 #6 + ADR-0013)**: rich imports MUSZĄ być TYLKO w `cli/output.py`; questionary imports MUSZĄ być TYLKO w `cli/menu.py`; plain `print()` w `cli/menu_banner.py` (i wszędzie indziej dla diagnostyki). `stage_reporter.py` używa opaque `LiveStageHandle`; `cost_gate.py` przyjmuje `confirm_fn: Callable | None` zamiast `import questionary`; `cli/main.py` traktuje console jako `object`. Testy `test_no_rich_outside_output.py` + `test_no_questionary_outside_menu.py` enforce'ują to.
-- **Hybrid CLI / TUI (ADR-0013, v0.4.0+)**: bare `codeguide` w TTY → menu (`menu.main_menu_loop`). `codeguide generate <repo>` / `codeguide init` / non-TTY / `CODEGUIDE_NO_MENU=1` → existing Click group bit-exact. Menu nie odpala się bez TTY na stdout AND stdin (Sprint 7 eval workflow polega na tym).
+- **Hybrid CLI / TUI (ADR-0013, v0.4.0+)**: bare `wiedun-flow` w TTY → menu (`menu.main_menu_loop`). `wiedun-flow generate <repo>` / `wiedun-flow init` / non-TTY / `WIEDUNFLOW_NO_MENU=1` → existing Click group bit-exact. Menu nie odpala się bez TTY na stdout AND stdin (Sprint 7 eval workflow polega na tym).
 
 **Critical anti-patterns**:
 - ❌ Preact, React, Astro, bundler — vanilla JS binarnie (ADR-0005)
@@ -248,7 +248,7 @@ CodeGuide ma dwie user-facing surfaces: CLI (`codeguide init` terminal output) i
 
 > Szczegóły: `.ai/ux-spec.md` (design tokens, per-komponent specs, exact CLI copy, state management, JSON schema)
 > ADR: `docs/adr/0011-ux-design-system.md` (binarne decyzje)
-> Reference: `.claude/skills/codeguide-ux-skill/` (hi-fi prototypes + READMEs — DO NOT port JS/CSS directly)
+> Reference: `.claude/skills/wiedunflow-ux-skill/` (hi-fi prototypes + READMEs — DO NOT port JS/CSS directly)
 
 ## ADR_INDEX
 

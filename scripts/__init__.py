@@ -1,3 +1,3 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""CodeGuide release and maintenance scripts."""
+"""WiedunFlow release and maintenance scripts."""

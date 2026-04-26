@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from codeguide.adapters.anthropic_model_catalog import (
+from wiedunflow.adapters.anthropic_model_catalog import (
     _FALLBACK,
     AnthropicModelCatalog,
 )
@@ -52,7 +52,7 @@ class _FakeAnthropicClient:
 
 def _patch_anthropic(monkeypatch: pytest.MonkeyPatch, client: _FakeAnthropicClient) -> None:
     monkeypatch.setattr(
-        "codeguide.adapters.anthropic_model_catalog.anthropic.Anthropic",
+        "wiedunflow.adapters.anthropic_model_catalog.anthropic.Anthropic",
         lambda **_kwargs: client,
     )
 

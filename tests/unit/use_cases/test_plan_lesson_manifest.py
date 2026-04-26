@@ -8,15 +8,15 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from codeguide.entities.code_ref import CodeRef
-from codeguide.entities.lesson import Lesson
-from codeguide.entities.lesson_manifest import (
+from wiedunflow.entities.code_ref import CodeRef
+from wiedunflow.entities.lesson import Lesson
+from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
     LessonManifestValidationError,
     LessonSpec,
     ManifestMetadata,
 )
-from codeguide.use_cases.plan_lesson_manifest import (
+from wiedunflow.use_cases.plan_lesson_manifest import (
     PlanningFatalError,
     _apply_entry_point_first,
     plan_with_retry,
@@ -54,7 +54,7 @@ class StubPlanLLM:
 
 def _make_metadata(total_lessons: int) -> ManifestMetadata:
     return ManifestMetadata(
-        codeguide_version="0.0.3",
+        wiedunflow_version="0.0.3",
         total_lessons=total_lessons,
         generated_at=_NOW,
         has_readme=True,

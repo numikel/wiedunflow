@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Tests for the custom ``CodeGuideHtmlFormatter`` (Sprint 5 decision #4).
+"""Tests for the custom ``WiedunFlowHtmlFormatter`` (Sprint 5 decision #4).
 
 The formatter maps Pygments TokenType to ``.tok-*`` CSS classes so the output
 HTML can be styled via ``tokens.css`` / ``tutorial.css`` instead of relying on
@@ -9,7 +9,7 @@ inline ``style=`` attributes.
 
 from __future__ import annotations
 
-from codeguide.adapters.pygments_highlighter import highlight_python
+from wiedunflow.adapters.pygments_highlighter import highlight_python
 
 
 def test_highlight_python_uses_tok_classes() -> None:

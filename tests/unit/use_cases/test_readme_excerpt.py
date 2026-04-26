@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from codeguide.use_cases.readme_excerpt import load_readme_excerpt
+from wiedunflow.use_cases.readme_excerpt import load_readme_excerpt
 
 
 def test_no_readme_returns_none(tmp_path: Path) -> None:

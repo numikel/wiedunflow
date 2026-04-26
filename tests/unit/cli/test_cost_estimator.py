@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from codeguide.cli.cost_estimator import estimate
+from wiedunflow.cli.cost_estimator import estimate
 
 
 def test_estimate_applies_safety_factor() -> None:

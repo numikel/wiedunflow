@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from codeguide.adapters.openai_model_catalog import (
+from wiedunflow.adapters.openai_model_catalog import (
     _FALLBACK,
     OpenAIModelCatalog,
     _is_chat_capable,
@@ -55,7 +55,7 @@ class _FakeOpenAIClient:
 
 def _patch_openai(monkeypatch: pytest.MonkeyPatch, client: _FakeOpenAIClient) -> None:
     monkeypatch.setattr(
-        "codeguide.adapters.openai_model_catalog.openai.OpenAI",
+        "wiedunflow.adapters.openai_model_catalog.openai.OpenAI",
         lambda **_kwargs: client,
     )
 

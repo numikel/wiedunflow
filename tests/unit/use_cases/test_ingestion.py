@@ -7,8 +7,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from codeguide.entities.ingestion_result import IngestionResult
-from codeguide.use_cases.ingestion import ingest
+from wiedunflow.entities.ingestion_result import IngestionResult
+from wiedunflow.use_cases.ingestion import ingest
 
 # ---------------------------------------------------------------------------
 # Helpers

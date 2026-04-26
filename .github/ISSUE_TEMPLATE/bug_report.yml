@@ -17,7 +17,7 @@ body:
     attributes:
       label: Reproduction steps
       description: Steps to reproduce the behavior.
-      placeholder: "1. Run `codeguide <repo> --log-format json`\n2. See error..."
+      placeholder: "1. Run `wiedun-flow <repo> --log-format json`\n2. See error..."
     validations:
       required: true
   - type: textarea
@@ -41,10 +41,10 @@ body:
     validations:
       required: true
   - type: input
-    id: codeguide-version
+    id: wiedunflow-version
     attributes:
-      label: CodeGuide version
-      placeholder: "codeguide --version output"
+      label: WiedunFlow version
+      placeholder: "wiedun-flow --version output"
     validations:
       required: true
   - type: dropdown
