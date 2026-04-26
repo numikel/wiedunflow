@@ -230,10 +230,14 @@ def test_generated_html_contains_wiedunflow_footer(
     if result.exit_code not in (0, 2):
         pytest.skip(f"Pipeline did not produce HTML (exit {result.exit_code}): {result.output}")
 
-    # Find tutorial.html — it may be in cwd or adjacent paths.
-    html_candidates = list(tmp_path.glob("**/tutorial.html"))
+    # Find the rendered tutorial — default filename is now `wiedunflow-<repo>.html`
+    # (see ADR-0015 rebrand). Fall back to legacy `tutorial.html` for resilience
+    # if a future test uses the `--output` flag.
+    html_candidates = list(tmp_path.glob("**/wiedunflow-*.html")) or list(
+        tmp_path.glob("**/tutorial.html")
+    )
     if not html_candidates:
-        pytest.skip("tutorial.html not found — skipping footer assertion")
+        pytest.skip("rendered HTML not found — skipping footer assertion")
 
     html_content = html_candidates[0].read_text(encoding="utf-8")
     assert "WiedunFlow" in html_content, (

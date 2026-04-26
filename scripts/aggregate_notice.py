@@ -66,7 +66,7 @@ def _find_apache_deps() -> list[tuple[str, str]]:
             continue
         # Exclude the project itself — its NOTICE is the file we are writing,
         # not a third-party attribution block.
-        if name.lower() == "wiedun-flow":
+        if name.lower() == "wiedunflow":
             continue
         classifiers = dist.metadata.get_all("Classifier") or []
         # Use .get() to avoid DeprecationWarning from implicit None returns

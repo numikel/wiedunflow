@@ -310,7 +310,10 @@ def test_closing_lesson_is_appended_to_generated_tutorial(
             standalone_mode=True,
         )
         assert result.exit_code == 0, f"CLI failed: {result.output}"
-        html = (Path(tmp_cwd) / "tutorial.html").read_text(encoding="utf-8")
+        # Default output filename per ADR rebrand: wiedunflow-<repo>.html.
+        html = (Path(tmp_cwd) / f"wiedunflow-{tiny_repo_copy.name}.html").read_text(
+            encoding="utf-8"
+        )
 
     report = _load_report(tiny_repo_copy)
     # total_planned_lessons excludes the closing lesson (spec decision).

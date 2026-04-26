@@ -121,7 +121,7 @@ class TestConfigPrecedenceChain:
         _clean_wiedunflow_env(monkeypatch)
         monkeypatch.chdir(tmp_path)
 
-        user_cfg = tmp_path / "user_home" / ".config" / "wiedun-flow" / "config.yaml"
+        user_cfg = tmp_path / "user_home" / ".config" / "wiedunflow" / "config.yaml"
         _write_yaml(user_cfg, "anthropic")  # would lose
         monkeypatch.setattr(config_module, "user_config_path", lambda: user_cfg)
 
@@ -140,7 +140,7 @@ class TestConfigPrecedenceChain:
         _clean_wiedunflow_env(monkeypatch)
         monkeypatch.chdir(tmp_path)  # no project config
 
-        user_cfg = tmp_path / "user_home" / ".config" / "wiedun-flow" / "config.yaml"
+        user_cfg = tmp_path / "user_home" / ".config" / "wiedunflow" / "config.yaml"
         _write_yaml(user_cfg, "openai")
         monkeypatch.setattr(config_module, "user_config_path", lambda: user_cfg)
 
@@ -177,7 +177,7 @@ class TestConfigPrecedenceChain:
         _clean_wiedunflow_env(monkeypatch)
         monkeypatch.setenv("WIEDUNFLOW_LLM_PROVIDER", "openai")  # layer 2 — loses
 
-        user_cfg = tmp_path / "user_home" / ".config" / "wiedun-flow" / "config.yaml"
+        user_cfg = tmp_path / "user_home" / ".config" / "wiedunflow" / "config.yaml"
         _write_yaml(user_cfg, "openai_compatible")  # layer 5 — loses
         monkeypatch.setattr(config_module, "user_config_path", lambda: user_cfg)
 

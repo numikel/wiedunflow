@@ -133,7 +133,7 @@ def test_visited_marker_set_on_next_click(tutorial_html: Path) -> None:
         page.locator("#tutorial-next").click()
         page.wait_for_timeout(200)
 
-        # Find the visited-lessons key — namespace is wiedun-flow:<repo>:visited-lessons:v1
+        # Find the visited-lessons key — namespace is wiedunflow:<repo>:visited-lessons:v1
         keys = page.evaluate(
             """() => Object.keys(localStorage).filter(k => k.indexOf('visited-lessons:v1') !== -1)"""
         )

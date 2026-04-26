@@ -352,12 +352,12 @@ def test_us_023_concurrent_writes_no_corruption(tmp_path: Path) -> None:
 
 
 def test_us_025_default_db_path_contains_wiedunflow(tmp_path: Path) -> None:
-    """Default DB path includes 'wiedun-flow' in the path."""
-    with patch("platformdirs.user_cache_path", return_value=tmp_path / "wiedun-flow") as mock_fn:
+    """Default DB path includes 'wiedunflow' (cache namespace) in the path."""
+    with patch("platformdirs.user_cache_path", return_value=tmp_path / "wiedunflow") as mock_fn:
         # Ensure the returned path exists
-        (tmp_path / "wiedun-flow").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "wiedunflow").mkdir(parents=True, exist_ok=True)
         db_path = _default_db_path()
-        mock_fn.assert_called_once_with("wiedun-flow", appauthor=False, ensure_exists=True)
+        mock_fn.assert_called_once_with("wiedunflow", appauthor=False, ensure_exists=True)
         assert db_path.name == "cache.db"
 
 

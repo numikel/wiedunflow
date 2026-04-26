@@ -63,7 +63,7 @@ def test_s5_size_budget_and_schema(tmp_path: Path, repo_name: str) -> None:
             "--yes",
             "--no-consent-prompt",
             "--cache-path",
-            str(tmp_path / "wiedun-flow-cache.sqlite"),
+            str(tmp_path / "wiedunflow-cache.sqlite"),
         ],
         cwd=tmp_path,
         capture_output=True,

@@ -436,3 +436,28 @@ def test_planning_env_var_overrides_yaml(tmp_path, monkeypatch):
     monkeypatch.setenv("WIEDUNFLOW_PLANNING_ENTRY_POINT_FIRST", "always")
     cfg = load_config(cli_config_path=cfg_file)
     assert cfg.planning_entry_point_first == "always"
+
+
+def test_legacy_codeguide_env_vars_are_ignored_hard_cut(monkeypatch):
+    """v0.6.0 rebrand is a HARD CUT: CODEGUIDE_* env vars must be silently ignored.
+
+    Setting CODEGUIDE_LLM_PROVIDER=openai must NOT influence the config — only
+    WIEDUNFLOW_* is recognised. Documents the rebrand BREAKING contract from
+    CHANGELOG v0.6.0 (no aliases, no deprecation warning, no shim).
+    """
+    monkeypatch.delenv("WIEDUNFLOW_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("CODEGUIDE_LLM_PROVIDER", "openai")
+
+    cfg = load_config()
+    assert cfg.llm_provider == "anthropic", (
+        "CODEGUIDE_* env vars must be ignored after rebrand (hard cut, no shim)"
+    )
+
+
+def test_wiedunflow_env_var_picked_up(monkeypatch):
+    """Positive: WIEDUNFLOW_LLM_PROVIDER is read by BaseSettings."""
+    monkeypatch.delenv("CODEGUIDE_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("WIEDUNFLOW_LLM_PROVIDER", "openai")
+
+    cfg = load_config()
+    assert cfg.llm_provider == "openai"

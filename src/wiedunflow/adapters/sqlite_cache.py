@@ -90,11 +90,11 @@ CREATE TABLE IF NOT EXISTS pagerank_snapshots (
 
 
 def _default_db_path() -> Path:
-    """Return the default SQLite database path for the current platform.
+    r"""Return the default SQLite database path for the current platform.
 
     Delegates to :func:`platformdirs.user_cache_path` which resolves to:
     - Linux:   ``~/.cache/wiedunflow/cache.db``
-    - Windows: ``%LOCALAPPDATA%\wiedunflow\Cache\\cache.db``
+    - Windows: ``%LOCALAPPDATA%\wiedunflow\Cache\cache.db``
     - macOS:   ``~/Library/Caches/wiedunflow/cache.db``
     """
     base: Path = platformdirs.user_cache_path("wiedunflow", appauthor=False, ensure_exists=True)

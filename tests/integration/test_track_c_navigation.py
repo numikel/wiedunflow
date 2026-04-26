@@ -172,7 +172,7 @@ def test_us046_last_lesson_persists(tutorial_html: Path) -> None:
 
         keys = page.evaluate("() => Object.keys(localStorage)")
         last_lesson_keys = [k for k in keys if k.endswith(":last-lesson")]
-        assert last_lesson_keys, f"Expected a wiedun-flow:*:last-lesson key; got {keys}"
+        assert last_lesson_keys, f"Expected a wiedunflow:*:last-lesson key; got {keys}"
         stored = page.evaluate(f"() => localStorage.getItem({last_lesson_keys[0]!r})")
         assert stored == active_id
 
