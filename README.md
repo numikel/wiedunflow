@@ -1,6 +1,6 @@
 # CodeGuide — generate interactive HTML tutorials from local Git repos
 
-![CI](https://github.com/Mkaminsky-dev/codeguide/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/numikel/code-guide/actions/workflows/ci.yml/badge.svg)
 
 ## What is CodeGuide
 
@@ -25,6 +25,8 @@ Set your Anthropic API key before the first run (BYOK — your key stays on your
 export ANTHROPIC_API_KEY=sk-ant-...   # bash / zsh
 $env:ANTHROPIC_API_KEY = "sk-ant-..." # PowerShell
 ```
+
+Cost estimates auto-update from [LiteLLM's pricing catalog](https://github.com/BerriAI/litellm) (24h disk cache); when the network is unavailable CodeGuide falls back to its bundled static pricing table.
 
 ## Quickstart
 

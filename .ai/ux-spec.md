@@ -504,6 +504,39 @@ Any palette change must pass this sanity check.
 
 ---
 
+## §4.0 Picker mode (§1 Generate sub-wizard) — v0.5.0
+
+**Triggered when**: user selects "Generate tutorial" from top-level menu in v0.4.0+ and enters the §1 Repo+Output section of the Generate sub-wizard.
+
+**Flow**:
+1. **Source selector**: `io.select("How do you want to provide the repo?", ["Recent runs", "Discover in cwd", "Type path manually", "Back"])`
+2. Drill-down per source:
+   - **Recent runs** → `io.select("Recent runs:", [...top 10 paths sorted by mtime DESC..., "Back"])`. Empty list → message "No recent runs found. Choose another source." → re-render source selector.
+   - **Discover in cwd** → walk current directory depth=1 (max subdirs, no nesting), skip hardcoded ignored dirs (`node_modules`, `.venv`, `venv`, `__pycache__`, `dist`, `build`, `target`, `.tox`, `.idea`, `.vscode`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`) and any paths matching `cwd/.gitignore` (if present, parsed via `pathspec.PathSpec.from_lines("gitwildmatch", ...)`). Return each dir with `.git/` subdir, sorted mtime DESC. Display each as `[YYYY-MM-DD HH:MM] /path/to/repo` (format mtime as ISO date + time). Cap UI to 20 results. Empty → message "No git repositories found in current directory." → re-render.
+   - **Type path manually** → `io.path("Repo path:", only_directories=True)`. Walidacja: directory must exist + contain `.git/` subdir. On validation failure: print error + retry path prompt.
+3. **Back semantics**:
+   - "Back" in sub-listach (Recent/Discover) → return to source selector
+   - "Back" in source selector, or Esc from any screen → cancel entire picker → fall-through to menu top-level (user returns to main menu)
+4. **Validation**: post-selekcji `_validate_repo_path(path)` (cli/menu.py:1137) sprawdza czy path istnieje + has `.git/` (recent entry mogł być deleted; manual path jest validated immediately).
+
+**Empty states (exact copy)**:
+- Recent: `"No recent runs found. Choose another source."`
+- Discover empty: `"No git repositories found in current directory."`
+- Discover all `.gitignore`d: `"All discovered repositories are ignored by .gitignore."`
+- Manual invalid path: standard `_validate_repo_path` error message (e.g., `"Error: not a git repository (missing .git)"`).
+
+**Discovery scope** (§4.0.1):
+- max_depth=1 (only direct subdirectories of cwd, no nested walking)
+- Skip hardcoded: `node_modules`, `.venv`, `venv`, `__pycache__`, `dist`, `build`, `target`, `.tox`, `.idea`, `.vscode`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`
+- Honor `cwd/.gitignore` (if exists, parse + filter against matched paths using `pathspec`)
+- Sort by `.git/HEAD` mtime DESC (newest first)
+- Cap 20 results (UI), silently drop tail if >20 found
+- Format mtime as ISO 8601 date + time for readability (e.g., `2026-04-26 14:32`)
+
+**Acceptance criteria** (US-088/090/091): each source working, Back semantics honored, validation enforced, empty states render exact copy, mtime sorting DESC.
+
+---
+
 ## §4. CLI — complete specification
 
 ### §4.1 Output structure

@@ -438,9 +438,11 @@ cost-gate prompt domyślnie ON, run-report card. Plan szczegółowy:
 
 ---
 
-## Sprint 9 — Interactive repo picker (v0.3.0)
+## Sprint 9 — Interactive repo picker + Dynamic pricing (v0.5.0)
 
-**Cel**: `codeguide` bez argumentów (TTY) → questionary picker z 3 sources (recent runs / discover git repos / manual path), potem flow Sprint 8.
+**Status**: DONE (2026-04-26)
+
+**Cel**: `codeguide` bez argumentów (TTY) → questionary picker z 3 sources (recent runs / discover git repos / manual path), potem flow Sprint 8. Równolegle: pricing catalog finalize (live LiteLLM + optional httpx).
 
 **Parallel tracks** (3 agenty, ~5-7 dni):
 

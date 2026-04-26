@@ -32,6 +32,7 @@ from codeguide.adapters.cached_model_catalog import CachedModelCatalog
 from codeguide.adapters.openai_model_catalog import OpenAIModelCatalog
 from codeguide.cli.config import CodeguideConfig, load_config, user_config_path
 from codeguide.cli.menu_banner import print_banner
+from codeguide.cli.picker_sources import discover_git_repos, load_recent_runs
 from codeguide.interfaces.model_catalog import ModelCatalog
 
 # Top-level menu items. Order is meaningful — most-used first.
@@ -42,7 +43,6 @@ MENU_GENERATE = "Generate tutorial"
 MENU_RECENT = "Recent runs"
 MENU_CONFIG = "Configuration"
 MENU_ESTIMATE = "Estimate cost"
-MENU_RESUME = "Resume last run"
 MENU_HELP = "Help"
 MENU_EXIT = "Exit"
 
@@ -51,10 +51,13 @@ _MENU_CHOICES: list[str] = [
     MENU_RECENT,
     MENU_CONFIG,
     MENU_ESTIMATE,
-    MENU_RESUME,
     MENU_HELP,
     MENU_EXIT,
 ]
+
+# Resume is now folded into Recent runs — kept as alias so external callers /
+# legacy tests that imported the constant still resolve to the new entrypoint.
+MENU_RESUME = MENU_RECENT  # deprecated alias
 
 # Backwards compat for tests / external callers that imported the old names.
 MENU_INITIALIZE = MENU_CONFIG  # deprecated alias
@@ -122,9 +125,7 @@ def _bind_esc_to_abort(question: Any) -> Any:
         event.app.exit(result=None)
 
     existing = getattr(app, "key_bindings", None)
-    app.key_bindings = (
-        merge_key_bindings([existing, extra]) if existing is not None else extra
-    )
+    app.key_bindings = merge_key_bindings([existing, extra]) if existing is not None else extra
     return question
 
 
@@ -301,8 +302,6 @@ def _dispatch_action(
         _run_recent_from_menu(io)
     elif choice == MENU_ESTIMATE:
         _run_estimate_from_menu(io)
-    elif choice == MENU_RESUME:
-        _run_resume_from_menu(io)
     elif choice == MENU_HELP:
         _run_help_from_menu(io)
     # MENU_EXIT is handled in the loop directly — never reaches here.
@@ -732,9 +731,7 @@ def _run_config_from_menu(
         run_init = io.confirm("Initialize one now?", default=True)
         if not run_init:
             return
-        _run_init_from_menu(
-            io, anthropic_catalog=anthropic_catalog, openai_catalog=openai_catalog
-        )
+        _run_init_from_menu(io, anthropic_catalog=anthropic_catalog, openai_catalog=openai_catalog)
         if not user_config_path().is_file():
             return  # init was cancelled or failed
 
@@ -826,29 +823,44 @@ def _run_estimate_from_menu(io: MenuIO) -> None:
     max_lessons = saved.max_lessons if saved is not None else 30
     plan_model = saved.llm_model_plan if saved is not None else None
     narrate_model = saved.llm_model_narrate if saved is not None else None
+    provider = saved.llm_provider if saved is not None else "(no saved config)"
+    pricing = _default_pricing_catalog()
     estimate_obj = _heuristic_estimate(
         repo_path,
         max_lessons=max_lessons,
         plan_model=plan_model,
         narrate_model=narrate_model,
+        pricing_catalog=pricing,
+    )
+
+    plan_price = pricing.blended_price_per_mtok(plan_model) if plan_model else None
+    narrate_price = pricing.blended_price_per_mtok(narrate_model) if narrate_model else None
+    plan_label = plan_model or "(default)"
+    narrate_label = narrate_model or "(default)"
+    plan_price_str = f"${plan_price:.2f}/MTok" if plan_price is not None else "(unknown — fallback)"
+    narrate_price_str = (
+        f"${narrate_price:.2f}/MTok" if narrate_price is not None else "(unknown — fallback)"
     )
 
     console = init_console()
     lines = [
+        ("Provider", provider),
+        ("Plan model", f"{plan_label} · {plan_price_str}"),
+        ("Narrate model", f"{narrate_label} · {narrate_price_str}"),
         ("Files (.py)", str(_count_python_files(repo_path))),
         ("Estimated symbols", str(estimate_obj.symbols)),
         ("Estimated lessons", str(estimate_obj.lessons)),
-        ("haiku tokens", f"~{estimate_obj.haiku_tokens:,}"),
-        ("opus tokens", f"~{estimate_obj.sonnet_tokens:,}"),
-        ("haiku cost", f"${estimate_obj.haiku_cost_usd:.2f}"),
-        ("opus cost", f"${estimate_obj.sonnet_cost_usd:.2f}"),
+        (f"{plan_label} tokens", f"~{estimate_obj.haiku_tokens:,}"),
+        (f"{narrate_label} tokens", f"~{estimate_obj.sonnet_tokens:,}"),
+        (f"{plan_label} cost", f"${estimate_obj.haiku_cost_usd:.2f}"),
+        (f"{narrate_label} cost", f"${estimate_obj.sonnet_cost_usd:.2f}"),
         ("TOTAL cost", f"${estimate_obj.total_cost_usd:.2f}"),
         (
             "Runtime",
             f"{estimate_obj.runtime_min_minutes}-{estimate_obj.runtime_max_minutes} min",
         ),
     ]
-    render_info_panel(console, title="COST ESTIMATE (heuristic)", lines=lines)
+    render_info_panel(console, title="COST ESTIMATE (LiteLLM-priced)", lines=lines)
     _wait_for_return_to_menu(io)
 
 
@@ -996,6 +1008,12 @@ def _format_recent_choice(entry: dict[str, Any]) -> str:
 _RECENT_CLEAR = "[Clear history]"
 _RECENT_DONE = "[Done]"
 
+# Picker source labels for _subwizard_pick_repo.
+_PICKER_SOURCE_RECENT = "Recent runs"
+_PICKER_SOURCE_DISCOVER = "Discover in cwd"
+_PICKER_SOURCE_MANUAL = "Type path manually"
+_PICKER_BACK = "Back"
+
 
 def _run_recent_from_menu(io: MenuIO) -> None:
     """Show recent pipeline runs; selection re-renders the entry's details."""
@@ -1044,7 +1062,9 @@ def _run_recent_from_menu(io: MenuIO) -> None:
             try:
                 from codeguide.cli.output import osc8_hyperlink as _osc8
 
-                console.print(f"  open  [link={Path(out_path).resolve().as_uri()}]{out_path}[/link]")
+                console.print(
+                    f"  open  [link={Path(out_path).resolve().as_uri()}]{out_path}[/link]"
+                )
                 _ = _osc8  # silence unused-import linter — import gated for OSC8 fallback parity
             except Exception:
                 print(f"  open  {out_path}")
@@ -1121,20 +1141,115 @@ def _validate_repo_path(raw: str) -> str | None:
     return None
 
 
+def _subwizard_pick_repo(io: MenuIO, *, cwd: Path | None = None) -> Path | None:
+    """Interactive 3-source repo picker for §1 of the Generate sub-wizard.
+
+    Presents a top-level source selector ("Recent runs", "Discover in cwd",
+    "Type path manually", "Back") and drills into the chosen branch.  Each
+    branch has its own "Back" option to return to the source selector.
+
+    Returns the selected ``Path`` (not yet validated as a git repo — that
+    happens in ``_subwizard_repo_output`` via ``_validate_repo_path``), or
+    ``None`` when the user aborts at any level (Esc or "Back" on the
+    top-level selector).
+
+    Args:
+        io: The ``MenuIO`` implementation driving the prompts.
+        cwd: Directory used for git-repo discovery (defaults to
+            ``Path.cwd()`` when ``None``).
+    """
+    from datetime import datetime
+
+    effective_cwd = cwd if cwd is not None else Path.cwd()
+
+    source_choices = [
+        _PICKER_SOURCE_RECENT,
+        _PICKER_SOURCE_DISCOVER,
+        _PICKER_SOURCE_MANUAL,
+        _PICKER_BACK,
+    ]
+
+    while True:
+        source = io.select("How do you want to provide the repo?", source_choices)
+        if source is None or source == _PICKER_BACK:
+            return None
+
+        # ------------------------------------------------------------------ #
+        # Branch A — Recent runs
+        # ------------------------------------------------------------------ #
+        if source == _PICKER_SOURCE_RECENT:
+            entries = load_recent_runs(limit=10)
+            if not entries:
+                print("  No recent runs found. Choose another source.")
+                continue
+            choices = [*[str(p) for p in entries], _PICKER_BACK]
+            pick = io.select("Recent runs:", choices)
+            if pick is None:
+                return None
+            if pick == _PICKER_BACK:
+                continue
+            return Path(pick)
+
+        # ------------------------------------------------------------------ #
+        # Branch B — Discover in cwd
+        # ------------------------------------------------------------------ #
+        if source == _PICKER_SOURCE_DISCOVER:
+            repos = discover_git_repos(effective_cwd)
+            if not repos:
+                print(f"  No git repos found in {effective_cwd}. Choose another source.")
+                continue
+
+            def _repo_label(p: Path) -> str:
+                try:
+                    mtime = (p / ".git" / "HEAD").stat().st_mtime
+                    date_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
+                except OSError:
+                    date_str = "????-??-??"
+                return f"[{date_str}] {p}"
+
+            labels = [_repo_label(r) for r in repos]
+            choices_discover = [*labels, _PICKER_BACK]
+            pick_label = io.select(f"Git repos in {effective_cwd}:", choices_discover)
+            if pick_label is None:
+                return None
+            if pick_label == _PICKER_BACK:
+                continue
+            # Recover the path by stripping the "[YYYY-MM-DD] " prefix.
+            # Format is "[DATE] /absolute/path" — split on "] " once.
+            _, _, path_part = pick_label.partition("] ")
+            return Path(path_part)
+
+        # ------------------------------------------------------------------ #
+        # Branch C — Type path manually
+        # ------------------------------------------------------------------ #
+        if source == _PICKER_SOURCE_MANUAL:
+            path_str = io.path("Repo path:", only_directories=True)
+            if path_str is None:
+                return None
+            if not path_str.strip():
+                print("  Path cannot be empty. Try again.")
+                continue
+            return Path(path_str)
+
+        # Unreachable — all choices handled above.
+        return None  # pragma: no cover
+
+
 def _subwizard_repo_output(io: MenuIO) -> dict[str, Any] | None:
     """§1 — collect repo path and optional output path. Returns dict or None.
 
-    Uses ``io.text`` (not ``io.path``) for the repo input because questionary
-    2.x's ``path`` prompt with ``only_directories=True`` swallows Enter when
-    the buffer holds a ghost-text completion suggestion (UX bug). The repo
-    path validator catches typos / non-git inputs all the same.
+    Delegates repo selection to ``_subwizard_pick_repo`` which presents a
+    3-source picker (recent runs / discover / manual).  ``_validate_repo_path``
+    then guards against stale or non-git selections before proceeding to the
+    output-path prompt.
     """
     _redraw_chrome("Generate · Section 1/5 · Repo & Output")
 
     while True:
-        repo_raw = io.text("Repo path (paste or type, Enter to confirm):", default="")
-        if repo_raw is None:
-            return None  # Esc → abort wizard
+        picked = _subwizard_pick_repo(io)
+        if picked is None:
+            return None  # Esc / Back → abort wizard
+        repo_raw = str(picked)
         error = _validate_repo_path(repo_raw)
         if error is None:
             break
@@ -1542,12 +1657,35 @@ def _count_python_files(repo_path: Path) -> int:
         return 0
 
 
+def _default_pricing_catalog() -> Any:
+    """Build the production pricing chain: LiteLLM (cached 24h) → static fallback.
+
+    Lazily instantiated so unit tests that don't need pricing avoid the
+    LiteLLM HTTP call (the chain still works offline because every layer
+    short-circuits cleanly to ``None``).
+    """
+    from codeguide.adapters.cached_pricing_catalog import (
+        CachedPricingCatalog,
+        ChainedPricingCatalog,
+    )
+    from codeguide.adapters.litellm_pricing_catalog import LiteLLMPricingCatalog
+    from codeguide.adapters.static_pricing_catalog import StaticPricingCatalog
+
+    return ChainedPricingCatalog(
+        [
+            CachedPricingCatalog(LiteLLMPricingCatalog(), provider_name="litellm"),
+            StaticPricingCatalog(),
+        ]
+    )
+
+
 def _heuristic_estimate(
     repo_path: Path,
     max_lessons: int,
     *,
     plan_model: str | None = None,
     narrate_model: str | None = None,
+    pricing_catalog: Any | None = None,
 ) -> Any:
     """Build a ``CostEstimate`` from a file-count heuristic (no LLM calls).
 
@@ -1555,11 +1693,15 @@ def _heuristic_estimate(
     max_lessons), clusters = max(1, lessons / 5). The exact estimate fires
     inside ``_run_pipeline`` after stages 1-2; this one only powers §5 review.
 
-    ``plan_model`` / ``narrate_model``, when provided, drive per-model pricing
-    via ``cost_estimator.MODEL_PRICES`` so OpenAI configs surface GPT-4.1
-    pricing instead of the legacy Anthropic Haiku/Opus rates.
+    Per-model pricing is resolved via the injected ``pricing_catalog`` (live
+    LiteLLM JSON, 24h cache, with ``StaticPricingCatalog`` fallback) — falls
+    back to the hardcoded ``cost_estimator.MODEL_PRICES`` map when the
+    catalog returns ``None`` for a model id.
     """
     from codeguide.cli.cost_estimator import estimate
+
+    if pricing_catalog is None:
+        pricing_catalog = _default_pricing_catalog()
 
     file_count = _count_python_files(repo_path)
     symbols = max(1, file_count * 5)
@@ -1571,6 +1713,7 @@ def _heuristic_estimate(
         clusters=clusters,
         plan_model=plan_model,
         narrate_model=narrate_model,
+        pricing_catalog=pricing_catalog,
     )
 
 

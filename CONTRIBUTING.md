@@ -26,7 +26,7 @@ Prerequisites: [uv](https://docs.astral.sh/uv/) >= 0.4.0.
 
 ```bash
 # Clone and install all dependencies (including dev group)
-git clone https://github.com/Mkaminsky-dev/codeguide.git
+git clone https://github.com/numikel/code-guide.git
 cd codeguide
 uv sync
 

@@ -22,6 +22,10 @@ without a CodeGuide release.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from codeguide.interfaces.pricing_catalog import PricingCatalog
 
 # Blended USD per 1M tokens, computed as 0.6 * input + 0.4 * output for each
 # model. Sourced from the providers' published pricing pages on 2026-04-25.
@@ -81,14 +85,27 @@ _RUNTIME_MIN_PER_LESSON_SEC = 40
 _RUNTIME_MAX_PER_LESSON_SEC = 110
 
 
-def lookup_model_price(model_id: str | None, *, fallback: float) -> float:
+def lookup_model_price(
+    model_id: str | None,
+    *,
+    fallback: float,
+    pricing_catalog: PricingCatalog | None = None,
+) -> float:
     """Return the blended USD/MTok price for ``model_id``, or ``fallback``.
 
-    Unknown models fall back conservatively (caller picks a safe upper bound
-    for their tier — Opus rate for narration, Haiku rate for planning).
+    Resolution order:
+    1. ``pricing_catalog.blended_price_per_mtok(model_id)`` (typically a
+       chain of ``CachedPricingCatalog(LiteLLM)`` → ``StaticPricingCatalog``).
+    2. ``MODEL_PRICES`` direct hit (legacy path; preserves backwards compat
+       when callers don't inject a catalog).
+    3. ``fallback`` — the caller's safe over-estimate for the tier.
     """
     if not model_id:
         return fallback
+    if pricing_catalog is not None:
+        price = pricing_catalog.blended_price_per_mtok(model_id)
+        if price is not None:
+            return price
     return MODEL_PRICES.get(model_id, fallback)
 
 
@@ -118,6 +135,7 @@ def estimate(
     sonnet_price_per_mtok: float = _SONNET_USD_PER_MTOK,
     plan_model: str | None = None,
     narrate_model: str | None = None,
+    pricing_catalog: PricingCatalog | None = None,
 ) -> CostEstimate:
     """Return a conservative cost estimate for the planned tutorial.
 
@@ -140,8 +158,12 @@ def estimate(
         ``CostEstimate`` with per-model token and cost breakdowns plus an
         expected runtime window in minutes.
     """
-    plan_price = lookup_model_price(plan_model, fallback=haiku_price_per_mtok)
-    narrate_price = lookup_model_price(narrate_model, fallback=sonnet_price_per_mtok)
+    plan_price = lookup_model_price(
+        plan_model, fallback=haiku_price_per_mtok, pricing_catalog=pricing_catalog
+    )
+    narrate_price = lookup_model_price(
+        narrate_model, fallback=sonnet_price_per_mtok, pricing_catalog=pricing_catalog
+    )
 
     haiku_tokens = symbols * _TOKENS_PER_SYMBOL_HAIKU
     sonnet_tokens = lessons * _TOKENS_PER_LESSON_SONNET

@@ -181,6 +181,8 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     planning_skip_trivial_helpers: bool = False,
     narration_min_words_trivial: int = 50,
     narration_snippet_validation: bool = True,
+    # ADR-0013 follow-up: pricing catalog for cost gate accuracy.
+    pricing_catalog: object | None = None,
 ) -> GenerationResult:
     """Run the 7-stage pipeline and write tutorial.html.
 
@@ -328,10 +330,15 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     # cost-gate prompt. Both checks share the same heuristic estimate.
     pre_narration_estimate: CostEstimate | None = None
     if max_cost_usd is not None or cost_gate_callback is not None:
+        plan_model = getattr(providers.llm, "model_plan", None)
+        narrate_model = getattr(providers.llm, "model_narrate", None)
         pre_narration_estimate = _estimate_cost(
             symbols=len(symbols),
             lessons=len(manifest.lessons),
             clusters=1,
+            plan_model=plan_model,
+            narrate_model=narrate_model,
+            pricing_catalog=pricing_catalog,  # type: ignore[arg-type]
         )
 
     if (
