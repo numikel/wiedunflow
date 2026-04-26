@@ -190,8 +190,9 @@ def test_plan_uses_model_plan(mock_cls, monkeypatch):
 
     assert mock_client.chat.completions.create.call_count == 1
     kwargs = mock_client.chat.completions.create.call_args.kwargs
-    assert kwargs["model"] == "gpt-4o"
-    assert kwargs["max_tokens"] == 8000
+    assert kwargs["model"] == "gpt-5.4"
+    # gpt-5.4 is a newer OpenAI family → uses max_completion_tokens, not max_tokens
+    assert kwargs["max_completion_tokens"] == 8000
     assert kwargs["response_format"] == {"type": "json_object"}
     assert isinstance(manifest, LessonManifest)
     assert len(manifest.lessons) == 1
@@ -247,8 +248,9 @@ def test_describe_symbol_uses_model_describe(mock_cls, monkeypatch):
 
     assert mock_client.chat.completions.create.call_count == 1
     kwargs = mock_client.chat.completions.create.call_args.kwargs
-    assert kwargs["model"] == "gpt-4o-mini"
-    assert kwargs["max_tokens"] == 300
+    assert kwargs["model"] == "gpt-5.4-mini"
+    # gpt-5.4-mini is a newer OpenAI family → uses max_completion_tokens, not max_tokens
+    assert kwargs["max_completion_tokens"] == 300
     assert description == "A simple addition helper for two integers."
 
 
@@ -346,8 +348,9 @@ def test_narrate_uses_model_narrate(mock_cls, monkeypatch):
     lesson = provider.narrate(spec, concepts_introduced=("concept_a",))
 
     kwargs = mock_client.chat.completions.create.call_args.kwargs
-    assert kwargs["model"] == "gpt-4o"
-    assert kwargs["max_tokens"] == 4000
+    assert kwargs["model"] == "gpt-5.4"
+    # gpt-5.4 is a newer OpenAI family → uses max_completion_tokens, not max_tokens
+    assert kwargs["max_completion_tokens"] == 4000
     assert lesson.id == "lesson-001"
     assert lesson.title == "Test Lesson"
     assert lesson.narrative == "## Lesson narrative here"

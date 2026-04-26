@@ -84,19 +84,19 @@ def run_init_wizard(
     resolved_provider: str = provider or click.prompt(
         "Provider",
         type=click.Choice(_PROVIDER_CHOICES),
-        default="anthropic",
+        default="openai",
     )
 
     # --- Step 2: model_plan -----------------------------------------------
     resolved_model_plan: str = model_plan or click.prompt(
         "Model for planning",
-        default="claude-sonnet-4-6",
+        default="gpt-5.4",
     )
 
     # --- Step 3: model_narrate --------------------------------------------
     resolved_model_narrate: str = model_narrate or click.prompt(
         "Model for narration",
-        default="claude-opus-4-7",
+        default="gpt-5.4",
     )
 
     # --- Step 4: api_key --------------------------------------------------

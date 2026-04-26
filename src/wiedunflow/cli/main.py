@@ -508,9 +508,9 @@ def _build_llm_provider(
         return OpenAIProvider(
             api_key=resolve_api_key(config),
             base_url=config.llm_base_url,
-            # ADR-0013 D#12: gpt-4.1 is the project default for OpenAI (not gpt-4o).
-            model_plan=config.llm_model_plan or "gpt-4.1",
-            model_narrate=config.llm_model_narrate or "gpt-4.1",
+            # ADR-0015 (v0.7.0): gpt-5.4 is the project default for OpenAI.
+            model_plan=config.llm_model_plan or "gpt-5.4",
+            model_narrate=config.llm_model_narrate or "gpt-5.4",
             max_retries=config.llm_max_retries,
             max_wait_s=config.llm_max_wait_s,
         )
@@ -524,11 +524,12 @@ def _build_llm_provider(
         return OpenAIProvider(
             api_key=resolve_api_key(config),
             base_url=config.llm_base_url,
-            # ADR-0013 D#12: gpt-4.1 is the project default (Ollama / vLLM endpoints
-            # may use any model name; this default matters only when llm.model_plan
-            # / model_narrate are unset and the local endpoint accepts gpt-4.1).
-            model_plan=config.llm_model_plan or "gpt-4.1",
-            model_narrate=config.llm_model_narrate or "gpt-4.1",
+            # ADR-0015 (v0.7.0): gpt-5.4 is the project default (Ollama / vLLM
+            # endpoints may use any model name; this default matters only when
+            # llm.model_plan / model_narrate are unset and the local endpoint
+            # accepts gpt-5.4).
+            model_plan=config.llm_model_plan or "gpt-5.4",
+            model_narrate=config.llm_model_narrate or "gpt-5.4",
             max_retries=config.llm_max_retries,
             max_wait_s=config.llm_max_wait_s,
         )

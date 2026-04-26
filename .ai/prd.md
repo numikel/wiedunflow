@@ -699,11 +699,14 @@ Acceptance Criteria:
 ### BYOK providers
 
 US-051
-Title: Use Anthropic as the default LLM provider.
-Description: As a default user, I want Anthropic to work out of the box with an API key.
+Title: Use OpenAI as the default LLM provider.
+Description: As a default user, I want OpenAI to work out of the box with an API key.
 Acceptance Criteria:
-- With `ANTHROPIC_API_KEY` set and no other configuration, the pipeline succeeds using `claude-haiku-4-5` for descriptions and `claude-opus-4-7` for narration.
-- Model IDs are configurable in `tutorial.config.yaml` under `llm.model_descriptions` and `llm.model_narrative`.
+- With `OPENAI_API_KEY` set and no other configuration, the pipeline succeeds using `gpt-5.4` for planning and narration, plus `gpt-5.4-mini` for per-symbol leaf descriptions.
+- Model IDs are configurable in `tutorial.config.yaml` under `llm.model_plan` and `llm.model_narrate`.
+- Anthropic is available as a fully-supported alternative: setting `llm.provider: anthropic` with `ANTHROPIC_API_KEY` yields `claude-sonnet-4-6` (planning) + `claude-opus-4-7` (narration) + `claude-haiku-4-5` (per-symbol).
+
+_BREAKING change in v0.7.0 per ADR-0015 — default provider switched from Anthropic to OpenAI for rate-limit relief and cost parity._
 
 US-052
 Title: Use OpenAI as an alternative provider.

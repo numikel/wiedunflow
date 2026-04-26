@@ -50,9 +50,12 @@ class WiedunflowConfig(BaseSettings):
       ``llm_base_url`` points to the OSS endpoint (e.g. ``http://localhost:11434/v1``)
     """
 
-    llm_provider: Literal["anthropic", "openai", "openai_compatible", "custom"] = "anthropic"
-    llm_model_plan: str = "claude-sonnet-4-6"
-    llm_model_narrate: str = "claude-opus-4-7"
+    # ADR-0015 (BREAKING in v0.7.0): default provider switched to OpenAI due to
+    # Anthropic rate-limit ergonomics. Anthropic stays as a fully supported BYOK
+    # alternative — set ``llm.provider: anthropic`` in YAML to opt back in.
+    llm_provider: Literal["anthropic", "openai", "openai_compatible", "custom"] = "openai"
+    llm_model_plan: str = "gpt-5.4"
+    llm_model_narrate: str = "gpt-5.4"
     llm_api_key: SecretStr | None = None
     llm_base_url: str | None = None
     llm_api_key_env: str | None = None

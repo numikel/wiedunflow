@@ -153,9 +153,9 @@ The generator has 7 ordered stages; conventional-commit scopes mirror them 1:1:
 
 ## LLM_ORCHESTRATION
 
-- **Model routing (default)**: `claude-haiku-4-5` for per-symbol leaf descriptions (parallel), **`claude-opus-4-7`** for lesson narration (sequential, carries `concepts_introduced`). Users may switch to `claude-sonnet-4-6` in `tutorial.config.yaml` for lower cost.
+- **Model routing (default)**: **`gpt-5.4`** for planning (Stage 4) and narration (Stage 5/6, sequential, carries `concepts_introduced`), **`gpt-5.4-mini`** for per-symbol leaf descriptions (Stage 5 parallel). Anthropic BYOK alternative: set `llm.provider: anthropic` in `tutorial.config.yaml` (or `WIEDUNFLOW_LLM_PROVIDER=anthropic`) to use `claude-sonnet-4-6` (planning) + `claude-opus-4-7` (narration) + `claude-haiku-4-5` (per-symbol). See ADR-0015 for rationale (rate-limit relief, cost parity, ecosystem alignment).
 - **Concurrency**: default 10, hard cap 20; configurable via `llm.concurrency` in `tutorial.config.yaml`. Exponential backoff on provider rate limits (Anthropic 429, OpenAI 429).
-- **BYOK**: Anthropic SDK (default), OpenAI SDK, OSS endpoints via httpx-based OpenAI-compatible client with `base_url` override. Provider-specific fields (OpenRouter reasoning, DeepSeek `reasoning_content`) require dedicated adapters and are **v2**.
+- **BYOK**: OpenAI SDK (default), Anthropic SDK, OSS endpoints via httpx-based OpenAI-compatible client with `base_url` override. Provider-specific fields (OpenRouter reasoning, DeepSeek `reasoning_content`) require dedicated adapters and are **v2**.
 - **Orchestrator state** (canonical shape): `{explored_symbols, lessons_generated, concepts_introduced}`. Every narration prompt for lesson N must be fed `concepts_introduced` so it does not re-teach prior material. Do not rely on the LLM to "remember" coherence — it must come from structured state.
 - **Checkpointing**: persist orchestrator state (one SQLite row per completed lesson) so `--resume` continues from the last checkpoint after crash/Ctrl+C.
 
@@ -267,3 +267,4 @@ Aktualne architectural decision records (w `docs/adr/`):
 - **ADR-0012** — Tutorial quality enforcement: `source_excerpt` injection, snippet validator, happy-path ordering, per-tier word counts, skip-trivial helpers (2026-04-25, v0.2.1).
 - **ADR-0013** — Interactive menu-driven TUI ("centrum dowodzenia"): hybrid CLI/menu, questionary 2.x, three-sink rule, modal pipeline, `MenuIO` Protocol, 5-section Generate sub-wizard, dynamic `ModelCatalog` port (anthropic/openai SDK fetch + `ft:*` filter + 24h cache), `target_audience` 5-level enum (BREAKING + migration shim), `gpt-4.1` as OpenAI default. Partially supersedes ADR-0011 D#1 (2026-04-25, v0.4.0).
 - **ADR-0014** — Dynamic pricing catalog: `PricingCatalog` port + 4 adapters (Static/LiteLLM/Cached/Chained), httpx as optional extra `[pricing]`, three-sink rule extension dla httpx (2026-04-26, v0.5.0).
+- **ADR-0015** — Default LLM provider switch from Anthropic to OpenAI (gpt-5.4 + gpt-5.4-mini). Anthropic stays as 100% supported BYOK alternative via config `llm.provider: anthropic` (2026-04-26, v0.7.0).

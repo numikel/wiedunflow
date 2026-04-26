@@ -1,15 +1,16 @@
-# CodeGuide configuration — copy to `tutorial.config.yaml` in your repo root
-# Precedence: CLI flags > env vars (CODEGUIDE_*) > --config <path> >
-#             ./tutorial.config.yaml > ~/.config/codeguide/config.yaml > defaults.
+# WiedunFlow configuration — copy to `tutorial.config.yaml` in your repo root
+# Precedence: CLI flags > env vars (WIEDUNFLOW_*) > --config <path> >
+#             ./tutorial.config.yaml > ~/.config/wiedunflow/config.yaml > defaults.
 
 llm:
-  provider: anthropic          # anthropic | openai | openai_compatible (S4+)
-  model_plan: claude-sonnet-4-6
-  model_narrate: claude-opus-4-7
+  provider: openai             # openai (default) | anthropic | openai_compatible | custom
+  model_plan: gpt-5.4          # planning Stage 4 (single LessonManifest call)
+  model_narrate: gpt-5.4       # narration Stage 5/6 (sequential, full prior-lesson context)
   concurrency: 10              # cap 20; used from S4 (Stage 5/6 parallel calls)
   max_retries: 5               # tenacity attempts on RateLimitError (429)
   max_wait_s: 60               # backoff ceiling per attempt
-  # api_key: set via ANTHROPIC_API_KEY env var (recommended) — do NOT commit secrets
+  # api_key: set via OPENAI_API_KEY env var (recommended) — do NOT commit secrets
+  # For Anthropic BYOK: set provider: anthropic + ANTHROPIC_API_KEY.
 
 # Ingestion — additive over .gitignore
 exclude_patterns:
@@ -19,15 +20,15 @@ include_patterns: []
 
 # Planning
 max_lessons: 30                # hard cap per FR-35
-# v0.3.0: 5-level enum (noob | junior | mid | senior | expert).
+# v0.4.0+: 5-level enum (noob | junior | mid | senior | expert).
 # Old free-text values are auto-mapped via fuzzy substring match (shim removed in v1.0).
 target_audience: mid
 
-# Output (optional — default `./tutorial.html` in the current directory)
+# Output (optional — default `./wiedunflow-<repo>.html` in the current directory)
 # Relative paths resolve against the cwd at runtime; absolute paths are used
 # verbatim. Override at the CLI with `--output PATH` / `-o PATH`.
-# output_path: ./tutorial.html
-# output_path: ./reports/codeguide-${repo}.html   # any path you like
+# output_path: ./wiedunflow-<repo>.html
+# output_path: ./reports/wiedunflow-${repo}.html   # any path you like
 
 # Security (Sprint 6 / v0.0.6)
 # Hard-refuse list (.env*, *.pem, id_rsa, credentials.*, ...) excludes matching

@@ -59,14 +59,15 @@ MODEL_PRICES: dict[str, float] = {
     "o3": 9.20,  # $2.00/$8.00 input + reasoning premium
     "o3-mini": 2.42,  # $1.10/$4.40 → 2.42
     "o4-mini": 2.42,
-    # ─── OpenAI GPT 5.x (2026 hypothetical pricing — adjust on release) ────
-    "gpt-5": 6.60,
+    # ─── OpenAI GPT 5.x (released 2026; pricing verified 2026-04-26) ────────
+    # Format: (0.6 * input + 0.4 * output) USD per 1M tokens.
+    "gpt-5": 6.60,  # legacy estimate; verify when needed
     "gpt-5-mini": 0.88,
     "gpt-5-nano": 0.22,
-    "gpt-5.4": 6.60,
-    "gpt-5.4-mini": 0.88,
+    "gpt-5.4": 7.50,  # $2.50/$15.00 → 7.50 (default in v0.7.0+ per ADR-0015)
+    "gpt-5.4-mini": 2.25,  # $0.75/$4.50 → 2.25 (default per-symbol/describe tier)
     "gpt-5.4-nano": 0.22,
-    "gpt-5.4-pro": 33.00,
+    "gpt-5.4-pro": 90.00,  # $30.00/$180.00 → 90.00
     "gpt-5-pro": 33.00,
     "gpt-5.2": 6.60,
     "gpt-5.2-pro": 33.00,

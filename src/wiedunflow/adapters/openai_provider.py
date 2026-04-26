@@ -40,22 +40,26 @@ logger = structlog.get_logger(__name__)
 class OpenAIProvider:
     """LLMProvider via OpenAI SDK — supports OpenAI default and OSS endpoints via base_url.
 
-    plan() uses model_plan (default: gpt-4o).
-    narrate() uses model_narrate (default: gpt-4o).
-    describe_symbol() uses model_describe (default: gpt-4o-mini).
+    plan() uses model_plan (default: gpt-5.4).
+    narrate() uses model_narrate (default: gpt-5.4).
+    describe_symbol() uses model_describe (default: gpt-5.4-mini).
     Retries on RateLimitError/APITimeoutError with exponential backoff + jitter (tenacity).
 
     The consent check is intentionally NOT performed here — it belongs in the
     CLI layer, which has TTY awareness (US-051).
+
+    Defaults updated in v0.7.0 per ADR-0015 (provider switch Anthropic → OpenAI).
+    Earlier defaults were ``gpt-4o`` / ``gpt-4o-mini``; ``gpt-5.4`` family is the
+    current OpenAI flagship for code-narration workloads (per Sprint 13 eval).
     """
 
     def __init__(
         self,
         api_key: str | None = None,
         base_url: str | None = None,
-        model_plan: str = "gpt-4o",
-        model_narrate: str = "gpt-4o",
-        model_describe: str = "gpt-4o-mini",
+        model_plan: str = "gpt-5.4",
+        model_narrate: str = "gpt-5.4",
+        model_describe: str = "gpt-5.4-mini",
         max_retries: int = 5,
         max_wait_s: int = 60,
         max_tokens_plan: int = 8000,

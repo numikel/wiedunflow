@@ -979,7 +979,7 @@ Dropdown to select LLM provider (Anthropic or OpenAI), then model picker.
 - **24h disk cache**: `~/.cache/wiedunflow/models-<provider>.json` (e.g., `models-anthropic.json`, `models-openai.json`).
 - **Hardcoded fallback list**: activates only when API call fails (offline, missing key, rate limit, 5xx).
 - **Express path**: if user has saved config, auto-fill provider + model and skip sections §3–§4, jumping directly to §5 (Summary + Launch).
-- **OpenAI default model**: `gpt-4.1` (BREAKING change from `gpt-4o`).
+- **OpenAI default models**: `gpt-5.4` (planning + narration) + `gpt-5.4-mini` (per-symbol describe). Per ADR-0015 (v0.7.0+, rate-limit relief + cost parity). Earlier versions: `gpt-4.1` (v0.4.0+) → `gpt-4o` (pre-v0.4.0).
 
 **§5.2.3 Section 3: File Filters (optional)**
 

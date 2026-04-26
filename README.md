@@ -17,12 +17,14 @@
 uvx wiedun-flow
 ```
 
-Set your Anthropic API key before the first run (BYOK — your key stays on your machine):
+Set your OpenAI API key before the first run (BYOK — your key stays on your machine):
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # bash / zsh
-$env:ANTHROPIC_API_KEY = "sk-ant-..." # PowerShell
+export OPENAI_API_KEY=sk-...          # bash / zsh
+$env:OPENAI_API_KEY = "sk-..."        # PowerShell
 ```
+
+Alternatively, if you prefer Anthropic: set `ANTHROPIC_API_KEY` and run `wiedun-flow init --provider anthropic` to configure it as your default.
 
 Cost estimates auto-update from [LiteLLM's pricing catalog](https://github.com/BerriAI/litellm) (24h disk cache); when the network is unavailable WiedunFlow falls back to its bundled static pricing table.
 

@@ -77,8 +77,9 @@ Kluczowe decyzje:
 |---|---|---|
 | Framework orkiestracji | Własny orchestrator w `use_cases/generate_tutorial.py` | Liniowy pipeline (plan → generate → validate → checkpoint per lekcja). Bez langgraph/langchain — decyzja w ADR-0001. |
 | Abstrakcja LLM | Port `LLMProvider` w `interfaces/` | Minimalny kontrakt: `complete(messages, model, max_tokens)`, `count_tokens(...)`. BYOK przez wymianę adaptera. |
-| Provider #1 (default) | `anthropic` SDK → `claude-haiku-4-5` (opisy, parallel) + `claude-opus-4-7` (narracja, sequential) | FR-64. Opus 4.7 dla jakości narracji; haiku 4.5 dla taniej pracy równoległej. |
-| Provider #2 | `openai` SDK | FR-65. Bezpośrednio, bez langchain-openai. |
+| Provider #1 (default) | `openai` SDK → `gpt-5.4` (planning + narration) + `gpt-5.4-mini` (per-symbol describe, parallel) | FR-64, ADR-0015. gpt-5.4 dla jakości narracji i planning z prior-lesson context; gpt-5.4-mini dla taniej pracy równoległej. Rate-limit relief vs. Anthropic default (v0.6.0). |
+| Provider #1 (BYOK Anthropic alternative) | `anthropic` SDK → `claude-sonnet-4-6` (planning) + `claude-opus-4-7` (narration) + `claude-haiku-4-5` (per-symbol describe) | ADR-0015. Fully supported; config `llm.provider: anthropic` + `ANTHROPIC_API_KEY` activates. |
+| Provider #2 | `openai` SDK (alternative tier selection) | FR-65. Bezpośrednio, bez langchain-openai. Wybór modeli różny od defaults (e.g. gpt-4o). |
 | Provider #3 (OSS local) | `httpx` + OpenAI-compatible endpoint (Ollama / LM Studio / vLLM) | FR-66. Brak banera zgody dla lokalnych endpointów (US-053). |
 | Concurrency | `asyncio.Semaphore` (default 10, cap 20) | FR-67. Konfigurowalne przez `llm.concurrency`. |
 | Backoff | `tenacity` (exponential + jitter, cap 60 s) | FR-68: retry na HTTP 429. |

@@ -6,6 +6,21 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-26 — Default Provider Switch (BREAKING)
+
+### Changed (BREAKING — pre-1.0)
+- **Default LLM provider**: `anthropic` → `openai`. Existing users with `OPENAI_API_KEY` set: zero action. Users relying on `ANTHROPIC_API_KEY`: re-run `wiedun-flow init` and select `anthropic`, or set `WIEDUNFLOW_LLM_PROVIDER=anthropic` in env, or edit `tutorial.config.yaml`. (ADR-0015)
+- **Default models**: `claude-sonnet-4-6` (planning) + `claude-opus-4-7` (narration) + `claude-haiku-4-5` (per-symbol describe) → `gpt-5.4` (planning + narration) + `gpt-5.4-mini` (per-symbol describe).
+- **OpenAIProvider class defaults**: `gpt-4o` / `gpt-4o-mini` → `gpt-5.4` / `gpt-5.4-mini`. Affects only callers using `OpenAIProvider()` directly without explicit `model_*=` kwargs.
+
+### Fixed
+- `cost_estimator.MODEL_PRICES` — verified gpt-5.4 family pricing replaced earlier "hypothetical" estimates: `gpt-5.4` 6.60→7.50 USD/MTok blended ($2.50/$15.00 input/output), `gpt-5.4-mini` 0.88→2.25 ($0.75/$4.50), `gpt-5.4-pro` 33.00→90.00 ($30/$180). Cost-gate estimates now accurate.
+- `tutorial.config.yaml.example` — stale CodeGuide brand artifacts cleaned up (linie 1-3, 30) post-rebrand.
+
+### Internal
+- ADR-0015 — formal documentation of provider switch decision (rationale, trade-offs, migration path).
+- Anthropic adapters (provider, model catalog, cost pricing) unchanged — fully supported BYOK alternative.
+
 ## [0.6.0] - 2026-04-26 — Rebrand to WiedunFlow
 
 ### Changed (BREAKING — pre-1.0)

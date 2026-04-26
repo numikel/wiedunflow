@@ -38,9 +38,9 @@ def test_defaults(monkeypatch):
     monkeypatch.delenv("WIEDUNFLOW_LLM_MODEL_PLAN", raising=False)
     monkeypatch.delenv("WIEDUNFLOW_LLM_MODEL_NARRATE", raising=False)
     cfg = WiedunflowConfig()
-    assert cfg.llm_provider == "anthropic"
-    assert cfg.llm_model_plan == "claude-sonnet-4-6"
-    assert cfg.llm_model_narrate == "claude-opus-4-7"
+    assert cfg.llm_provider == "openai"
+    assert cfg.llm_model_plan == "gpt-5.4"
+    assert cfg.llm_model_narrate == "gpt-5.4"
     assert cfg.max_lessons == 30
     assert cfg.llm_concurrency == 10
     assert cfg.llm_api_key is None
@@ -449,7 +449,7 @@ def test_legacy_codeguide_env_vars_are_ignored_hard_cut(monkeypatch):
     monkeypatch.setenv("CODEGUIDE_LLM_PROVIDER", "openai")
 
     cfg = load_config()
-    assert cfg.llm_provider == "anthropic", (
+    assert cfg.llm_provider == "openai", (
         "CODEGUIDE_* env vars must be ignored after rebrand (hard cut, no shim)"
     )
 

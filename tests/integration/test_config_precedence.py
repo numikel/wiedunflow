@@ -162,12 +162,12 @@ class TestConfigPrecedenceChain:
 
         cfg = load_config()
 
-        assert cfg.llm_provider == "anthropic", "Built-in default must be 'anthropic'"
-        assert cfg.llm_model_plan == "claude-sonnet-4-6", (
-            "Built-in default model_plan must be 'claude-sonnet-4-6'"
+        assert cfg.llm_provider == "openai", "Built-in default must be 'openai'"
+        assert cfg.llm_model_plan == "gpt-5.4", (
+            "Built-in default model_plan must be 'gpt-5.4'"
         )
-        assert cfg.llm_model_narrate == "claude-opus-4-7", (
-            "Built-in default model_narrate must be 'claude-opus-4-7'"
+        assert cfg.llm_model_narrate == "gpt-5.4", (
+            "Built-in default model_narrate must be 'gpt-5.4'"
         )
 
     def test_all_layers_conflicting_cli_wins(
