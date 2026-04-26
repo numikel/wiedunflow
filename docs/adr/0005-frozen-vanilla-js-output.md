@@ -8,7 +8,7 @@
 
 ## Context
 
-CodeGuide's output is a single, self-contained HTML file opened via `file://` protocol in a user's browser. This constraint — no server, no fetch(), no ES module imports, no external CDN — shapes the frontend architecture fundamentally.
+WiedunFlow's output is a single, self-contained HTML file opened via `file://` protocol in a user's browser. This constraint — no server, no fetch(), no ES module imports, no external CDN — shapes the frontend architecture fundamentally.
 
 Before adopting a framework (Preact, React, Alpine.js, htmx) for the tutorial reader UI, we must account for:
 
@@ -28,7 +28,7 @@ Before adopting a framework (Preact, React, Alpine.js, htmx) for the tutorial re
 
 ### Implementation
 
-- **Frontend code** (`src/codeguide/renderer/templates/static/js/`): plain JavaScript, no JSX, no build step beyond minification (optional, via `terser` at build time).
+- **Frontend code** (`src/wiedunflow/renderer/templates/static/js/`): plain JavaScript, no JSX, no build step beyond minification (optional, via `terser` at build time).
 - **Inline scripts** in the Jinja2 template: `<script>` tags with vanilla JS execute within the HTML document.
 - **State management**: `window.localStorage` for persistent state (last viewed lesson, theme toggles); `document` API for DOM traversal and event binding.
 - **DOM manipulation**: `document.querySelector`, `Element.addEventListener`, `textContent`, `classList.toggle`, `classList.add` — standard DOM APIs.
@@ -88,7 +88,7 @@ The frontend exposes the following module pattern (no ES modules, no imports):
 
 - **More verbose code** — managing state and DOM synchronization manually requires more lines than `React.useState()` or `@click="..."`. Estimated +30–50% LOC vs Preact + JSX.
 - **No component library** — developers cannot reuse component patterns from the frontend framework ecosystem. Every interaction must be written fresh (but the surface is small: sidebar navigation, lesson viewer, favorites toggle, search highlight).
-- **Harder for frontend specialists** — a developer comfortable with React, Vue, or Svelte may find vanilla DOM API work tedious. Mitigation: the tutorial reader is a single-page-application-like interface with a modest feature set (estimated <2000 LOC vanilla JS). Inline comments and a README (`src/codeguide/renderer/templates/README.md`) document patterns.
+- **Harder for frontend specialists** — a developer comfortable with React, Vue, or Svelte may find vanilla DOM API work tedious. Mitigation: the tutorial reader is a single-page-application-like interface with a modest feature set (estimated <2000 LOC vanilla JS). Inline comments and a README (`src/wiedunflow/renderer/templates/README.md`) document patterns.
 - **Testing vanilla JS** — without a framework test harness, DOM tests require setup boilerplate (e.g., `jsdom`). Mitigated by functional testing: the `tests/` suite includes golden-file HTML snapshots and Playwright e2e tests (stage 5: design review gates these before release).
 
 ### Neutral
@@ -110,18 +110,18 @@ The frontend exposes the following module pattern (no ES modules, no imports):
    - Reconsider if: we add a server-side option for collaborative tutorials (v2+).
 
 4. **React (40 KB minified + JSX runtime)** — rejected.
-   - Reasoning: React is a full application framework optimized for large interactive apps. CodeGuide's tutorial reader is a single-page app with modest state (current lesson, favorites, search highlight). React adds complexity and size for zero UX benefit. `file://` compatibility requires all React code be inlined and pre-compiled, negating React's promise of fast iteration.
+   - Reasoning: React is a full application framework optimized for large interactive apps. WiedunFlow's tutorial reader is a single-page app with modest state (current lesson, favorites, search highlight). React adds complexity and size for zero UX benefit. `file://` compatibility requires all React code be inlined and pre-compiled, negating React's promise of fast iteration.
    - Reconsider if: we pivot to a web application with collaborative editing, live preview, or multi-user cursors.
 
 5. **Astro (zero JS by default, but with `client:` directives)** — rejected.
-   - Reasoning: Astro is a build-time framework that ships zero JS by default and selectively hydrates components. For CodeGuide, this is a false promise: the tutorial reader *is* interactive (lesson navigation, favorites, search highlight, theme toggle). Opting into `client:load` or `client:visible` for every interactive element re-introduces a runtime (Preact, Vue, Svelte), which we already rejected. Astro's strength is mixing static and dynamic content; our entire output is dynamic navigation over lesson data.
+   - Reasoning: Astro is a build-time framework that ships zero JS by default and selectively hydrates components. For WiedunFlow, this is a false promise: the tutorial reader *is* interactive (lesson navigation, favorites, search highlight, theme toggle). Opting into `client:load` or `client:visible` for every interactive element re-introduces a runtime (Preact, Vue, Svelte), which we already rejected. Astro's strength is mixing static and dynamic content; our entire output is dynamic navigation over lesson data.
    - Reconsider if: the majority of the tutorial becomes static content with sparse interactive regions (unlikely).
 
 ## Migration Criteria (reconsidering vanilla JS in v2+)
 
 Revisit this decision if **any** of the following becomes true:
 
-- CodeGuide adds a server-side option (cloud-hosted tutorials, collaborative editing, real-time features). A server enables Preact or React for the client, with a proper build pipeline and bundle optimization.
+- WiedunFlow adds a server-side option (cloud-hosted tutorials, collaborative editing, real-time features). A server enables Preact or React for the client, with a proper build pipeline and bundle optimization.
 - The tutorial reader feature set grows to exceed 5000 LOC of vanilla JS, with complex state management that a framework would simplify.
 - Users report performance issues or accessibility gaps that vanilla JS architecture cannot address without significant refactoring.
 - The `file://` constraint is relaxed (e.g., we add optional HTTP server for local development or deployment).
@@ -131,7 +131,7 @@ Until any of these triggers, vanilla JavaScript remains exclusive.
 ## Implementation Notes
 
 - **Naming convention**: entrypoint is `window.Tutorial` (avoid polluting global scope; use namespacing).
-- **Comments**: document stateful operations and event bindings clearly. Assume readers are familiar with standard DOM APIs but not with CodeGuide's conventions.
+- **Comments**: document stateful operations and event bindings clearly. Assume readers are familiar with standard DOM APIs but not with WiedunFlow's conventions.
 - **Testing**: unit tests for state logic (e.g., `window.Tutorial.goToLesson`) use `jsdom` fixtures. DOM integration tests use Playwright snapshots.
 - **Accessibility**: ensure all interactive elements have proper `aria-*` attributes. Test with WAVE or axe-core.
 - **Progressive enhancement**: the HTML should be legible even if JS fails to load (graceful degradation). Display a fallback message with a link to the first lesson.

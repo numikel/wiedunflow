@@ -1,4 +1,4 @@
-# Contributing to CodeGuide
+# Contributing to WiedunFlow
 
 Thank you for your interest in contributing! This document covers the development workflow,
 commit conventions, and expectations for pull requests.
@@ -26,8 +26,8 @@ Prerequisites: [uv](https://docs.astral.sh/uv/) >= 0.4.0.
 
 ```bash
 # Clone and install all dependencies (including dev group)
-git clone https://github.com/numikel/code-guide.git
-cd codeguide
+git clone https://github.com/numikel/wiedunflow.git
+cd wiedunflow
 uv sync
 
 # Install pre-commit hooks (runs ruff, mypy, license insertion, commitlint on every commit)
@@ -46,7 +46,7 @@ Run linting and type checks manually:
 ```bash
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy src/codeguide
+uv run mypy src/wiedunflow
 ```
 
 ## Conventional Commits

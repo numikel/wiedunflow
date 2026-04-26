@@ -8,7 +8,7 @@
 
 ## Context
 
-CodeGuide transmits source-code excerpts to third-party LLM APIs (Anthropic
+WiedunFlow transmits source-code excerpts to third-party LLM APIs (Anthropic
 by default, OpenAI / OpenAI-compatible endpoints by configuration). Before
 v0.1.0 we need audytowalne guarantees:
 
@@ -30,7 +30,7 @@ This ADR captures the seven binary decisions that Sprint 6 relies on.
 ### D1 — Secret redaction: pattern-only regex
 
 Decision: redaction is implemented as a hardcoded list of regular
-expressions in `codeguide.cli.secret_filter._PATTERNS`. No entropy-based
+expressions in `wiedunflow.cli.secret_filter._PATTERNS`. No entropy-based
 heuristic, no learned classifier.
 
 Pattern list (authoritative — update requires amending this ADR):
@@ -70,7 +70,7 @@ opt in explicitly.
 ### D3 — Consent storage: separate `consent.yaml`
 
 Decision: per-provider consent state lives in
-`<platformdirs.user_config_dir("codeguide")>/consent.yaml` — a file
+`<platformdirs.user_config_dir("wiedunflow")>/consent.yaml` — a file
 distinct from the user-level `config.yaml`.
 
 ```yaml
@@ -81,7 +81,7 @@ openai: null
 ```
 
 File permissions are set to `0o600` on POSIX after every write. Windows
-relies on the default ACL of `%APPDATA%\codeguide\`.
+relies on the default ACL of `%APPDATA%\wiedunflow\`.
 
 **Rationale**: state and preferences have different lifecycles. A user
 can `rm consent.yaml` to retract all zgods without touching their model
@@ -90,7 +90,7 @@ and API-key settings. Tests mock the store path trivially.
 ### D4 — Consent granularity: per-provider, persistent across repos
 
 Decision: granting consent for `anthropic` once on a given machine
-suppresses the banner for **every** subsequent CodeGuide run that uses
+suppresses the banner for **every** subsequent WiedunFlow run that uses
 that same provider (regardless of the repo). Switching to `openai`
 re-triggers the banner.
 
@@ -190,17 +190,17 @@ are cheap and independently auditable.
 - `--no-log-redaction` — hidden CLI flag for developers reproducing an
   incident on a trusted machine. Not documented in `--help`.
 - `security.allow_secret_files` — project config array.
-- Consent revocation: `rm ~/.config/codeguide/consent.yaml`.
+- Consent revocation: `rm ~/.config/wiedunflow/consent.yaml`.
 
 ## Implementation references
 
-- `src/codeguide/cli/secret_filter.py` — D1, D2
-- `src/codeguide/cli/logging.py::_redact_secrets_processor` — D2
-- `src/codeguide/adapters/yaml_consent_store.py` — D3
-- `src/codeguide/cli/consent.py::ensure_consent_granted` — D4
-- `src/codeguide/ingestion/secret_blocklist.py` — D5
+- `src/wiedunflow/cli/secret_filter.py` — D1, D2
+- `src/wiedunflow/cli/logging.py::_redact_secrets_processor` — D2
+- `src/wiedunflow/adapters/yaml_consent_store.py` — D3
+- `src/wiedunflow/cli/consent.py::ensure_consent_granted` — D4
+- `src/wiedunflow/ingestion/secret_blocklist.py` — D5
 - `tests/integration/test_zero_telemetry.py` — D6
-- `src/codeguide/cli/editor_resolver.py::_validate_editor_cmd` — D7
+- `src/wiedunflow/cli/editor_resolver.py::_validate_editor_cmd` — D7
 
 ## Links
 

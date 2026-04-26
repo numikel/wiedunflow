@@ -1,6 +1,6 @@
-# CodeGuide CLI — implementation spec
+# WiedunFlow CLI — implementation spec
 
-This document describes the **user-facing output of `codeguide init`** — exact copy, stage structure, prompt contract, error handling, and the run report. It is paired with the prototype in `design/CodeGuide CLI.html`, which plays back the real scenarios in a browser. The prototype is the visual and copy source of truth; this README is the human-readable recap for the implementer.
+This document describes the **user-facing output of `wiedun-flow init`** — exact copy, stage structure, prompt contract, error handling, and the run report. It is paired with the prototype in `design/WiedunFlow CLI.html`, which plays back the real scenarios in a browser. The prototype is the visual and copy source of truth; this README is the human-readable recap for the implementer.
 
 ## ⚠️ This is a terminal program, not a web app
 
@@ -12,7 +12,7 @@ Do not port `cli-app.js`. Do not port `cli-styles.css`. Do not attempt to recrea
 
 ## Scope
 
-The CLI has one top-level command for MVP: `codeguide init <repo-url-or-path>`. This skill spec'd that flow end-to-end. Other commands (`--help`, `--version`, `--resume`) are mentioned only where they are referenced by the init flow.
+The CLI has one top-level command for MVP: `wiedun-flow init <repo-url-or-path>`. This skill spec'd that flow end-to-end. Other commands (`--help`, `--version`, `--resume`) are mentioned only where they are referenced by the init flow.
 
 ## Shipping direction
 
@@ -22,10 +22,10 @@ The prototype's Minimal and Retro ASCII directions are design explorations kept 
 
 ## Output structure
 
-Every `codeguide init` run produces output in this order:
+Every `wiedun-flow init` run produces output in this order:
 
 1. **Invocation line** — the user's shell echoes the command.
-2. **Version banner** — one dim line: `CodeGuide 0.1.0 · claude-haiku-4-5 + claude-opus-4-5`.
+2. **Version banner** — one dim line: `WiedunFlow 0.1.0 · claude-haiku-4-5 + claude-opus-4-5`.
 3. **Preflight** — a labeled section with five checks:
    - git available (with version)
    - python version
@@ -69,7 +69,7 @@ Runtime est. 18-26 min · 12 lessons across 4 concept clusters
 Then block on `Proceed? [y/N] ` (default **No**). Accept `y` / `yes` (case-insensitive) as yes; anything else — including empty, `n`, `no`, `Ctrl+C` — is a no.
 
 - On **yes**: continue to stage 1.
-- On **no**: print `aborted by user. no API calls were made.` and `total cost: $0.00 · elapsed MM:SS`. Exit 0. No cached artefacts, no `.codeguide-output` directory created.
+- On **no**: print `aborted by user. no API calls were made.` and `total cost: $0.00 · elapsed MM:SS`. Exit 0. No cached artefacts, no `.wiedunflow-output` directory created.
 
 ## Color roles
 
@@ -131,9 +131,9 @@ Network stays down or a non-retryable error fires after retries are exhausted. A
 - `     ⚠ exhausted retries. aborting pipeline.` when giving up
 - Emit a `failed` report with the stage where it died, the reason, elapsed, cost spent so far, and a resume hint:
   ```
-  resume    codeguide init --resume <run-id>
+  resume    wiedun-flow init --resume <run-id>
   ```
-- Keep partial artefacts in `./codeguide-output/.cache/` and mention this in the report (`cleanup`).
+- Keep partial artefacts in `./.wiedunflow-output/.cache/` and mention this in the report (`cleanup`).
 - Exit code 1.
 
 ### Cost-gate abort
@@ -162,7 +162,7 @@ Exact layout: see `addReport()` in `design/cli-app.js` — it's mechanical, just
 
 ## Files in this bundle
 
-- `design/CodeGuide CLI.html` — interactive prototype. Open it and use the scenario picker to watch each flow.
+- `design/WiedunFlow CLI.html` — interactive prototype. Open it and use the scenario picker to watch each flow.
 - `design/cli-styles.css` — all colors and typography. The Modern palette (light + dark) is what ships.
 - `design/cli-session-data.js` — **the canonical line-by-line script for every scenario.** Port its content into Python output verbatim. Each scenario is a function returning an array of `{t, kind, text, tone}` events — ignore `t` (it's for playback) and read them in order.
 - `design/cli-app.js` — playback engine. Read only if you want to understand how the prototype dispatches events; do not port it.

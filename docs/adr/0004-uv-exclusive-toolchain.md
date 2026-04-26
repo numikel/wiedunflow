@@ -10,12 +10,12 @@
 
 Python packaging tooling in 2026 remains fragmented. The ecosystem offers pip+pip-tools, Poetry, Hatch, PDM, Rye, and UV — each with different dependency resolvers, lock-file formats, build backends, and installation semantics.
 
-CodeGuide targets mid-level Python developers (FR-05: "developers familiar with Python, wanting to deepen knowledge of unfamiliar repos"). This audience likely has multiple tools installed: some may use Poetry on one project, pip+pipx on another, UV on a third. When they clone CodeGuide and follow the README, they should get a predictable, reproducible setup experience without first deciding which toolchain to use.
+WiedunFlow targets mid-level Python developers (FR-05: "developers familiar with Python, wanting to deepen knowledge of unfamiliar repos"). This audience likely has multiple tools installed: some may use Poetry on one project, pip+pipx on another, UV on a third. When they clone WiedunFlow and follow the README, they should get a predictable, reproducible setup experience without first deciding which toolchain to use.
 
 Historical friction:
 - `pip install -e .[dev]` uses a different resolver than `poetry install` — same lockfile line can resolve to different transitive versions.
 - `pip-compile` vs `poetry lock` — incompatible lock formats, no migration path.
-- `pipx install codeguide` works, but `pip install --user codeguide` sometimes conflicts with system packages.
+- `pipx install wiedunflow` works, but `pip install --user wiedunflow` sometimes conflicts with system packages.
 - Mixing tools in a single repo (e.g., Hatch for build, pip for CI) is confusing.
 
 UV (Astral/Werke, written in Rust, single-file binary, <50 MB) emerged in 2024 as a modern alternative. Benefits:
@@ -29,20 +29,20 @@ A written policy (ADR) prevents accidental regression to pip+pipx or Poetry when
 
 ## Decision
 
-UV is the **only** Python toolchain for CodeGuide development, testing, and deployment:
+UV is the **only** Python toolchain for WiedunFlow development, testing, and deployment:
 
 ### For Developers
 
 - **Setup**: `curl -LsSf https://astral.sh/uv/install.sh | sh` (Linux/macOS) or PowerShell equivalent.
 - **Dependencies**: `uv sync` (replaces `pip install -e .[dev]`).
 - **Running tests**: `uv run pytest` (replaces `python -m pytest` after manual venv).
-- **Running codeguide locally**: `uv run codeguide --version` (replaces `python -m codeguide.cli`).
+- **Running wiedunflow locally**: `uv run wiedun-flow --version` (replaces `python -m wiedunflow.cli`).
 - **Building wheels for testing**: `uv build` (replaces `python -m build`).
 
 ### For End-Users (PyPI Release)
 
-- **Installation**: `pip install codeguide` still works (our wheel is standard). Users are not forced to use UV — we are.
-- **Alternative**: `uvx --from git+https://github.com/user/codeguide codeguide init` for installation from Git (no local clone needed).
+- **Installation**: `pip install wiedunflow` still works (our wheel is standard). Users are not forced to use UV — we are.
+- **Alternative**: `uvx --from git+https://github.com/user/wiedunflow wiedun-flow init` for installation from Git (no local clone needed).
 
 ### For CI/CD
 
@@ -55,7 +55,7 @@ UV is the **only** Python toolchain for CodeGuide development, testing, and depl
 
 - **`pyproject.toml`**: single source of truth for dependencies, scripts, and metadata.
   - `[project]` — name, version, description, dependencies, optional-dependencies.
-  - `[project.scripts]` — CLI entry point (e.g., `codeguide = "codeguide.cli:main"`).
+  - `[project.scripts]` — CLI entry point (e.g., `wiedunflow = "wiedunflow.cli:main"`).
   - `[tool.uv]` — optional: concurrency, index preference, but keep minimal.
   - Build backend: `[build-system] requires = ["hatchling"]` and `build-backend = "hatchling.build"`. Hatchling is passive; UV invokes it.
 
@@ -67,7 +67,7 @@ UV is the **only** Python toolchain for CodeGuide development, testing, and depl
 
 ### Prohibited Tools
 
-The following are explicitly forbidden in CodeGuide repos:
+The following are explicitly forbidden in WiedunFlow repos:
 
 - ❌ `pip install` (use `uv sync` instead)
 - ❌ `pipx` (use `uvx` instead)
@@ -94,12 +94,12 @@ Any PR that introduces `requirements.txt`, `poetry.lock`, or Hatch CLI invocatio
 - **New dependency** — developers must install UV. Not installed by default on most systems.
   - *Mitigation*: UV's installer is a single curl/PowerShell command, cross-platform, and installs a static binary (no compilation needed). Barrier to entry is minimal.
 - **Ecosystem adoption** — not all Python developers are familiar with UV yet (adoption is rapidly growing in 2026, but some teams still use Poetry). Documentation must be extra clear.
-- **Migration cost** — if a contributor has a Poetry `lock` file from another project, they cannot copy it to CodeGuide. They must re-sync.
+- **Migration cost** — if a contributor has a Poetry `lock` file from another project, they cannot copy it to WiedunFlow. They must re-sync.
   - *Mitigation*: One-time cost. After sync, workflows are identical across projects using UV.
 
 ### Neutral
 
-- **End-user installation** — users installing from PyPI via `pip install codeguide` are unaffected. Our wheel is a standard Python distribution.
+- **End-user installation** — users installing from PyPI via `pip install wiedunflow` are unaffected. Our wheel is a standard Python distribution.
 - **`uvx` invocation** — users can test pre-release versions with `uvx --from git+...` without cloning the repo, but this is optional.
 
 ## Alternatives Considered
@@ -116,7 +116,7 @@ Revisit this decision if **any** of the following becomes true:
 
 - UV's project halts maintenance or transfers to unmaintained status (as of 2026-04-20, UV is actively maintained by Astral and widely adopted).
 - A competing tool demonstrates better cross-platform determinism or significantly faster performance (as of 2026-04-20, no such competitor exists).
-- CodeGuide grows beyond a single package into a monorepo that would benefit from workspace tooling (e.g., Rye workspaces). A new ADR would supersede this one.
+- WiedunFlow grows beyond a single package into a monorepo that would benefit from workspace tooling (e.g., Rye workspaces). A new ADR would supersede this one.
 
 Until then, UV remains exclusive.
 

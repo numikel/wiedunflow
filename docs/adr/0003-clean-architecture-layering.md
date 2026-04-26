@@ -8,22 +8,22 @@
 
 ## Context
 
-CodeGuide's 7-stage pipeline integrates with external dependencies across the full stack: LLM providers (Anthropic, OpenAI, OSS), source code parsers (tree-sitter for Python; TypeScript/JavaScript planned for v2), cache storage (SQLite), and render engine (Jinja2).
+WiedunFlow's 7-stage pipeline integrates with external dependencies across the full stack: LLM providers (Anthropic, OpenAI, OSS), source code parsers (tree-sitter for Python; TypeScript/JavaScript planned for v2), cache storage (SQLite), and render engine (Jinja2).
 
 Without architectural discipline on dependency flow, the codebase will gradually couple entities and use-cases to concrete implementations:
 - `entities.LessonPlan` imports `anthropic.Client` (blocks BYOK).
 - `use_cases.RankGraph` imports `sqlite3` pragmas (blocks cache swaps).
 - `generate_tutorial.py` instantiates `TreeSitterParser` directly (blocks parser upgrades to LSP or Pyright).
 
-This coupling violates the project's core commitment: **BYOK (Bring Your Own Key)** — users supply their own LLM API keys and choose their provider. Similarly, users should be able to upgrade their Python toolchain or swap storage without forking CodeGuide's core logic.
+This coupling violates the project's core commitment: **BYOK (Bring Your Own Key)** — users supply their own LLM API keys and choose their provider. Similarly, users should be able to upgrade their Python toolchain or swap storage without forking WiedunFlow's core logic.
 
 The intended scope of v2 includes adding a TypeScript/JavaScript parser as an alternative to tree-sitter — and this upgrade should be a single adapter change, not a cascading refactor through use-cases and entities.
 
 ## Decision
 
-Adopt Robert C. Martin's **Clean Architecture** with five strict layers in `src/codeguide/`:
+Adopt Robert C. Martin's **Clean Architecture** with five strict layers in `src/wiedunflow/`:
 
-### Layer 1: Entities (`src/codeguide/entities/`)
+### Layer 1: Entities (`src/wiedunflow/entities/`)
 
 Domain-level invariants, decoupled from frameworks and SDKs:
 - `LessonPlan`, `LessonManifest` (Pydantic v2 models defining lesson structure)
@@ -33,7 +33,7 @@ Domain-level invariants, decoupled from frameworks and SDKs:
 
 **Rule**: Entities can only import from `entities/` and the standard library. Zero imports from `use_cases`, `adapters`, `interfaces`, `anthropic`, `openai`, `sqlite3`, or `jinja2`.
 
-### Layer 2: Use Cases (`src/codeguide/use_cases/`)
+### Layer 2: Use Cases (`src/wiedunflow/use_cases/`)
 
 Orchestrators for the 7-stage pipeline:
 - `GenerateTutorial` — top-level coordinator
@@ -45,12 +45,12 @@ Orchestrators for the 7-stage pipeline:
 
 **Rule**: Use-cases import from `entities` and `interfaces` (ports) **only**. No imports from `adapters`, SDK libraries, or frameworks. Use-cases define *what* should happen; they do not know *how* it is implemented (that is the adapter's job).
 
-### Layer 3: Interfaces (`src/codeguide/interfaces/`)
+### Layer 3: Interfaces (`src/wiedunflow/interfaces/`)
 
 Ports (Protocol, ABC) defining contracts without implementations:
 
 ```python
-# src/codeguide/interfaces/__init__.py
+# src/wiedunflow/interfaces/__init__.py
 from typing import Protocol
 
 class LLMProvider(Protocol):
@@ -74,12 +74,12 @@ class Editor(Protocol):
 
 **Rule**: Interfaces declare contracts, never implementations. Ports are agnostic about provider, SDK, or storage backend.
 
-### Layer 4: Adapters (`src/codeguide/adapters/`)
+### Layer 4: Adapters (`src/wiedunflow/adapters/`)
 
 Concrete implementations of ports. Each port has ≥1 adapter:
 
 ```
-src/codeguide/adapters/
+src/wiedunflow/adapters/
   ├── llm/
   │   ├── __init__.py
   │   ├── anthropic_provider.py      # AnthropicProvider(LLMProvider)
@@ -104,8 +104,8 @@ src/codeguide/adapters/
 Example adapter:
 
 ```python
-# src/codeguide/adapters/llm/anthropic_provider.py
-from codeguide.interfaces import LLMProvider
+# src/wiedunflow/adapters/llm/anthropic_provider.py
+from wiedunflow.interfaces import LLMProvider
 import anthropic
 
 class AnthropicProvider(LLMProvider):
@@ -119,17 +119,17 @@ class AnthropicProvider(LLMProvider):
         return response.content[0].text
 ```
 
-### Layer 5: Delivery (`src/codeguide/cli/`, `src/codeguide/renderer/`)
+### Layer 5: Delivery (`src/wiedunflow/cli/`, `src/wiedunflow/renderer/`)
 
 Frameworks and I/O adapters that assemble the stack:
 
 ```python
-# src/codeguide/cli/__init__.py — click entrypoint
-from codeguide.adapters.llm import AnthropicProvider
-from codeguide.adapters.parser import TreeSitterParser
-from codeguide.adapters.vector_store import Bm25VectorStore
-from codeguide.adapters.cache import SqliteCache
-from codeguide.use_cases import GenerateTutorial
+# src/wiedunflow/cli/__init__.py — click entrypoint
+from wiedunflow.adapters.llm import AnthropicProvider
+from wiedunflow.adapters.parser import TreeSitterParser
+from wiedunflow.adapters.vector_store import Bm25VectorStore
+from wiedunflow.adapters.cache import SqliteCache
+from wiedunflow.use_cases import GenerateTutorial
 
 @click.command()
 def main(repo_path: Path, api_key: str):
@@ -160,7 +160,7 @@ def main(repo_path: Path, api_key: str):
 
 ### Neutral
 
-- **Existing monolith projects** — if a future v2 adds a monolithic feature (e.g., a plugin API), it would *not* go through the entities/use-cases/adapters model; plugins have their own enclosure. This is acceptable — the core CodeGuide pipeline stays clean.
+- **Existing monolith projects** — if a future v2 adds a monolithic feature (e.g., a plugin API), it would *not* go through the entities/use-cases/adapters model; plugins have their own enclosure. This is acceptable — the core WiedunFlow pipeline stays clean.
 
 ## Alternatives Considered
 
@@ -181,8 +181,8 @@ Until then, five layers remain the standard.
 
 ## Implementation Notes
 
-- Enforce at CI-time via `mypy --strict` on `src/codeguide/{entities,use_cases}/**` — any import from outside those layers will fail.
-- Document each new port with a README: `src/codeguide/interfaces/README.md` listing all ports and their intended adapters.
+- Enforce at CI-time via `mypy --strict` on `src/wiedunflow/{entities,use_cases}/**` — any import from outside those layers will fail.
+- Document each new port with a README: `src/wiedunflow/interfaces/README.md` listing all ports and their intended adapters.
 - Golden rule for code review: "Which layer does this belong in?" — if unclear, the architecture is unclear.
 
 ## References

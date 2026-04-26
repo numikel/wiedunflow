@@ -1,4 +1,4 @@
-/* CodeGuide CLI — session scripts.
+/* WiedunFlow CLI — session scripts.
    Each script is an array of "events" with a time offset (seconds from start)
    and either a line to append or a control directive.
    Event kinds:
@@ -51,9 +51,9 @@ window.CLI_STATES = {
 // ---------- helpers ----------
 function intro() {
   return [
-    { t: 0.0, kind: "line", text: "$ codeguide init https://github.com/kennethreitz/requests", tone: "prompt" },
+    { t: 0.0, kind: "line", text: "$ wiedun-flow init https://github.com/kennethreitz/requests", tone: "prompt" },
     { t: 0.4, kind: "blank" },
-    { t: 0.5, kind: "line", text: "CodeGuide 0.1.0 · claude-haiku-4-5 + claude-opus-4-5", tone: "dim" },
+    { t: 0.5, kind: "line", text: "WiedunFlow 0.1.0 · claude-haiku-4-5 + claude-opus-4-5", tone: "dim" },
     { t: 0.9, kind: "blank" },
     { t: 1.0, kind: "line", text: "Preflight", tone: "accent" },
     { t: 1.1, kind: "line", text: "  ✓ git available (2.43.0)", tone: "good" },
@@ -166,7 +166,7 @@ function happyPath() {
     lessons: 12, files: 47, coverage: 87,
     cost: 2.29, haiku: 0.41, opus: 1.87,
     elapsed: "00:45", tokens_in: 558860, tokens_out: 114222,
-    link: "./codeguide-output/tutorial.html",
+    link: "./.wiedunflow-output/tutorial.html",
   } });
   ev.push({ t: r + 2.6, kind: "line", text: "$ ▌", tone: "prompt" });
   ev.push({ t: r + 3.0, kind: "end" });
@@ -214,7 +214,7 @@ function degradedPath() {
     lessons: 12, lessons_skipped: 4, files: 47, coverage: 64,
     cost: 2.40, haiku: 0.41, opus: 1.98,
     elapsed: "00:47", tokens_in: 576410, tokens_out: 119840,
-    link: "./codeguide-output/tutorial.html",
+    link: "./.wiedunflow-output/tutorial.html",
     skipped: ["cookies", "utils", "auth", "exceptions"],
   }});
   base.push({ t: r + 3.0, kind: "line", text: "$ ▌", tone: "prompt" });
@@ -257,7 +257,7 @@ function rateLimitedPath() {
     lessons: 12, files: 47, coverage: 87,
     cost: 2.29, haiku: 0.41, opus: 1.87,
     elapsed: "00:52", tokens_in: 558860, tokens_out: 114222,
-    link: "./codeguide-output/tutorial.html",
+    link: "./.wiedunflow-output/tutorial.html",
     note: "2 rate-limit retries absorbed (6.0s total backoff)",
   }});
   base.push({ t: r + 3.0, kind: "line", text: "$ ▌", tone: "prompt" });
@@ -299,8 +299,8 @@ function failedPath() {
     reason: "network unavailable after 3 retries",
     cost: 0.17, haiku: 0.17, opus: 0.00,
     elapsed: "00:36",
-    cleanup: "partial artefacts in ./codeguide-output/.cache retained for resume",
-    resume_hint: "codeguide init --resume <run-id>",
+    cleanup: "partial artefacts in ./.wiedunflow-output/.cache retained for resume",
+    resume_hint: "wiedun-flow init --resume <run-id>",
   }});
   ev.push({ t: r + 3.0, kind: "line", text: "$ ▌", tone: "prompt" });
   ev.push({ t: r + 3.4, kind: "end" });

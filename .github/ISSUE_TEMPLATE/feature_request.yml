@@ -1,5 +1,5 @@
 name: Feature Request
-description: Suggest an idea for CodeGuide
+description: Suggest an idea for WiedunFlow
 labels: ["enhancement"]
 body:
   - type: textarea

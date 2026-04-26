@@ -8,15 +8,15 @@
 
 ## Context
 
-CodeGuide v0.4.0 introduced the cost-gate prompt (FR-81) and a cost-estimation heuristic that relies on accurate per-model pricing. The cost estimator (`cli/cost_estimator.py`) currently uses a hardcoded `MODEL_PRICES` mapping (`gpt-4.1: 9.0`, `claude-opus-4-7: 45.0` USD/MTok, etc.).
+WiedunFlow v0.4.0 introduced the cost-gate prompt (FR-81) and a cost-estimation heuristic that relies on accurate per-model pricing. The cost estimator (`cli/cost_estimator.py`) currently uses a hardcoded `MODEL_PRICES` mapping (`gpt-4.1: 9.0`, `claude-opus-4-7: 45.0` USD/MTok, etc.).
 
-This approach has a critical flaw: **pricing is static but the LLM model ecosystem changes monthly**. New models are released (`gpt-5.4-mini`, `claude-opus-4-8`) and existing model pricing adjusts quarterly. Users who upgrade CodeGuide without updating their config see a cost estimate frozen at release time, making the cost gate less useful as a real cost-awareness tool.
+This approach has a critical flaw: **pricing is static but the LLM model ecosystem changes monthly**. New models are released (`gpt-5.4-mini`, `claude-opus-4-8`) and existing model pricing adjusts quarterly. Users who upgrade WiedunFlow without updating their config see a cost estimate frozen at release time, making the cost gate less useful as a real cost-awareness tool.
 
 Additionally, provider SDKs (Anthropic, OpenAI) **do not expose pricing in their `models.list()` responses**. The canonical source of truth for community-maintained model pricing is **LiteLLM's `model_prices_and_context_window.json`** on GitHub (https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json), updated frequently (~3500 models, community-maintained).
 
 ## Decision
 
-We introduce a **`PricingCatalog` port** with four implementations and a chained fallback pattern. `httpx` (already required transitively by `anthropic` and `openai`) is promoted to an **explicit hard dependency** because CodeGuide imports it directly.
+We introduce a **`PricingCatalog` port** with four implementations and a chained fallback pattern. `httpx` (already required transitively by `anthropic` and `openai`) is promoted to an **explicit hard dependency** because WiedunFlow imports it directly.
 
 1. **`PricingCatalog` Protocol** (`interfaces/pricing_catalog.py`):
    - Single method: `blended_price_per_mtok(model_id: str) -> float | None`
@@ -39,7 +39,7 @@ We introduce a **`PricingCatalog` port** with four implementations and a chained
 
 4. **`CachedPricingCatalog`** (`adapters/cached_pricing_catalog.py`):
    - 24-hour disk cache decorator (mirrors `CachedModelCatalog` from v0.4.0)
-   - Cache file: `~/.cache/codeguide/pricing-<provider>.json` (e.g. `pricing-litellm.json`)
+   - Cache file: `~/.cache/wiedunflow/pricing-<provider>.json` (e.g. `pricing-litellm.json`)
    - TTL 86400 seconds (24h)
    - `_is_fresh()`: checks file mtime
    - `_read_cache()` / `_write_cache()`: JSON persistence with error handling
@@ -65,8 +65,8 @@ We introduce a **`PricingCatalog` port** with four implementations and a chained
 ## httpx as explicit dependency
 
 - **Declaration**: `httpx>=0.27` lives in `[project.dependencies]` of `pyproject.toml`
-- **Why explicit (not transitive)**: `httpx` is already required by `openai` and `anthropic` SDKs (verified via `uv tree`). However, CodeGuide **imports `httpx` directly** in `litellm_pricing_catalog.py`, so PEP-621 best practice mandates explicit declaration of what we import — relying on transitive availability is brittle (a future SDK release could swap to `aiohttp` and silently break our pricing fetch).
-- **Why not optional `[pricing]` extra**: an earlier draft of this ADR proposed `[project.optional-dependencies] pricing = ["httpx>=0.27"]` plus a try/except guard. Smoke testing during integration revealed this was tautological — without `httpx`, `import anthropic` itself fails (anthropic SDK requires `httpx`), so CodeGuide is unrunnable before the optional code path is even reached. The "graceful fallback when httpx is missing" was therefore **dead code**: the guarded branch could never execute in any supported install. Per the project rule "do not add error handling for scenarios that can't happen" (`CLAUDE.md` SUPPORT_EXPERT, "trust framework guarantees"), the guard, the optional extra, and the two tests covering the impossible state were removed.
+- **Why explicit (not transitive)**: `httpx` is already required by `openai` and `anthropic` SDKs (verified via `uv tree`). However, WiedunFlow **imports `httpx` directly** in `litellm_pricing_catalog.py`, so PEP-621 best practice mandates explicit declaration of what we import — relying on transitive availability is brittle (a future SDK release could swap to `aiohttp` and silently break our pricing fetch).
+- **Why not optional `[pricing]` extra**: an earlier draft of this ADR proposed `[project.optional-dependencies] pricing = ["httpx>=0.27"]` plus a try/except guard. Smoke testing during integration revealed this was tautological — without `httpx`, `import anthropic` itself fails (anthropic SDK requires `httpx`), so WiedunFlow is unrunnable before the optional code path is even reached. The "graceful fallback when httpx is missing" was therefore **dead code**: the guarded branch could never execute in any supported install. Per the project rule "do not add error handling for scenarios that can't happen" (`CLAUDE.md` SUPPORT_EXPERT, "trust framework guarantees"), the guard, the optional extra, and the two tests covering the impossible state were removed.
 
 ## Three-sink rule extension
 
@@ -97,7 +97,7 @@ Enforcement: lint test `tests/unit/cli/test_no_httpx_outside_litellm_pricing.py`
    - `test_build_pricing_chain_wires_litellm_then_static` — asserts the factory returns `[CachedPricingCatalog, StaticPricingCatalog]` in that order
 
 5. **Lint test** (`tests/unit/cli/test_no_httpx_outside_litellm_pricing.py`):
-   - Greps `src/codeguide/**/*.py` for `import httpx` / `from httpx` outside the two allowlisted files
+   - Greps `src/wiedunflow/**/*.py` for `import httpx` / `from httpx` outside the two allowlisted files
    - Fails build if found elsewhere
 
 6. **No real network in CI**: all HTTP tests use monkeypatch + fixture JSON. Zero external network calls during the test suite.
@@ -117,9 +117,9 @@ Enforcement: lint test `tests/unit/cli/test_no_httpx_outside_litellm_pricing.py`
 ## Consequences
 
 **Positive**:
-- Cost-gate estimates stay current without CodeGuide releases
+- Cost-gate estimates stay current without WiedunFlow releases
 - New models (`gpt-5.4-mini`, `claude-opus-4-8`) are priced accurately once LiteLLM adds them
-- Decouples CodeGuide release cycle from model pricing updates
+- Decouples WiedunFlow release cycle from model pricing updates
 - Network-failure-tolerant: timeouts, 5xx, malformed JSON all fall through to the static catalog
 - Honest dependency declaration — `pyproject.toml` matches what we import
 
@@ -140,14 +140,14 @@ Enforcement: lint test `tests/unit/cli/test_no_httpx_outside_litellm_pricing.py`
 
 2. **`httpx` as `[project.optional-dependencies] pricing`**: tried in the v0.5.0 draft, removed before release. The optional pattern is meaningless because `anthropic` and `openai` (both hard deps) already require `httpx` — the "without `httpx`" code path can never trigger in any supported install. The try/except guard, the `_HTTPX_AVAILABLE` flag, the factory branch, and two associated tests were all dead code. See "httpx as explicit dependency" above.
 
-3. **Embed a static JSON snapshot in the CodeGuide repo**: defeats the purpose of dynamic pricing. Requires a release every time LiteLLM updates. Decision: live fetch (with cache + fallback) is better.
+3. **Embed a static JSON snapshot in the WiedunFlow repo**: defeats the purpose of dynamic pricing. Requires a release every time LiteLLM updates. Decision: live fetch (with cache + fallback) is better.
 
 4. **Fetch on-demand, no cache**: puts pressure on LiteLLM's GitHub-raw quota. Heavy CI users could hit rate limits. Decision: 24-hour cache is a sweet spot.
 
 ## Migration
 
 - **No user-facing breaking changes**. Cost gate behavior is unchanged: users see a USD estimate, and it is now more accurate.
-- **No new install instructions**. `uv sync` / `uvx codeguide` continues to work as before; `httpx` is pulled automatically.
+- **No new install instructions**. `uv sync` / `uvx wiedunflow` continues to work as before; `httpx` is pulled automatically.
 - **Logging**: `litellm_pricing_fetch_failed` (warn) on network errors, `litellm_pricing_unexpected_shape` (warn) on schema drift. No info-level spam on every lookup.
 
 ## Future work

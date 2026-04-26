@@ -7,7 +7,7 @@ window.TUTORIAL_META = {
   commit: "a1b2c3d",
   branch: "main",
   generated_at: "2026-04-18 14:22 UTC",
-  codeguide_version: "0.1.0",
+  wiedunflow_version: "0.1.0",
   schema_version: "1.0.0",
   file_count: 47,
   total_lessons: 12,

@@ -1,4 +1,4 @@
-/* CodeGuide CLI player — play/pause, scrubber, speed, skip stage, restart,
+/* WiedunFlow CLI player — play/pause, scrubber, speed, skip stage, restart,
    interactive cost-gate, state presets. */
 
 (function () {
@@ -303,7 +303,7 @@
     // Fresh caret placeholder so term isn't fully empty at t=0
     const c = document.createElement("div");
     c.className = "ln tone-dim";
-    c.textContent = "Windows PowerShell · codeguide 0.1.0 · type 'codeguide --help' for commands";
+    c.textContent = "Windows PowerShell · wiedun-flow 0.1.0 · type 'wiedun-flow --help' for commands";
     termEl.appendChild(c);
     scrubberFill.style.width = "0%";
     btnPlay.textContent = "▶  Play";

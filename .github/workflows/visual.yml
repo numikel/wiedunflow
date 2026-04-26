@@ -10,10 +10,10 @@ on:
     branches: [main]
   pull_request:
     paths:
-      - "src/codeguide/renderer/**"
-      - "src/codeguide/adapters/jinja_renderer.py"
-      - "src/codeguide/adapters/pygments_highlighter.py"
-      - "src/codeguide/entities/lesson*.py"
+      - "src/wiedunflow/renderer/**"
+      - "src/wiedunflow/adapters/jinja_renderer.py"
+      - "src/wiedunflow/adapters/pygments_highlighter.py"
+      - "src/wiedunflow/entities/lesson*.py"
       - "tests/visual/**"
       - ".github/workflows/visual.yml"
 

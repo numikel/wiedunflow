@@ -6,14 +6,14 @@ depends_on:
   - .ai/prd.md
   - .ai/tech-stack.md
   - docs/adr/0011-ux-design-system.md
-skill_reference: .claude/skills/codeguide-ux-skill/
+skill_reference: .claude/skills/wiedunflow-ux-skill/
 ---
 
-# CodeGuide UX Specification
+# WiedunFlow UX Specification
 
 ## §1. Przeznaczenie dokumentu
 
-This document is the **single source of truth** for all user-facing surfaces in CodeGuide: the CLI output (`codeguide init` terminal experience) and the generated `tutorial.html` offline reader.
+This document is the **single source of truth** for all user-facing surfaces in WiedunFlow: the CLI output (`wiedun-flow init` terminal experience) and the generated `wiedunflow-<repo>.html` offline reader.
 
 **When to read this:**
 - Implementing or modifying CLI output (stages, prompts, cost gate, error scenarios, run report)
@@ -29,7 +29,7 @@ This document is the **single source of truth** for all user-facing surfaces in 
 - Adding or removing a tutorial component
 
 **Relationship to skill and ADR:**
-- The skill `codeguide-ux-skill` contains immutable hi-fi prototypes in HTML (`reference/tutorial/design/` and `reference/cli/design/`). Those prototypes are design references only — not production code.
+- The skill `wiedunflow-ux-skill` contains immutable hi-fi prototypes in HTML (`reference/tutorial/design/` and `reference/cli/design/`). Those prototypes are design references only — not production code.
 - ADR-0011 documents seven binary design decisions that constrain this spec (palette, fonts, CLI direction, surface hierarchy). All decisions are final for MVP; any reversal requires a new ADR.
 - This spec is the **living specification** for implementers. When you build the tutorial renderer or CLI output, follow this document's pixel values, copy, color roles, and state-management contracts.
 
@@ -46,6 +46,7 @@ These seven decisions are **closed** for MVP. Reversing any of them requires a n
 | 5 | Surface hierarchy: topbar darkest, narration lightest (~20% closer to white) | Accepted 2026-04-19 | Non-negotiable constraint. Defines the visual reading priority in both light and dark modes. |
 | 6 | Fonts self-hosted as WOFF2 (offline-first, no CDN) | Accepted 2026-04-19 | Satisfies FR-14 (offline-capable). Single HTTP request from CDN breaks the `file://` guarantee. |
 | 7 | Syntax highlighting: Pygments pre-rendered during build (no runtime highlight.js / Prism) | Accepted 2026-04-19 | Avoids 15 KB+ JS bundle. Rendering happens in the Python pipeline (stage 7), HTML ships with tokenized spans. |
+| (Rebranding) | CLI command: `wiedun-flow` → `wiedun-flow`; output filename: `tutorial.html` → `wiedunflow-<repo>.html`; cache dir: `.wiedunflow/` → `.wiedunflow/`; localStorage: `wiedunflow:*` → `wiedunflow:*` | Accepted 2026-04-26 | Brand identity change. Hard cut, no aliases or shim. |
 
 ---
 
@@ -112,7 +113,7 @@ Three-column layout, full viewport height:
 - **Layout**: horizontal flex, `gap: 16px`, `padding: 0 24px`, items vertically centered.
 
 **Contents:**
-- **Brand square**: `22×22px`, `background: var(--ink)`, `color: var(--bg)`, `border-radius: 5px`, mono font, text "cg" (10px) stacked with "CodeGuide" label (11px/600).
+- **Brand square**: `22×22px`, `background: var(--ink)`, `color: var(--bg)`, `border-radius: 5px`, mono font, text "cg" (10px) stacked with "WiedunFlow" label (11px/600).
 - **Breadcrumb**: flex 1, `font-size: 13px`, `color: var(--ink-dim)`, structure `owner/repo › cluster-label › lesson-num lesson-title`. Overflow ellipsis on narrow viewports.
 - **3 icon buttons** (left-to-right): direction toggle (A|B, for prototype only; production omits), theme toggle (☾), tweaks panel toggle (⚙). Each: `32×32px`, `border: 1px solid var(--border)`, `border-radius: 7px`, 13px mono or icon.
 
@@ -190,7 +191,7 @@ Three-column layout, full viewport height:
   - Hover: width 2px, `background: var(--accent)`.
   - Dragging: `body.classList.add('is-resizing')` (sets cursor + disables pointer events on children).
 - **Drag range**: 28%–72% of content width, enforced via `clamp(0.28, custom_frac, 0.72)`.
-- **Persistence**: current position written to `localStorage` key `codeguide:tweak:narr-frac:v2` as a float.
+- **Persistence**: current position written to `localStorage` key `wiedunflow:tweak:narr-frac:v2` as a float.
 - **Touch**: same handlers as mouse, using `clientX` on both `TouchEvent` and `MouseEvent`.
 
 #### 6. Code panel
@@ -237,7 +238,7 @@ Three-column layout, full viewport height:
 - Grid: `1fr auto`.
 - Left column: flex row, `gap: 6px 18px`, `font-size: 12px` mono, `color: var(--ink-dim)`. Each meta pair: `<label>: value` (label + value in separate spans).
 - Content: commit hash, branch, generated-at timestamp, confidence pill, cost (haiku + opus breakdown), elapsed (Xm Ys).
-- Right column: "CodeGuide vX.X.X · Apache 2.0 — offline" text (11px mono `var(--ink-dim)`).
+- Right column: "WiedunFlow vX.X.X · Apache 2.0 — offline" text (11px mono `var(--ink-dim)`).
 
 #### 8. Degraded banner (conditional)
 
@@ -294,7 +295,7 @@ Renders inline above `.narration-body` when `lesson.status == "skipped"`.
 - **Prev/Next buttons** in narration: same as arrow keys.
 - **Up-next "Continue"**: same as ArrowRight.
 - **Deep link**: on page load, parse `location.hash` with regex `#lesson-(.+)$`; if matching lesson exists, open it.
-- **Persistence**: write current lesson id to `localStorage` key `codeguide:<repo>:last-lesson`. Read on page load; default to first lesson if not found.
+- **Persistence**: write current lesson id to `localStorage` key `wiedunflow:<repo>:last-lesson`. Read on page load; default to first lesson if not found.
 
 ### §3.4 Splitter interaction
 
@@ -302,24 +303,24 @@ Renders inline above `.narration-body` when `lesson.status == "skipped"`.
 - **Mousemove/touchmove**: calculate `clientX` relative to content rect, compute `frac = clamp(0.28, x / width, 0.72)`, apply `document.documentElement.style.setProperty('--narr-frac', frac)`, position splitter at `frac * 100%`.
 - **Mouseup/touchend**: `dragging = false`, `body.classList.remove('is-resizing')`.
 - **On window resize**: re-read `--narr-frac` and reposition splitter.
-- **Persistence**: write `frac` to `localStorage` key `codeguide:tweak:narr-frac:v2` on drag end.
+- **Persistence**: write `frac` to `localStorage` key `wiedunflow:tweak:narr-frac:v2` on drag end.
 
 ### §3.5 State management (localStorage)
 
-All keys prefixed `codeguide:` to avoid collision with other apps.
+All keys prefixed `wiedunflow:` to avoid collision with other apps.
 
 | Key | Value type | Default | When set | Notes |
 |-----|------------|---------|----------|-------|
-| `codeguide:<repo>:last-lesson` | string (lesson id) | first lesson | on lesson change | Persists across page reloads |
-| `codeguide:tweak:theme:v2` | `"light"` \| `"dark"` | `"light"` | on theme toggle | Maps to `[data-theme=...]` on `<html>` |
-| `codeguide:tweak:narr-frac:v2` | float in [0.28, 0.72] | 0.5 | on splitter drag end | Applied as CSS custom property `--narr-frac` |
+| `wiedunflow:<repo>:last-lesson` | string (lesson id) | first lesson | on lesson change | Persists across page reloads |
+| `wiedunflow:tweak:theme:v2` | `"light"` \| `"dark"` | `"light"` | on theme toggle | Maps to `[data-theme=...]` on `<html>` |
+| `wiedunflow:tweak:narr-frac:v2` | float in [0.28, 0.72] | 0.5 | on splitter drag end | Applied as CSS custom property `--narr-frac` |
 
 **Not persisted in production** (prototype-only):
-- Palette (`codeguide:tweak:palette:v2`) — fixed to A1 Paper.
-- Direction (`codeguide:tweak:dir:v2`) — fixed to A.
-- Body font (`codeguide:tweak:font:v2`) — fixed to Inter.
-- Confidence (`codeguide:tweak:conf:v2`) — driven by manifest.
-- Degraded (`codeguide:tweak:deg:v2`) — driven by manifest.
+- Palette (`wiedunflow:tweak:palette:v2`) — fixed to A1 Paper.
+- Direction (`wiedunflow:tweak:dir:v2`) — fixed to A.
+- Body font (`wiedunflow:tweak:font:v2`) — fixed to Inter.
+- Confidence (`wiedunflow:tweak:conf:v2`) — driven by manifest.
+- Degraded (`wiedunflow:tweak:deg:v2`) — driven by manifest.
 
 ### §3.6 JSON data shape
 
@@ -331,7 +332,7 @@ TUTORIAL_META = {
   sha: string,                   // commit hash
   branch: string,
   generated_at: ISO 8601 string,
-  codeguide_version: string,     // e.g. "0.1.0"
+  wiedunflow_version: string,     // e.g. "0.1.0"
   run_status: "ok" | "degraded", // "ok" or "degraded" (failures abort before render)
   total_lessons: number,
   skipped_count: number,         // 0 for "ok", ≥1 for "degraded"
@@ -488,7 +489,7 @@ Any palette change must pass this sanity check.
 ### §3.8 Assets
 
 **Fonts:**
-- Inter (OFL) — weights 400, 500, 600, 700, self-hosted as WOFF2 in `src/codeguide/renderer/fonts/`.
+- Inter (OFL) — weights 400, 500, 600, 700, self-hosted as WOFF2 in `src/wiedunflow/renderer/fonts/`.
 - JetBrains Mono (OFL) — weights 400, 500, 600, self-hosted as WOFF2 in same directory.
 - Fallbacks to system stack if files are missing.
 
@@ -541,10 +542,10 @@ Any palette change must pass this sanity check.
 
 ### §4.1 Output structure
 
-Every `codeguide init <repo>` run produces output in this order:
+Every `wiedun-flow init <repo>` run produces output in this order:
 
 1. **Invocation line** — shell echoes the command (not printed by CLI).
-2. **Version banner** — dim: `CodeGuide 0.1.0 · claude-haiku-4-5 + claude-opus-4-7`.
+2. **Version banner** — dim: `WiedunFlow 0.1.0 · claude-haiku-4-5 + claude-opus-4-7`.
 3. **Preflight section** — five checks (git, python, API key, repo, file count).
 4. **Cost gate** — boxed estimate + blocking prompt `Proceed? [y/N]`.
 5. **Seven stages** — `[N/7] <Name>`, indented detail lines, stage completion summary.
@@ -556,7 +557,7 @@ Every `codeguide init <repo>` run produces output in this order:
 One line, dim tone (ANSI 8 / bright black):
 
 ```
-CodeGuide 0.1.0 · claude-haiku-4-5 + claude-opus-4-7
+WiedunFlow 0.1.0 · claude-haiku-4-5 + claude-opus-4-7
 ```
 
 ### §4.3 Preflight section
@@ -720,8 +721,8 @@ binds two distinct animation modes to the two stage classes:
 | Stages 1, 3, 4, 7 | **Static** (`StageReporter.detail`) | Short stages with no per-item progress. Header + ✓ done is enough. |
 | Stages 3, 4, 5, 6 (LLM stages) | **Live counters footer** (`StageReporter.tick_counters`) | The §4.6 footer renders below the active body region; it pins running cost / tokens / elapsed and refreshes on every LLM event. |
 
-Implementation lives in `src/codeguide/cli/stage_reporter.py` (orchestrator
-side) and `src/codeguide/cli/output.py` (Rich Live region helpers). The Live
+Implementation lives in `src/wiedunflow/cli/stage_reporter.py` (orchestrator
+side) and `src/wiedunflow/cli/output.py` (Rich Live region helpers). The Live
 region is started lazily on the first `progress_line` / `lesson_event` /
 `tick_counters` call and closed by `stage_done`. On non-TTY consoles `rich.live.Live`
 falls back to per-update prints — CI and `--log-format=json` pipes still
@@ -869,12 +870,12 @@ Network stays down or non-retryable error after retries exhausted. Abort cleanly
 ┃ reason     network error: ConnectionError              ┃
 ┃ cost       $0.33 (haiku $0.41 · opus partial)          ┃
 ┃ elapsed    5:42                                       ┃
-┃ cleanup    partial artefacts in ./codeguide-output/   ┃
-┃ resume     codeguide init --resume <run-id>           ┃
+┃ cleanup    partial artefacts in ./wiedunflow-output/   ┃
+┃ resume     wiedun-flow init --resume <run-id>           ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ```
 
-Report status: **failed**, left border color: red. Retain partial artefacts in `./codeguide-output/.cache/` for `--resume`. Exit code 1.
+Report status: **failed**, left border color: red. Retain partial artefacts in `./wiedunflow-output/.cache/` for `--resume`. Exit code 1.
 
 #### Cost-gate abort
 
@@ -887,7 +888,7 @@ aborted by user. no API calls were made.
 total cost: $0.00 · elapsed 0:08
 ```
 
-Exit code 0. No cached files, no `.codeguide-output` directory.
+Exit code 0. No cached files, no `.wiedunflow-output` directory.
 
 #### Ctrl+C mid-stage
 
@@ -905,8 +906,8 @@ User presses Ctrl+C while an LLM call is running:
 ┃ reason     keyboard interrupt                         ┃
 ┃ cost       $0.12 (haiku $0.41 · opus partial)          ┃
 ┃ elapsed    2:15                                       ┃
-┃ cleanup    partial artefacts in ./codeguide-output/   ┃
-┃ resume     codeguide init --resume <run-id>           ┃
+┃ cleanup    partial artefacts in ./wiedunflow-output/   ┃
+┃ resume     wiedun-flow init --resume <run-id>           ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ```
 
@@ -932,8 +933,8 @@ A framed card printed at the end of every run. Border color encodes status:
 | skipped | (list of lesson ids) | Only if degraded |
 | failed at | (stage name) | Only if failed |
 | reason | (error reason) | Only if failed |
-| cleanup | `partial artefacts in ./codeguide-output/` | Only if failed |
-| resume | `codeguide init --resume <run-id>` | Only if failed |
+| cleanup | `partial artefacts in ./wiedunflow-output/` | Only if failed |
+| resume | `wiedun-flow init --resume <run-id>` | Only if failed |
 | open | `file:///Users/.../tutorial.html` | Only if success or degraded |
 
 ### §4.10 Clickable tutorial link
@@ -981,7 +982,7 @@ The following are explicitly **out of scope** for MVP and require a new ADR if r
 - **A2 and A3 palettes** — prototype explorations only, not shipped. Warm/Editorial palettes require palette expansion decision.
 - **Direction B ("editorial reader")** — prototype exploration only, not shipped. Narrative layout for text-first reading.
 - **postMessage edit-mode integration** — prototype feature (Tweaks panel triggered externally). Not part of shipping product.
-- **Scenario picker in CLI** — prototype scaffolding (used by `design/CodeGuide CLI.html` to show different error paths). Not shipped.
+- **Scenario picker in CLI** — prototype scaffolding (used by `design/WiedunFlow CLI.html` to show different error paths). Not shipped.
 - **i18n / multi-language output** — CLI and narration English-only in MVP. Localization deferred to v2+.
 
 ---
@@ -990,7 +991,7 @@ The following are explicitly **out of scope** for MVP and require a new ADR if r
 
 ```
 2026-04-19 v0.1.0-draft
-  - Initial version ported from codeguide-ux-skill reference READMEs.
+  - Initial version ported from wiedunflow-ux-skill reference READMEs.
   - Integrated ADR-0011 seven binary decisions.
   - Complete tutorial reader spec (layout, components, interactions, tokens).
   - Complete CLI spec (stages, cost gate, error scenarios, run report).

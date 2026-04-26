@@ -1,14 +1,12 @@
-# CodeGuide — generate interactive HTML tutorials from local Git repos
+# WiedunFlow — generate interactive HTML tutorials from local Git repos
 
-![CI](https://github.com/numikel/code-guide/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/numikel/wiedunflow/actions/workflows/ci.yml/badge.svg)
 
-## What is CodeGuide
+## What is WiedunFlow
 
-CodeGuide is a Python CLI that turns a local Git repository into a single, self-contained HTML
-file — an interactive, tutorial-style guided tour of the code. Open the output directly in your
-browser via `file://`, with no server and no runtime dependencies required. It combines AST
-analysis, graph ranking, BM25 retrieval, and direct LLM orchestration to generate coherent,
-pedagogically sound code walkthroughs.
+**WiedunFlow** turns a local Git repository into a single, self-contained HTML file — an interactive, tutorial-style guided tour of the code. Open the output directly in your browser via `file://`, with no server and no runtime dependencies required. It combines AST analysis, graph ranking, BM25 retrieval, and direct LLM orchestration to generate coherent, pedagogically sound code walkthroughs.
+
+*Wiedun* — Old Polish for "the one who knows" (a sage). *Flow* — control flow, narrative flow, and reader flow state, all in one file.
 
 ## Install
 
@@ -16,7 +14,7 @@ pedagogically sound code walkthroughs.
 > [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ```bash
-uvx codeguide
+uvx wiedun-flow
 ```
 
 Set your Anthropic API key before the first run (BYOK — your key stays on your machine):
@@ -26,38 +24,38 @@ export ANTHROPIC_API_KEY=sk-ant-...   # bash / zsh
 $env:ANTHROPIC_API_KEY = "sk-ant-..." # PowerShell
 ```
 
-Cost estimates auto-update from [LiteLLM's pricing catalog](https://github.com/BerriAI/litellm) (24h disk cache); when the network is unavailable CodeGuide falls back to its bundled static pricing table.
+Cost estimates auto-update from [LiteLLM's pricing catalog](https://github.com/BerriAI/litellm) (24h disk cache); when the network is unavailable WiedunFlow falls back to its bundled static pricing table.
 
 ## Quickstart
 
 ```bash
 # 1. Easiest — launch the interactive menu (v0.4.0+)
-codeguide                                # ASCII banner + 7-item picker
+wiedun-flow                                # ASCII banner + 7-item picker
 
 # 2. Direct CLI (no menu) — best for CI and scripts
-codeguide init                           # 5-step config wizard
-codeguide generate .                     # generate from current repo
-codeguide .                              # shorthand alias (backward compat)
+wiedun-flow init                           # 5-step config wizard
+wiedun-flow generate .                     # generate from current repo
+wiedun-flow .                              # shorthand alias (backward compat)
 
 # 3. Fully non-interactive (CI, automation)
-ANTHROPIC_API_KEY=sk-ant-... codeguide generate /path/to/repo --yes --no-consent-prompt
+ANTHROPIC_API_KEY=sk-ant-... wiedun-flow generate /path/to/repo --yes --no-consent-prompt
 ```
 
 ## Interactive menu (v0.4.0)
 
-Running `codeguide` with no arguments in a TTY launches a menu-driven TUI
+Running `wiedun-flow` with no arguments in a TTY launches a menu-driven TUI
 ("centrum dowodzenia") inspired by GitHub Copilot CLI, OpenCode, and Claude
 Code's custom-agent picker. Arrow keys + Enter + Esc — no flags to remember.
 
 ```
- ██████╗ ██████╗ ██████╗ ███████╗ ██████╗ ██╗   ██╗██╗██████╗ ███████╗
-██╔════╝██╔═══██╗██╔══██╗██╔════╝██╔════╝ ██║   ██║██║██╔══██╗██╔════╝
-██║     ██║   ██║██║  ██║█████╗  ██║  ███╗██║   ██║██║██║  ██║█████╗
-██║     ██║   ██║██║  ██║██╔══╝  ██║   ██║██║   ██║██║██║  ██║██╔══╝
-╚██████╗╚██████╔╝██████╔╝███████╗╚██████╔╝╚██████╔╝██║██████╔╝███████╗
- ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝╚═════╝ ╚══════╝
+ ██╗    ██╗██╗███████╗██████╗ ██╗   ██╗███╗   ██╗███████╗██╗      ██████╗ ██╗    ██╗
+ ██║    ██║██║██╔════╝██╔══██╗██║   ██║████╗  ██║██╔════╝██║     ██╔═══██╗██║    ██║
+ ██║ █╗ ██║██║█████╗  ██║  ██║██║   ██║██╔██╗ ██║█████╗  ██║     ██║   ██║██║ █╗ ██║
+ ██║███╗██║██║██╔══╝  ██║  ██║██║   ██║██║╚██╗██║██╔══╝  ██║     ██║   ██║██║███╗██║
+ ╚███╔███╔╝██║███████╗██████╔╝╚██████╔╝██║ ╚████║███████╗███████╗╚██████╔╝╚███╔███╔╝
+  ╚══╝╚══╝ ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚══════╝ ╚═════╝  ╚══╝╚══╝
 
-  v0.4.0 · interactive tutorial generator from your local Git repository
+  v0.6.0 · interactive tutorial generator from your local Git repository
 
 ? What would you like to do?
   ❯ Initialize config
@@ -76,7 +74,7 @@ exists the §2 "express path" skips §3-§4 entirely — three keystrokes
 
 The `Provider+Models` section pulls live model lists from the provider API
 (`anthropic.Anthropic().models.list()`, `openai.OpenAI().models.list()`)
-with a 24-hour disk cache at `~/.cache/codeguide/models-<provider>.json`.
+with a 24-hour disk cache at `~/.cache/wiedunflow/models-<provider>.json`.
 OpenAI fine-tuned models (`ft:*`) and non-chat models (audio, realtime,
 image, tts, whisper, embedding, moderation, transcribe, dall-e, sora,
 codex, search, deep-research) are filtered out automatically.
@@ -86,10 +84,10 @@ menu redraws when the pipeline exits. `Esc` from the menu prompts a
 confirm-exit; `Esc` from any sub-wizard returns to the previous screen.
 
 **The menu does NOT activate when**:
-- you pass any subcommand (`codeguide generate ...`, `codeguide init`),
+- you pass any subcommand (`wiedun-flow generate ...`, `wiedun-flow init`),
 - stdin or stdout is non-TTY (CI, pipes, redirect),
-- you set `CODEGUIDE_NO_MENU=1` (emergency escape hatch for scripts that
-  want the bare `codeguide` invocation to be a no-op).
+- you set `WIEDUNFLOW_NO_MENU=1` (emergency escape hatch for scripts that
+  want the bare `wiedun-flow` invocation to be a no-op).
 
 ### Target audience — 5-level enum (BREAKING in v0.4.0)
 
@@ -102,14 +100,14 @@ The previous free-text default `"mid-level Python developer"` is fuzzy-mapped
 to `mid` automatically with a logged warning — no config changes required for
 existing setups. The shim is removed in v1.0; update your YAML when convenient.
 
-## First-run setup (`codeguide init`)
+## First-run setup (`wiedun-flow init`)
 
 Sprint 6 adds a subcommand that writes a nested-YAML user-level config without
 touching the project:
 
 ```
-$ codeguide init --help
-Usage: codeguide init [OPTIONS]
+$ wiedun-flow init --help
+Usage: wiedun-flow init [OPTIONS]
 
   Interactive wizard — write a user-level config.yaml (US-002).
 
@@ -127,9 +125,9 @@ Config locations (per `platformdirs`):
 
 | OS      | Path                                                   |
 |---------|--------------------------------------------------------|
-| Linux   | `$XDG_CONFIG_HOME/codeguide/config.yaml` (≈ `~/.config/codeguide/config.yaml`) |
-| macOS   | `~/Library/Application Support/codeguide/config.yaml`  |
-| Windows | `%APPDATA%\codeguide\config.yaml`                      |
+| Linux   | `$XDG_CONFIG_HOME/wiedunflow/config.yaml` (≈ `~/.config/wiedunflow/config.yaml`) |
+| macOS   | `~/Library/Application Support/wiedunflow/config.yaml`  |
+| Windows | `%APPDATA%\wiedunflow\config.yaml`                      |
 
 Permissions are set to `0o600` on POSIX so the API key is not world-readable.
 Passing every flag (`--provider`, `--model-plan`, `--model-narrate`, `--api-key`)
@@ -137,24 +135,24 @@ produces a zero-prompt run (US-003).
 
 ## CLI Reference
 
-`codeguide` is now a click group with two subcommands:
+`wiedun-flow` is now a click group with two subcommands:
 
 ```
-$ codeguide --help
-Usage: codeguide [OPTIONS] COMMAND [ARGS]...
+$ wiedun-flow --help
+Usage: wiedun-flow [OPTIONS] COMMAND [ARGS]...
 
-  CodeGuide — generate interactive HTML tutorials from local Git repositories.
+  WiedunFlow — generate interactive HTML tutorials from local Git repositories.
 
 Commands:
   generate  Generate an interactive HTML tutorial from a local Git repository.
   init      Interactive wizard — write a user-level config.yaml (US-002).
 ```
 
-### `codeguide generate`
+### `wiedun-flow generate`
 
 ```
-$ codeguide generate --help
-Usage: codeguide generate [OPTIONS] REPO_PATH
+$ wiedun-flow generate --help
+Usage: wiedun-flow generate [OPTIONS] REPO_PATH
 
   Generate an interactive HTML tutorial from a local Git repository.
 
@@ -184,15 +182,15 @@ Options:
   -h, --help                   Show this message and exit.
 ```
 
-**Backward compatibility**: `codeguide <repo>` (without an explicit `generate`) still works — a custom
+**Backward compatibility**: `wiedun-flow <repo>` (without an explicit `generate`) still works — a custom
 click group class rewrites an unknown first positional to `generate <positional>`.
 
 ### What you'll see (Sprint 8 / v0.2.0)
 
-Running `codeguide ./my-repo` in a TTY produces:
+Running `wiedun-flow ./my-repo` in a TTY produces:
 
 ```
-CodeGuide v0.2.0
+WiedunFlow v0.6.0
 offline-friendly tutorial generator from local Git repos
 
 [1/7] Ingestion
@@ -243,7 +241,7 @@ options are available:
 - `--no-cost-prompt` — skip only the cost prompt, keep the consent flow
   interactive.
 - Non-TTY / piped / redirected stdin — the prompt is automatically bypassed
-  so CI pipelines and `codeguide … > out.txt` keep working unchanged.
+  so CI pipelines and `wiedun-flow … > out.txt` keep working unchanged.
 
 In `--log-format=json` mode the banner and animated progress are suppressed so
 the stdout transcript stays parseable; structured stage events are still
@@ -251,14 +249,14 @@ emitted to stderr.
 
 ### Output HTML reader (Sprint 5 / v0.0.5)
 
-The generated `tutorial.html` is a single self-contained file — open it with `file://` in any
+The generated `wiedunflow-<repo>.html` is a single self-contained file — open it with `file://` in any
 modern browser. No server, no CDN, no runtime network calls (US-040). Fonts (Inter + JetBrains
 Mono) are inlined as `data:` URIs, Pygments syntax classes are pre-rendered, and the three JSON
 payloads (`#tutorial-meta`, `#tutorial-clusters`, `#tutorial-lessons`) live inside `<script
 type="application/json">` blocks — contract locked in ADR-0009.
 
 Keyboard navigation: **←/→** switches lessons, **click in the TOC** jumps to any lesson, and
-`tutorial.html#/lesson/<id>` deep-links straight into a specific one. The splitter between the
+`wiedunflow-<repo>.html#/lesson/<id>` deep-links straight into a specific one. The splitter between the
 narration and code panels is resizable between 28 % and 72 %; your choice, along with the
 light/dark theme, persists in `localStorage`. On screens narrower than 1024 px the reader stacks
 narration and code inline.
@@ -274,7 +272,7 @@ so you can see exactly what was dropped and why.
 - `2` — tutorial written **but degraded** (> 30 % of planned lessons skipped).  `run-report.status == "degraded"`.
 - `130` — interrupted by Ctrl+C.  `run-report.status == "interrupted"`; rerun with `--resume` to continue.
 
-Every run writes `.codeguide/run-report.json` (US-029 / US-056) with structured status, skipped-lesson count, cache hit rate, and (on failure) the full traceback.
+Every run writes `.wiedunflow/run-report.json` (US-029 / US-056) with structured status, skipped-lesson count, cache hit rate, and (on failure) the full traceback.
 
 ### Ctrl+C semantics (US-027, US-028)
 
@@ -287,17 +285,17 @@ The same `OpenAIProvider` adapter covers the hosted OpenAI API and any OpenAI-co
 ```bash
 # OpenAI (hosted)
 export OPENAI_API_KEY=sk-...
-codeguide ./my-repo --provider openai --model-plan gpt-4o --model-narrate gpt-4o
+wiedun-flow ./my-repo --provider openai --model-plan gpt-4.1 --model-narrate gpt-4.1
 
 # Ollama — local inference, no API key, consent banner skipped
-codeguide ./my-repo \
+wiedun-flow ./my-repo \
   --provider custom \
   --base-url http://localhost:11434/v1 \
   --model-plan llama3.1:70b \
   --model-narrate llama3.1:70b
 
 # LM Studio / vLLM — same pattern, swap base-url to the server port
-codeguide ./my-repo --provider custom --base-url http://localhost:8000/v1
+wiedun-flow ./my-repo --provider custom --base-url http://localhost:8000/v1
 ```
 
 Ollama and other OSS endpoints ignore `api_key`; pass anything (the SDK requires a non-empty string).  Consent is **not** prompted when `--base-url` is set because nothing leaves the machine.
@@ -307,7 +305,7 @@ Ollama and other OSS endpoints ignore `api_key`; pass anything (the SDK requires
 `.gitignore` is respected by default.  User `--exclude` patterns are ADDITIVE (layered on top of
 `.gitignore`), and `--include` patterns can re-enable files that would otherwise be excluded.
 `__pycache__` and dotted directories (`.venv`, `.git`) are always skipped.  For monorepos,
-CodeGuide auto-detects the Python subtree (first `pyproject.toml` or `setup.py` below the repo
+WiedunFlow auto-detects the Python subtree (first `pyproject.toml` or `setup.py` below the repo
 root) — pass `--root` to override.
 
 ### Parsing + RAG stack (Sprint 3 / v0.0.3)
@@ -324,19 +322,19 @@ root) — pass `--root` to override.
 
 ## Privacy & LLM Disclosure
 
-CodeGuide transmits the source code it narrates (symbol bodies, docstrings, selected file
+WiedunFlow transmits the source code it narrates (symbol bodies, docstrings, selected file
 excerpts) to the configured LLM provider — Anthropic by default.  **No code leaves your machine
 until you accept the consent banner on the first run for that provider on this machine.**
 
 ### Consent banner (Sprint 6 / v0.0.6)
 
-The first time you run `codeguide generate` against Anthropic or OpenAI (hosted), the CLI
+The first time you run `wiedun-flow generate` against Anthropic or OpenAI (hosted), the CLI
 blocks and prints:
 
 > Your source code will be sent to `<provider>`. Continue? [y/N]
 
 Accepting writes `{granted: true, granted_at: <ISO>}` under that provider's key into
-`<user_config_dir>/codeguide/consent.yaml` (file permissions `0o600` on POSIX).  **Subsequent
+`<user_config_dir>/wiedunflow/consent.yaml` (file permissions `0o600` on POSIX).  **Subsequent
 runs skip the banner** for any repo on the same machine.  Switching providers (e.g.
 `--provider=openai`) triggers the banner again.  To revoke consent: delete `consent.yaml` (or
 the relevant provider key).
@@ -384,13 +382,13 @@ ADR-0010 captures the full secret-redaction + zero-telemetry contract
 
 ## Configuration
 
-CodeGuide reads settings from the following sources, highest-precedence first:
+WiedunFlow reads settings from the following sources, highest-precedence first:
 
 1. CLI flags (`--provider`, `--model-plan`, `--model-narrate`, …)
-2. Environment variables (`ANTHROPIC_API_KEY`, `CODEGUIDE_LLM_MODEL_PLAN`, …)
+2. Environment variables (`ANTHROPIC_API_KEY`, `WIEDUNFLOW_LLM_MODEL_PLAN`, …)
 3. `--config <path>` (explicit YAML path)
 4. `./tutorial.config.yaml` (in the current working directory)
-5. `platformdirs` user-config file (`~/.config/codeguide/config.yaml` on Linux)
+5. `platformdirs` user-config file (`~/.config/wiedunflow/config.yaml` on Linux)
 6. Built-in defaults
 
 Example `tutorial.config.yaml` (see `tutorial.config.yaml.example` in the repo root):
@@ -442,15 +440,15 @@ Full configuration reference and environment variables: see [docs/config-referen
 
 ## Configuration precedence
 
-CodeGuide resolves every configurable value through a strict chain:
+WiedunFlow resolves every configurable value through a strict chain:
 
 | Priority | Source                                                                                                              | Override mechanism                          |
 |---------:|---------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
 | 1 (top)  | CLI flags                                                                                                           | `--provider=openai`                         |
-| 2        | Environment variables (`CODEGUIDE_*`, `*_API_KEY`)                                                                  | `ANTHROPIC_API_KEY=...`                     |
+| 2        | Environment variables (`WIEDUNFLOW_*`, `*_API_KEY`)                                                                  | `ANTHROPIC_API_KEY=...`                     |
 | 3        | `--config <path>` YAML                                                                                              | `--config ./custom.yaml`                    |
 | 4        | Project config `./tutorial.config.yaml`                                                                             | commit to repo                              |
-| 5        | User-level config (`~/.config/codeguide/config.yaml` on Linux/macOS, `%APPDATA%\codeguide\config.yaml` on Windows) | run `codeguide init`                        |
+| 5        | User-level config (`~/.config/wiedunflow/config.yaml` on Linux/macOS, `%APPDATA%\wiedunflow\config.yaml` on Windows) | run `wiedun-flow init`                        |
 | 6 (bottom)| Built-in defaults                                                                                                  | code constant                               |
 
 Run with `--log-format=json` and `DEBUG` level to see which source supplied each value:

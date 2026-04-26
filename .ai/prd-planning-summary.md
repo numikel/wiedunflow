@@ -1,8 +1,8 @@
-# PRD Planning Summary — CodeGuide MVP
+# PRD Planning Summary — WiedunFlow MVP
 
-> **Uwaga historyczna (2026-04-16):** Ten dokument odzwierciedla pierwotne decyzje stackowe (LangGraph, sqlite-vec, sonnet-4-5, opcjonalny Preact). Aktualny stack został odchudzony w PRD 0.1.1-draft — patrz `.ai/prd.md` i `.ai/tech-stack.md`. ADR-0001 i ADR-0002 wyjaśniają różnice.
+> **Uwaga historyczna (2026-04-16):** Ten dokument odzwierciedla pierwotne decyzje stackowe (LangGraph, sqlite-vec, sonnet-4-5, opcjonalny Preact). Aktualny stack został odchudzony w PRD 0.1.1-draft — patrz `.ai/prd.md` i `.ai/tech-stack.md`. ADR-0001 i ADR-0002 wyjaśniają różnice. Rebrand do WiedunFlow w v0.6.0+.
 
-*Generated: 2026-04-16 — compiled from planning session against `.ai/mvp-codeguide.md`.*
+*Generated: 2026-04-16 — compiled from planning session against `.ai/mvp-wiedunflow.md`.*
 
 <conversation_summary>
 
@@ -10,7 +10,7 @@
 
 1. **Primary persona**: a developer who sits down to an unfamiliar repository (OSS or corporate) and wants to understand it for themselves. **Not** a maintainer authoring onboarding material. All UX trade-offs favor time-to-first-tutorial over sharing/collaboration features.
 
-2. **First-run UX**: ship a `codeguide init` wizard (provider, model, API key) that writes to a user-level config. CLI flags and environment variables always override the stored config. No mandatory interactive setup for CI / power users.
+2. **First-run UX**: ship a `wiedun-flow init` wizard (provider, model, API key) that writes to a user-level config. CLI flags and environment variables always override the stored config. No mandatory interactive setup for CI / power users.
 
 3. **Ex-ante cost & time estimation**: before Stage 4 (planning) show a summary ("X files, ~$Y cost, ~Z minutes") and require `y/N` confirmation. `--yes` flag bypasses for CI. Estimation is purely heuristic — **no pre-flight LLM calls**. Formula: `cost ≈ (symbols × 500 tokens × $haiku_price) + (lessons × 8000 tokens × $sonnet_price) × 1.3` (+30% variance buffer). Formula is documented in README so users can verify it.
 
@@ -32,26 +32,26 @@
 
 12. **Incremental update strategy**: detect via diff of the PageRank graph structure. If >20% change in top-ranked symbols → regenerate the full manifest (CLI surfaces this). Otherwise reuse the manifest and only regenerate lessons touched by changed files. `--regenerate-plan` forces manifest regeneration. `--resume` skips already-cached lessons.
 
-13. **Distribution**: **no PyPI release in MVP**. Bare Git repo + `uvx --from git+https://... codeguide` as the documented install path. PyPI package is v2+.
+13. **Distribution**: **no PyPI release in MVP**. Bare Git repo + `uvx wiedun-flow` as the documented install path. PyPI package is v2+.
 
-14. **Toolchain mandate — UV only**: `uv` / `uvx` is the **single toolchain** for CodeGuide. No `pip` / `pipx` anywhere — install commands, docs, CI, examples must all use `uv`. `pyproject.toml` uses `[tool.uv]` configuration. `uv sync` for dev setup, `astral-sh/setup-uv` in GitHub Actions.
+14. **Toolchain mandate — UV only**: `uv` / `uvx` is the **single toolchain** for WiedunFlow. No `pip` / `pipx` anywhere — install commands, docs, CI, examples must all use `uv`. `pyproject.toml` uses `[tool.uv]` configuration. `uv sync` for dev setup, `astral-sh/setup-uv` in GitHub Actions.
 
 15. **CLI language**: English only. Aligns with narration language (EN). No i18n scaffolding in MVP.
 
 16. **`--dry-run` mode**: executes Stages 0 through 4 inclusive (including the planning LLM call, ~$0.05), **skips** Stage 5 generation. Outputs `tutorial-preview.html` containing: proposed lesson titles, estimated cost, graph structure visualization. This is a trust-building feature — hard blocker in MVP.
 
-17. **Cache**: per-user via `platformdirs` (`~/.cache/codeguide/` on Linux, `%LOCALAPPDATA%\codeguide\Cache` on Windows, `~/Library/Caches/codeguide` on macOS). Cross-platform is non-negotiable. Key = `<repo_absolute_path>+<commit_hash>`. `--cache-path` flag for power users. No shared / committed caches in MVP.
+17. **Cache**: per-user via `platformdirs` (`~/.cache/wiedunflow/` on Linux, `%LOCALAPPDATA%\wiedunflow\Cache` on Windows, `~/Library/Caches/wiedunflow` on macOS). Cross-platform is non-negotiable. Key = `<repo_absolute_path>+<commit_hash>`. `--cache-path` flag for power users. No shared / committed caches in MVP.
 
 18. **Budget hard-stop**: `--max-cost=USD` flag. After every lesson, accumulated cost is compared to the cap. On overrun → checkpoint + graceful abort with message "Generated N/M lessons. Resume with --resume --max-cost=X". Eliminates runaway-bill scenarios for BYOK users.
 
 19. **Zero-telemetry guarantee**:
     - `localStorage` for in-browser UX persistence (last-viewed lesson, session progress) is allowed — **zero network**, purely client-side persistence.
     - No `fetch()`, no `Image()`, no `<link rel="prefetch">`, no external CDN, no analytics beacon. Hard rule enforced by a template linter.
-    - HTML footer includes the statement: "Generated by CodeGuide vX.Y.Z (Apache 2.0) — this document is fully offline."
+    - HTML footer includes the statement: "Generated by WiedunFlow vX.Y.Z (Apache 2.0) — this document is fully offline."
 
 20. **Post-run report**: dual-format.
     - Human-readable to stdout: files generated, lessons generated / skipped, cost (Haiku + Sonnet breakdown), elapsed time, cache hit rate, `file://` URL.
-    - Machine-readable: `.codeguide/run-report.json` (directory auto-added to `.gitignore`). Used by CI and eval tracking.
+    - Machine-readable: `.wiedunflow/run-report.json` (directory auto-added to `.gitignore`). Used by CI and eval tracking.
 
 21. **Atypical repositories**:
     - Missing `README.md` → RAG skips it without crashing; narration explicitly flags "no README — descriptions derived from code only".
@@ -69,9 +69,9 @@
 24. **Interrupt semantics**:
     - First Ctrl+C → "Finishing current lesson (N/M)... press Ctrl+C again to abort immediately." Finishes the active lesson (cap ~90 s), checkpoints, exit code 130.
     - Second Ctrl+C → hard abort, marks the active lesson as `interrupted`, checkpoints, exit 130.
-    - Unhandled exception crash → persist "failed at lesson N" state plus stack trace into `.codeguide/run-report.json`. Resume picks up from the last completed lesson.
+    - Unhandled exception crash → persist "failed at lesson N" state plus stack trace into `.wiedunflow/run-report.json`. Resume picks up from the last completed lesson.
 
-25. **Output HTML schema versioning**: `metadata.schema_version` (semver) embedded in the tutorial JSON. MVP hardcodes `"1.0.0"` and documents it. Template JS will branch on the version for v2 breaking changes. Also embed `metadata.codeguide_version` (package version) for debugging.
+25. **Output HTML schema versioning**: `metadata.schema_version` (semver) embedded in the tutorial JSON. MVP hardcodes `"1.0.0"` and documents it. Template JS will branch on the version for v2 breaking changes. Also embed `metadata.wiedunflow_version` (package version) for debugging.
 
 26. **Eval corpus — pinned 5 repos** in `tests/eval/corpus/repos.yaml`, each pinned to a specific commit via git submodule:
     1. `kennethreitz/requests` — stable, well-documented
@@ -85,7 +85,7 @@
 
 28. **Pre-commit stack**:
     - `ruff check` + `ruff format` (lint + format)
-    - `mypy --strict src/codeguide/**`
+    - `mypy --strict src/wiedunflow/**`
     - `insert-license` hook (Apache 2.0 headers)
     - `commitlint` via `cz-cli` (conventional commits)
     - NOT in pre-commit: pytest (CI only), bandit (v2), `reuse lint` (v2)
@@ -100,7 +100,7 @@
 <matched_recommendations>
 
 1. Lock a single primary persona ("dev exploring an unfamiliar repo") and let it drive all UX trade-offs — especially favoring prostoty pierwszego uruchomienia over sharing features.
-2. Implement `codeguide init` wizard as the default path, with CLI flags / env vars always taking precedence — gives non-experts a frictionless start without penalizing CI.
+2. Implement `wiedun-flow init` wizard as the default path, with CLI flags / env vars always taking precedence — gives non-experts a frictionless start without penalizing CI.
 3. Always display ex-ante cost + time estimate with `y/N` confirmation (even for small repos) — builds trust in a BYOK product. Heuristic-only, no pre-flight LLM call.
 4. Ship clickable TOC + deep links + keyboard shortcuts as the MUST-HAVE navigation set; defer full-text search to v2.
 5. Resolve split-view vs mobile conflict with a 1024 px breakpoint and two rendering paths from the same JSON.
@@ -117,12 +117,12 @@
 16. Per-user platform-appropriate cache via `platformdirs` — cross-platform is mandatory (Windows / Linux / macOS).
 17. `--max-cost=USD` hard cap with graceful abort + checkpoint for resumability.
 18. Zero network in the output HTML (no fetch / prefetch / external CDN), but localStorage for UX is allowed. Footer statement reinforces the guarantee.
-19. Dual run-report: human-readable stdout + `.codeguide/run-report.json` for CI and eval tracking.
+19. Dual run-report: human-readable stdout + `.wiedunflow/run-report.json` for CI and eval tracking.
 20. Graceful handling for atypical repos: missing README / monorepos / zero-documentation repos do not abort the pipeline — they surface warnings.
 21. Structured `code_refs` schema with `role` field and mandatory symbol-in-AST invariant as the single enforcement point for grounding.
 22. Always-continue Jedi behavior with coverage tiers (high / medium / low) surfaced in HTML footer and JSON report.
 23. Two-level Ctrl+C pattern (graceful → hard abort) matching familiar CLI conventions.
-24. `metadata.schema_version` + `metadata.codeguide_version` in the embedded JSON from day 1 to enable safe v2 migrations.
+24. `metadata.schema_version` + `metadata.wiedunflow_version` in the embedded JSON from day 1 to enable safe v2 migrations.
 25. Pinned 5-repo eval corpus with commit hashes — reproducible robustness testing.
 26. Auto-generated "Where to go next" closing lesson for narrative completeness.
 27. Pre-commit stack limited to fast checks (ruff / mypy / license header / commitlint); DCO enforced via GitHub Action.
@@ -138,8 +138,8 @@
 
 **Functional requirements confirmed during planning**:
 
-- **Distribution & toolchain**: UV-exclusive. Install via `uvx --from git+https://... codeguide` from the Git repo; no PyPI release in MVP. Dev setup, CI, docs — all use `uv` / `uvx`.
-- **First-run wizard** (`codeguide init`) for non-expert users; CLI flags + env vars always override.
+- **Distribution & toolchain**: UV-exclusive. Install via `uvx --from git+https://... wiedunflow` from the Git repo; no PyPI release in MVP. Dev setup, CI, docs — all use `uv` / `uvx`.
+- **First-run wizard** (`wiedun-flow init`) for non-expert users; CLI flags + env vars always override.
 - **Ex-ante estimation + confirmation**: heuristic cost/time estimate with `y/N` prompt before Stage 4; `--yes` bypass; published formula.
 - **Modes**:
     - Default run — full pipeline.
@@ -159,8 +159,8 @@
     - Split-view @ ≥1024 px (narration/code, scroll-sync) / stacked @ <1024 px.
     - Navigation: clickable TOC + `#/lesson/N` deep links + `←`/`→` keyboard shortcuts.
     - `localStorage` for last-viewed lesson / progress (no network).
-    - Footer: repo commit hash, branch, `generated_at`, CodeGuide version, offline-statement, Jedi resolution confidence tier.
-    - Embedded JSON carries `metadata.schema_version: "1.0.0"` and `metadata.codeguide_version`.
+    - Footer: repo commit hash, branch, `generated_at`, WiedunFlow version, offline-statement, Jedi resolution confidence tier.
+    - Embedded JSON carries `metadata.schema_version: "1.0.0"` and `metadata.wiedunflow_version`.
     - "Where to go next" closing lesson generated automatically.
 - **Graceful degradation**:
     - Missing README / docs → note in narration, no crash.
@@ -170,7 +170,7 @@
     - Grounding failure after 1 retry → lesson skipped with in-HTML placeholder; `skipped_lessons_count` surfaced.
     - First Ctrl+C = finish current lesson + checkpoint; second Ctrl+C = hard abort; crash = stack trace captured in run report.
 - **Cache**: platformdirs per-user, cross-platform, keyed by `<repo_abs_path>+<commit_hash>`, SHA-256 per-file invalidation; shared caches are not in MVP.
-- **Post-run reporting**: stdout summary + `.codeguide/run-report.json` (auto-gitignored).
+- **Post-run reporting**: stdout summary + `.wiedunflow/run-report.json` (auto-gitignored).
 - **Lesson contract**:
     - Length 150–1200 words (adaptive; post-hoc validator).
     - `code_refs[]` with `{file_path, symbol, line_start, line_end, role∈{primary, referenced, example}}`.
@@ -180,13 +180,13 @@
 ### b. Key user stories & usage paths
 
 1. **First-time explorer (primary persona)**:
-   `uvx --from git+https://... codeguide ./new-repo` → wizard pops up if no API key → consent banner (first cloud run) → cost/time estimate + `y/N` → user confirms → progress bar through 7 stages → `tutorial.html` opens in Chrome → learner uses TOC + arrow keys to navigate, reading lesson-by-lesson.
+   `uvx --from git+https://... wiedunflow ./new-repo` → wizard pops up if no API key → consent banner (first cloud run) → cost/time estimate + `y/N` → user confirms → progress bar through 7 stages → `tutorial.html` opens in Chrome → learner uses TOC + arrow keys to navigate, reading lesson-by-lesson.
 
 2. **Cost-anxious evaluator**:
-   `uvx ... codeguide ./repo --dry-run` → gets `tutorial-preview.html` with proposed lesson titles + cost estimate for ~$0.05 → inspects the plan → either commits to the full run or adjusts `focus_modules` / `exclude`.
+   `uvx ... wiedunflow ./repo --dry-run` → gets `tutorial-preview.html` with proposed lesson titles + cost estimate for ~$0.05 → inspects the plan → either commits to the full run or adjusts `focus_modules` / `exclude`.
 
 3. **Repo expert authoring the tutorial**:
-   `codeguide ./repo --review-plan --max-cost=2.50` → manifest opens in `$EDITOR` → user edits titles, removes uninteresting lessons → saves → pipeline continues with bounded budget.
+   `wiedunflow ./repo --review-plan --max-cost=2.50` → manifest opens in `$EDITOR` → user edits titles, removes uninteresting lessons → saves → pipeline continues with bounded budget.
 
 4. **Resuming after interruption**:
    Long run interrupted by Ctrl+C (graceful) or crash → next invocation detects checkpoint → prompts (or `--resume`) → picks up from last completed lesson → cache hit rate report confirms efficiency.
@@ -195,7 +195,7 @@
    Same repo re-run after pulling new commits → PageRank diff ≤20% → manifest reused → only changed-file lessons regenerated → <5 min wall time, <$0.50.
 
 6. **Sensitive-code user**:
-   `codeguide ./proprietary-repo` → consent banner shown → user cancels → configures Ollama in `tutorial.config.yaml` → re-runs → 100% local inference, no source code leaves machine.
+   `wiedunflow ./proprietary-repo` → consent banner shown → user cancels → configures Ollama in `tutorial.config.yaml` → re-runs → 100% local inference, no source code leaves machine.
 
 ### c. Success criteria & measurement
 
@@ -231,7 +231,7 @@
 
 3. **`--review-plan` UX on Windows**: `$EDITOR` convention is Unix-first. Fallback on Windows (Notepad / VS Code via `code --wait` / env-var expansion) needs explicit specification to match the cross-platform commitment.
 
-4. **Run-report retention / rotation policy**: `.codeguide/run-report.json` — do we keep only the latest, append to a history file, or rotate (last N)? Useful for eval tracking across iterations.
+4. **Run-report retention / rotation policy**: `.wiedunflow/run-report.json` — do we keep only the latest, append to a history file, or rotate (last N)? Useful for eval tracking across iterations.
 
 5. **Lesson-skip budget**: we defined skip semantics per lesson but not a global "too many skipped → abort" threshold. E.g. if 15/25 lessons skip due to grounding failures, should the whole run be marked "failed" rather than producing a near-empty tutorial?
 
@@ -241,7 +241,7 @@
 
 8. **Eval rubric rubric definition**: "5-point rubric on coverage / accuracy / narrative flow" needs concrete scoring anchors ("1 = unusable, 3 = usable with caveats, 5 = matches hand-written reference") before pre-release sign-off is reproducible.
 
-9. **Default `tutorial.config.yaml` location when config present**: CLAUDE.md specifies "`./tutorial.config.yaml` → defaults", but not the interaction with `codeguide init` user-level config (`~/.config/codeguide/config.yaml` assumed). The precedence chain {CLI flags > `--config <path>` > `./tutorial.config.yaml` > user config > defaults} should be explicitly codified in the PRD.
+9. **Default `tutorial.config.yaml` location when config present**: CLAUDE.md specifies "`./tutorial.config.yaml` → defaults", but not the interaction with `wiedun-flow init` user-level config (`~/.config/wiedunflow/config.yaml` assumed). The precedence chain {CLI flags > `--config <path>` > `./tutorial.config.yaml` > user config > defaults} should be explicitly codified in the PRD.
 
 10. **Apache NOTICE content for first release**: copyright holder (individual vs entity), third-party NOTICE aggregation from dependencies — needs a one-off decision before `v0.1.0` tag.
 

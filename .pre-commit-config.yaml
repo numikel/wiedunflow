@@ -40,7 +40,7 @@ repos:
           - "tree-sitter-python>=0.25.0"
           - "networkx>=3.3"
           - "numpy>=1.24"
-        files: ^src/codeguide/
+        files: ^src/wiedunflow/
         args: [--strict]
 
   - repo: https://github.com/Lucas-C/pre-commit-hooks

@@ -1,15 +1,15 @@
-# Product Requirements Document (PRD) - CodeGuide
+# Product Requirements Document (PRD) - WiedunFlow
 
 Document version: 0.1.3-draft
 Last updated: 2026-04-26
 Owner: Michał Kamiński
-Target release: CodeGuide v0.5.0 (Repo Picker + Dynamic Pricing)
+Target release: WiedunFlow v0.6.0 (Rebranding from WiedunFlow)
 
 > **Version note (2026-04-26)**: Specification is iterative. Version bump from 0.1.0 → 0.1.3 reflects Sprint 9 additions (repo picker, pricing catalog).
 
 ## 1. Product Overview
 
-CodeGuide is a Python 3.11+ command-line tool that transforms a local Git repository into a single, self-contained, offline-capable HTML file delivering an interactive, tutorial-style guided tour of the codebase. The output opens directly in any modern browser via `file://` — no server, no runtime dependencies on the recipient's side, no network calls after generation.
+**WiedunFlow** is a Python 3.11+ command-line tool that transforms a local Git repository into a single, self-contained, offline-capable HTML file delivering an interactive, tutorial-style guided tour of the codebase. The output opens directly in any modern browser via `file://` — no server, no runtime dependencies on the recipient's side, no network calls after generation.
 
 The generation pipeline is seven ordered stages:
 
@@ -21,7 +21,7 @@ The generation pipeline is seven ordered stages:
 6. Content generation — custom orchestrator over the LLMProvider port with structured state (explored_symbols, lessons_generated, concepts_introduced); Haiku 4.5 in parallel for leaf-function descriptions, Opus 4.7 sequential for lesson narration. Checkpoint after every lesson via SQLite.
 7. Artifact build — `Pygments` pre-rendering, `Jinja2` template, full inlining into one HTML.
 
-Distribution is a bare Git repository installable via `uvx --from git+https://... codeguide`. No PyPI release is part of the MVP. The toolchain is UV-exclusive; `pip` and `pipx` are not supported anywhere in the project.
+Distribution is a bare Git repository installable via `uvx wiedun-flow`. No PyPI release is part of the MVP. The toolchain is UV-exclusive; `pip` and `pipx` are not supported anywhere in the project.
 
 The product is licensed under Apache 2.0. Contribution is governed by the Developer Certificate of Origin (DCO) enforced as a GitHub Action, not by a CLA.
 
@@ -47,7 +47,7 @@ The concrete pain this causes the primary persona (developer exploring an unfami
 - Fragmented context. Docstrings, README, `CONTRIBUTING.md`, commit messages, and inline comments all contain partial explanations that the developer must stitch together manually.
 - Time pressure. Developers exploring an unfamiliar codebase are usually on a deadline (investigating an open-source library before adopting it, joining a new project, debugging a vendor integration). Multi-day exploration does not fit the window.
 
-CodeGuide addresses this by producing a single HTML tutorial that orders lessons pedagogically (leaves to roots, guided by PageRank and community detection), grounds every symbol reference in the AST, and embeds narration explaining both what the code does and why. The tutorial is shareable as a single file, works offline forever, and versioned against the exact commit it was generated from.
+WiedunFlow addresses this by producing a single HTML tutorial that orders lessons pedagogically (leaves to roots, guided by PageRank and community detection), grounds every symbol reference in the AST, and embeds narration explaining both what the code does and why. The tutorial is shareable as a single file, works offline forever, and versioned against the exact commit it was generated from.
 
 Detailed UX specification (design tokens, exact CLI copy, component dimensions, state-management contracts) lives in `.ai/ux-spec.md`, anchored by ADR-0011 binary design decisions.
 
@@ -55,14 +55,14 @@ Detailed UX specification (design tokens, exact CLI copy, component dimensions, 
 
 ### 3.1 Installation and distribution
 
-FR-01. The project is distributed as a bare Git repository. The documented install path is `uvx --from git+https://github.com/<org>/codeguide codeguide`.
+FR-01. The project is distributed as a bare Git repository. The documented install path is `uvx wiedun-flow`.
 FR-02. The toolchain is UV-exclusive. `pyproject.toml` uses `[tool.uv]` configuration. `uv sync` is the documented dev-setup command. All documentation, CI, and example snippets reference `uv` or `uvx`. `pip`, `pipx`, `poetry`, and `hatch` are not used anywhere.
 FR-03. No PyPI package is published as part of the MVP. A PyPI release is explicitly deferred to v2.
 FR-04. The CI matrix runs on Python 3.11, 3.12, 3.13 across Ubuntu, Windows, and macOS. UV is installed via `astral-sh/setup-uv`.
 
 ### 3.2 First-run setup and configuration
 
-FR-05. A `codeguide init` wizard interactively collects provider, model, and API key on first use and writes a user-level config (`~/.config/codeguide/config.yaml` on Linux/macOS, `%APPDATA%\codeguide\config.yaml` on Windows).
+FR-05. A `wiedun-flow init` wizard interactively collects provider, model, and API key on first use and writes a user-level config (`~/.config/wiedunflow/config.yaml` on Linux/macOS, `%APPDATA%\wiedunflow\config.yaml` on Windows).
 FR-06. Configuration precedence, highest to lowest, is: CLI flags > environment variables > `--config <path>` > `./tutorial.config.yaml` > user-level config > built-in defaults. The chain is documented verbatim in the README.
 FR-07. The wizard is optional. CI and power users may skip it entirely by supplying the same settings via CLI flags or environment variables.
 FR-08. `tutorial.config.yaml` is validated by a `pydantic.BaseModel`. Invalid fields produce actionable error messages referencing the offending path.
@@ -84,8 +84,8 @@ FR-17. `--yes` bypasses the confirmation for CI and scripted usage.
 
 ### 3.5 Run modes
 
-FR-18. Default mode executes all seven pipeline stages and produces `tutorial.html` in the current working directory.
-FR-19. `--dry-run` executes Stages 0 through 4 inclusive (including the Stage 4 Sonnet planning call, approximately $0.05 cost), skips Stage 5 and Stage 6, and writes `tutorial-preview.html` containing proposed lesson titles, the final cost estimate, and a graph-structure visualization.
+FR-18. Default mode executes all seven pipeline stages and produces `wiedunflow-<repo>.html` in the current working directory.
+FR-19. `--dry-run` executes Stages 0 through 4 inclusive (including the Stage 4 Sonnet planning call, approximately $0.05 cost), skips Stage 5 and Stage 6, and writes `wiedunflow-<repo>-preview.html` containing proposed lesson titles, the final cost estimate, and a graph-structure visualization.
 FR-20. `--review-plan` opens the generated `lesson_manifest` in the user's editor between Stage 4 and Stage 5. The editor is resolved in this order: `$EDITOR` → `$VISUAL` → `code --wait` (if available on PATH) → `notepad` (Windows fallback) / `vi` (Unix fallback). The user may delete lessons, reorder them, and edit titles and descriptions. On save, the pipeline resumes with the edited manifest. The editor binary is launched via subprocess with shell=False and shlex-split arguments; a malformed $EDITOR/$VISUAL value falls back to the next resolver step rather than being shell-interpreted (see FR-79).
 FR-21. `--resume` continues from the last checkpoint, skipping already-cached lessons.
 FR-22. `--regenerate-plan` discards the cached `lesson_manifest` and forces regeneration.
@@ -103,7 +103,7 @@ FR-82. Stage output uses `[N/7] <Stage name>` headers (accent color), 5-space in
 FR-27. On re-run, the tool computes a PageRank-graph structural diff versus the previous run. If more than 20% of the top-ranked symbols changed, the full `lesson_manifest` is regenerated. Otherwise the manifest is reused and only lessons touching changed files are regenerated.
 FR-28. Cache is keyed by <repo_absolute_path>+<commit_hash>. Unchanged files reuse their AST, call-graph slice, BM25 document vectors, and LLM-generated descriptions verbatim.
 FR-29. Cache invalidation granularity is per-file via SHA-256.
-FR-30. Cache location uses `platformdirs` per-user paths: `~/.cache/codeguide/` (Linux), `%LOCALAPPDATA%\codeguide\Cache` (Windows), `~/Library/Caches/codeguide` (macOS). Cross-platform correctness is a hard requirement.
+FR-30. Cache location uses `platformdirs` per-user paths: `~/.cache/wiedunflow/` (Linux), `%LOCALAPPDATA%\wiedunflow\Cache` (Windows), `~/Library/Caches/wiedunflow` (macOS). Cross-platform correctness is a hard requirement.
 FR-31. An incremental run with fewer than 20% of files changed completes in under 5 minutes. Regressions against this target are release blockers.
 
 ### 3.7 Lesson contract and grounding
@@ -139,7 +139,7 @@ FR-47. Jedi partial resolution is always continued, never aborted. Resolution co
 
 FR-48. First `Ctrl+C`: the CLI prints "Finishing current lesson (N/M)... press Ctrl+C again to abort immediately.", finishes the active lesson (capped at approximately 90 seconds), checkpoints, and exits with code 130.
 FR-49. Second `Ctrl+C`: the CLI performs a hard abort, marks the active lesson as `interrupted` in the run report, checkpoints, and exits with code 130.
-FR-50. Unhandled exception: the process persists "failed at lesson N" state plus a full stack trace to `.codeguide/run-report.json` and exits with code 1. `--resume` picks up from the last completed lesson.
+FR-50. Unhandled exception: the process persists "failed at lesson N" state plus a full stack trace to `.wiedunflow/run-report.json` and exits with code 1. `--resume` picks up from the last completed lesson.
 
 ### 3.11 Output HTML
 
@@ -148,14 +148,14 @@ FR-52. Default output filename is `tutorial.html` in the current working directo
 FR-53. Layout breakpoint is 1024 px. At ≥1024 px the layout is split-view: narration on the left, code on the right, 50/50, with scroll-sync. At <1024 px the layout is stacked inline: narration paragraph → relevant code block → next paragraph → next code block. Both paths are driven by the same embedded JSON.
 FR-54. Navigation: clickable table of contents in the sidebar; deep-links via URL hash `#/lesson/<id>`; keyboard shortcuts `←` and `→`.
 FR-55. `localStorage` is used for last-viewed lesson and session progress. Purely client-side persistence; no network side effects.
-FR-56. Embedded JSON carries `metadata.schema_version` (hardcoded to `"1.0.0"` in MVP) and `metadata.codeguide_version` (the package version). Template JavaScript branches on `schema_version` for future breaking changes.
-FR-57. The footer contains: repository commit hash, branch, `generated_at` timestamp, CodeGuide version, Jedi resolution confidence tier, and the offline guarantee statement "Generated by CodeGuide vX.Y.Z (Apache 2.0) — this document is fully offline.".
+FR-56. Embedded JSON carries `metadata.schema_version` (hardcoded to `"1.0.0"` in MVP) and `metadata.wiedunflow_version` (the package version). Template JavaScript branches on `schema_version` for future breaking changes.
+FR-57. The footer contains: repository commit hash, branch, `generated_at` timestamp, WiedunFlow version, Jedi resolution confidence tier, and the offline guarantee statement "Generated by WiedunFlow vX.Y.Z (Apache 2.0) — this document is fully offline.".
 FR-58. Pygments pre-renders syntax highlighting at build time. The browser does no syntax highlighting at runtime.
 FR-59. Target output size for a medium repo (≤500 `.py` files) is under 8 MB. A hard warning is printed at sizes above 20 MB.
 
 FR-83. Layout, typography, and color tokens in the generated HTML match `.ai/ux-spec.md` §Tutorial.tokens pixel-for-pixel. A1 Paper palette only. Topbar is the darkest surface; narration panel is the lightest (~20% closer to white than page background). This hierarchy is a non-negotiable constraint (ADR-0011).
 
-FR-84. Tutorial reader embeds a resizable splitter between the narration panel and the code panel. Range: 28–72% of content width (narration fraction). Persisted to `localStorage` key `codeguide:tweak:narr-frac:v2`. Splitter is disabled (hidden) on viewports narrower than 1024px. Details per `.ai/ux-spec.md` §Tutorial.components.splitter.
+FR-84. Tutorial reader embeds a resizable splitter between the narration panel and the code panel. Range: 28–72% of content width (narration fraction). Persisted to `localStorage` key `wiedunflow:tweak:narr-frac:v2`. Splitter is disabled (hidden) on viewports narrower than 1024px. Details per `.ai/ux-spec.md` §Tutorial.components.splitter.
 
 FR-85. Fonts (Inter 400/500/600/700; JetBrains Mono 400/500/600) are self-hosted as WOFF2, base64-encoded inside the generated HTML (or referenced via relative paths if the HTML is in a directory alongside the fonts). System fallbacks (`ui-sans-serif, system-ui, …` / `ui-monospace, SF Mono, Menlo, Consolas`) apply if WOFF2 embedding fails. No external CDN font requests. Details per `.ai/ux-spec.md` §Tutorial.assets.
 
@@ -166,11 +166,11 @@ FR-87. Skipped-lesson placeholder rendered inline for each lesson where `lesson.
 ### 3.12 Post-run reporting
 
 FR-60. A human-readable summary is printed to stdout: files generated, lessons generated, lessons skipped, cost broken down by Haiku and Sonnet, elapsed time, cache hit rate, and the `file://` URL to open the result.
-FR-61. A machine-readable `run-report.json` is written to `.codeguide/` with the keys: `status ∈ {ok, degraded, failed}`, `cost`, `elapsed_seconds`, `lessons_generated`, `skipped_lessons_count`, `resolution_coverage_pct`, `cache_hit_rate`, `commit_hash`, `branch`, `codeguide_version`.
-FR-62. `.codeguide/` is auto-added to `.gitignore` on first run if the directory does not already appear there.
-FR-63. The last 10 `run-report.json` files are retained in `.codeguide/history/run-report-<timestamp>.json`. Older reports are pruned automatically.
+FR-61. A machine-readable `run-report.json` is written to `.wiedunflow/` with the keys: `status ∈ {ok, degraded, failed}`, `cost`, `elapsed_seconds`, `lessons_generated`, `skipped_lessons_count`, `resolution_coverage_pct`, `cache_hit_rate`, `commit_hash`, `branch`, `wiedunflow_version`.
+FR-62. `.wiedunflow/` is auto-added to `.gitignore` on first run if the directory does not already appear there.
+FR-63. The last 10 `run-report.json` files are retained in `.wiedunflow/history/run-report-<timestamp>.json`. Older reports are pruned automatically.
 
-FR-89. CLI run report rendered as a framed card with left-border color encoding status: green (success), amber (degraded), red (failed). Common fields: lessons (e.g. `12 of 12 narrated`), files analysed (e.g. `47 python files · 87% symbol coverage`), elapsed, cost breakdown, tokens in/out, clickable `file://…/tutorial.html` link. Failed runs show: failed-at stage, reason, cleanup hint (`./codeguide-output/.cache/`), resume command. Layout per `.ai/ux-spec.md` §CLI.run-report.
+FR-89. CLI run report rendered as a framed card with left-border color encoding status: green (success), amber (degraded), red (failed). Common fields: lessons (e.g. `12 of 12 narrated`), files analysed (e.g. `47 python files · 87% symbol coverage`), elapsed, cost breakdown, tokens in/out, clickable `file://…/tutorial.html` link. Failed runs show: failed-at stage, reason, cleanup hint (`./wiedunflow-output/.cache/`), resume command. Layout per `.ai/ux-spec.md` §CLI.run-report.
 
 ### 3.13 LLM providers (BYOK)
 
@@ -182,7 +182,7 @@ FR-68. Exponential backoff is applied to HTTP 429 responses from any provider.
 
 ### 3.14 Repository setup and contribution
 
-FR-69. The pre-commit stack is: `ruff check`, `ruff format`, `mypy --strict src/codeguide/**`, `insert-license` (Apache 2.0 headers), and `commitlint` (conventional commits via `cz-cli`). `pytest` is CI-only. `bandit` and `reuse lint` are deferred to v2. pip-audit (or uv audit when stable) runs in the release workflow only, not in pre-commit; details in FR-78.
+FR-69. The pre-commit stack is: `ruff check`, `ruff format`, `mypy --strict src/wiedunflow/**`, `insert-license` (Apache 2.0 headers), and `commitlint` (conventional commits via `cz-cli`). `pytest` is CI-only. `bandit` and `reuse lint` are deferred to v2. pip-audit (or uv audit when stable) runs in the release workflow only, not in pre-commit; details in FR-78.
 FR-70. DCO sign-off is enforced as a GitHub Action check on pull requests, not as a local pre-commit hook.
 FR-71. The repository contains `.github/ISSUE_TEMPLATE/bug_report.yml`, `feature_request.yml`, and `eval_regression.yml`.
 FR-72. `NOTICE` is aggregated automatically from Apache-licensed dependencies during the release process. The project copyright holder is Michał Kamiński (individual).
@@ -260,28 +260,28 @@ FR-80. A SecretFilter component in the logging chain redacts before emission: AP
 ### Installation and first-run setup
 
 US-001
-Title: Install CodeGuide via uvx from Git.
-Description: As a developer, I want to install CodeGuide with one command using UV so that I do not need to manage a Python environment manually.
+Title: Install WiedunFlow via uvx from Git.
+Description: As a developer, I want to install WiedunFlow with one command using UV so that I do not need to manage a Python environment manually.
 Acceptance Criteria:
-- `uvx --from git+https://github.com/<org>/codeguide codeguide --version` prints the current version on Linux, macOS, and Windows.
+- `uvx --from git+https://github.com/<org>/wiedunflow wiedunflow --version` prints the current version on Linux, macOS, and Windows.
 - Installation fails with a clear message if UV is not installed on PATH.
 - No `pip`, `pipx`, `poetry`, or `hatch` commands appear anywhere in the README, CONTRIBUTING, or CI configuration.
 - `pyproject.toml` contains `[tool.uv]` configuration.
 
 US-002
-Title: Run first-run setup wizard via `codeguide init`.
+Title: Run first-run setup wizard via `wiedun-flow init`.
 Description: As a first-time user, I want an interactive wizard that collects provider, model, and API key so that I can start without reading documentation.
 Acceptance Criteria:
-- `codeguide init` prompts sequentially for provider (default: anthropic), model, and API key.
-- On completion, the wizard writes a valid YAML config to the user-level config path (`~/.config/codeguide/config.yaml` on Linux/macOS, `%APPDATA%\codeguide\config.yaml` on Windows).
-- Running `codeguide <repo>` afterward uses the wizard's settings without prompting again.
+- `wiedun-flow init` prompts sequentially for provider (default: anthropic), model, and API key.
+- On completion, the wizard writes a valid YAML config to the user-level config path (`~/.config/wiedunflow/config.yaml` on Linux/macOS, `%APPDATA%\wiedunflow\config.yaml` on Windows).
+- Running `wiedunflow <repo>` afterward uses the wizard's settings without prompting again.
 - The wizard is never triggered automatically; it runs only on explicit invocation.
 
 US-003
 Title: Skip the wizard with CLI flags and environment variables.
 Description: As a CI user or power user, I want to pass all configuration via flags and environment variables so that no interactive prompt ever blocks my pipeline.
 Acceptance Criteria:
-- `ANTHROPIC_API_KEY=... codeguide <repo> --yes` completes without any interactive prompt when a cloud provider is used and consent has been accepted.
+- `ANTHROPIC_API_KEY=... wiedunflow <repo> --yes` completes without any interactive prompt when a cloud provider is used and consent has been accepted.
 - CLI flags override environment variables; environment variables override the user-level config.
 - The resolved configuration is logged at DEBUG level so the user can diagnose precedence issues.
 
@@ -309,7 +309,7 @@ Description: As a CI user, I want a flag that disables the consent prompt so tha
 Acceptance Criteria:
 - `--no-consent-prompt` suppresses the banner and proceeds.
 - `--no-consent-prompt` does not disable the hard-refuse secret list.
-- The flag is documented in `codeguide --help` and in the README under "CI usage".
+- The flag is documented in `wiedunflow --help` and in the README under "CI usage".
 
 US-007
 Title: Persist consent per provider, not per repository.
@@ -346,11 +346,11 @@ Acceptance Criteria:
 
 US-011
 Title: Guarantee zero telemetry.
-Description: As a privacy-conscious user, I want a verifiable guarantee that no telemetry is emitted by the CLI or the output HTML so that I can use CodeGuide on sensitive code.
+Description: As a privacy-conscious user, I want a verifiable guarantee that no telemetry is emitted by the CLI or the output HTML so that I can use WiedunFlow on sensitive code.
 Acceptance Criteria:
 - An integration test runs the CLI against a fixture repo with its network namespace restricted to the configured LLM provider's host. The run completes successfully.
 - A template-time linter scans the final HTML for `fetch(`, `Image(`, `<link rel="prefetch"`, `<link rel="preconnect"`, and any `http://` or `https://` URL that is not a comment or whitelisted attribution, failing the build if any are found.
-- The HTML footer contains the literal text "Generated by CodeGuide vX.Y.Z (Apache 2.0) — this document is fully offline.".
+- The HTML footer contains the literal text "Generated by WiedunFlow vX.Y.Z (Apache 2.0) — this document is fully offline.".
 
 ### Cost estimation and confirmation
 
@@ -378,7 +378,7 @@ US-014
 Title: Generate a tutorial end-to-end (default mode).
 Description: As a primary-persona developer, I want to run the full pipeline with a single command and receive a `tutorial.html` that I can open in the browser.
 Acceptance Criteria:
-- `codeguide <repo>` executes Stages 0 through 6 and writes `tutorial.html` in the current working directory on success.
+- `wiedunflow <repo>` executes Stages 0 through 6 and writes `tutorial.html` in the current working directory on success.
 - A stage-level progress indicator (7 stages) and an LLM-call counter are shown.
 - On success, stdout prints the path to open via `file://`.
 - The exit code is 0 on success.
@@ -387,7 +387,7 @@ US-015
 Title: Preview the plan with `--dry-run`.
 Description: As a cost-anxious evaluator, I want to see proposed lesson titles, estimated cost, and a graph visualization before committing to a full run.
 Acceptance Criteria:
-- `codeguide <repo> --dry-run` executes Stages 0 through 4 inclusive and writes `tutorial-preview.html` containing the proposed lesson titles, the final cost estimate, and a graph-structure visualization.
+- `wiedunflow <repo> --dry-run` executes Stages 0 through 4 inclusive and writes `tutorial-preview.html` containing the proposed lesson titles, the final cost estimate, and a graph-structure visualization.
 - The dry-run cost is under $0.10 for a medium repo (approximately $0.05 for the Stage 4 Sonnet call).
 - Stages 5 and 6 are skipped; no content generation occurs.
 - The preview HTML states clearly "This is a preview — no lesson content has been generated yet.".
@@ -396,7 +396,7 @@ US-016
 Title: Edit the lesson manifest interactively with `--review-plan`.
 Description: As a repo expert, I want to edit, reorder, or delete proposed lessons before content generation so that the tutorial matches my mental model.
 Acceptance Criteria:
-- `codeguide <repo> --review-plan` pauses after Stage 4 and opens the manifest in the resolved editor.
+- `wiedunflow <repo> --review-plan` pauses after Stage 4 and opens the manifest in the resolved editor.
 - The editor resolution order is: `$EDITOR` → `$VISUAL` → `code --wait` (if on PATH) → `notepad` (Windows) / `vi` (Unix).
 - On save and close, the edited manifest is validated against the schema; Stage 5 resumes with the edited manifest.
 - An invalid manifest (broken JSON, removed required fields) reopens the editor with an error banner.
@@ -405,7 +405,7 @@ US-017
 Title: Resume from the last checkpoint.
 Description: As a user whose long run was interrupted, I want to continue without regenerating already-completed lessons.
 Acceptance Criteria:
-- `codeguide <repo> --resume` detects the latest checkpoint and re-enters Stage 5 at the first incomplete lesson.
+- `wiedunflow <repo> --resume` detects the latest checkpoint and re-enters Stage 5 at the first incomplete lesson.
 - Lessons already in the cache are not regenerated and their cost is not re-billed.
 - The run report reflects `cache_hit_rate` > 0 for a resumed run.
 - `--no-resume` forces a clean run even when a checkpoint exists.
@@ -474,9 +474,9 @@ US-025
 Title: Store the cache in the platform-appropriate user-level directory.
 Description: As a user on any platform, I want my cache stored in a conventional location so that it does not clutter my project.
 Acceptance Criteria:
-- On Linux the default cache lives under `~/.cache/codeguide/`.
-- On Windows the default cache lives under `%LOCALAPPDATA%\codeguide\Cache`.
-- On macOS the default cache lives under `~/Library/Caches/codeguide`.
+- On Linux the default cache lives under `~/.cache/wiedunflow/`.
+- On Windows the default cache lives under `%LOCALAPPDATA%\wiedunflow\Cache`.
+- On macOS the default cache lives under `~/Library/Caches/wiedunflow`.
 - The cache is keyed by `<repo_absolute_path>+<commit_hash>`.
 - Cross-platform tests verify each default location.
 
@@ -512,7 +512,7 @@ US-029
 Title: Capture crash state and stack trace in the run report.
 Description: As a user hitting an unexpected bug, I want the crash state persisted so that I can resume and/or file a useful bug report.
 Acceptance Criteria:
-- Unhandled exceptions during Stage 5 write `{"status": "failed", "failed_at_lesson": N, "stack_trace": "..."}` to `.codeguide/run-report.json`.
+- Unhandled exceptions during Stage 5 write `{"status": "failed", "failed_at_lesson": N, "stack_trace": "..."}` to `.wiedunflow/run-report.json`.
 - The process exits with code 1.
 - `--resume` on the next invocation continues from the last completed lesson.
 - A test injects an exception during lesson generation and asserts the report contents.
@@ -552,7 +552,7 @@ Title: Fatal-fail on Stage 4 planning failure after one retry.
 Description: As a user, I want the pipeline to stop if the planning call cannot produce a valid manifest so that I do not incur Stage 5 cost on bad input.
 Acceptance Criteria:
 - An invalid Stage 4 response (broken JSON, references to symbols not in the graph) triggers one retry with a reinforcement prompt.
-- If the retry also fails, the pipeline exits with a non-zero code and a clear message "Planning failed after 1 retry — see ./.codeguide/run-report.json for details".
+- If the retry also fails, the pipeline exits with a non-zero code and a clear message "Planning failed after 1 retry — see ./.wiedunflow/run-report.json for details".
 - No Stage 5 LLM calls are made when planning fails.
 
 US-034
@@ -660,7 +660,7 @@ US-046
 Title: Remember the last-viewed lesson via localStorage.
 Description: As a reader, I want to reopen the tutorial later and pick up where I left off.
 Acceptance Criteria:
-- The last-viewed lesson id is written to `localStorage` under a namespaced key (`codeguide:<tutorial-id>:last-lesson`).
+- The last-viewed lesson id is written to `localStorage` under a namespaced key (`wiedunflow:<tutorial-id>:last-lesson`).
 - On reload, the tutorial navigates to the stored id.
 - No network call is involved.
 - Clearing `localStorage` reverts to lesson 1.
@@ -669,14 +669,14 @@ US-047
 Title: Render the offline-guarantee footer statement.
 Description: As a reader, I want to see a clear statement that the tutorial is fully offline.
 Acceptance Criteria:
-- The footer contains the literal string "Generated by CodeGuide vX.Y.Z (Apache 2.0) — this document is fully offline." with the actual version substituted.
+- The footer contains the literal string "Generated by WiedunFlow vX.Y.Z (Apache 2.0) — this document is fully offline." with the actual version substituted.
 - The footer also contains the repo commit hash, branch, `generated_at` timestamp, and the Jedi resolution tier.
 
 US-048
 Title: Embed schema versioning in the output JSON.
 Description: As the project maintainer, I want future template JavaScript to recognize the schema version and branch appropriately so that v2 changes remain backward-compatible.
 Acceptance Criteria:
-- The embedded JSON contains `metadata.schema_version = "1.0.0"` and `metadata.codeguide_version = "<package_version>"`.
+- The embedded JSON contains `metadata.schema_version = "1.0.0"` and `metadata.wiedunflow_version = "<package_version>"`.
 - The template JavaScript reads `schema_version` and logs a console warning on unknown versions.
 - A unit test asserts the presence and format of both fields.
 
@@ -743,23 +743,23 @@ US-056
 Title: Write a machine-readable run report.
 Description: As a CI user, I want a JSON run report I can parse downstream.
 Acceptance Criteria:
-- `.codeguide/run-report.json` is written with the keys `status`, `cost`, `elapsed_seconds`, `lessons_generated`, `skipped_lessons_count`, `resolution_coverage_pct`, `cache_hit_rate`, `commit_hash`, `branch`, `codeguide_version`.
+- `.wiedunflow/run-report.json` is written with the keys `status`, `cost`, `elapsed_seconds`, `lessons_generated`, `skipped_lessons_count`, `resolution_coverage_pct`, `cache_hit_rate`, `commit_hash`, `branch`, `wiedunflow_version`.
 - `status` is one of `ok`, `degraded`, `failed`.
 - A schema-validation test pins the shape.
 
 US-057
-Title: Add `.codeguide/` to `.gitignore` automatically.
+Title: Add `.wiedunflow/` to `.gitignore` automatically.
 Description: As a user, I do not want the run report to accidentally be committed.
 Acceptance Criteria:
-- On first run, if `.codeguide` is not already present in `.gitignore`, the line `.codeguide/` is appended.
-- If `.gitignore` does not exist, it is created containing only `.codeguide/`.
+- On first run, if `.wiedunflow` is not already present in `.gitignore`, the line `.wiedunflow/` is appended.
+- If `.gitignore` does not exist, it is created containing only `.wiedunflow/`.
 - Idempotent on subsequent runs.
 
 US-058
 Title: Rotate run reports, keeping the last 10.
 Description: As a user iterating over time, I want history of my runs without unbounded disk growth.
 Acceptance Criteria:
-- Each run writes a timestamped copy to `.codeguide/history/run-report-<ISO8601>.json`.
+- Each run writes a timestamped copy to `.wiedunflow/history/run-report-<ISO8601>.json`.
 - On every run, older files beyond the 10 most recent are deleted.
 - The current `run-report.json` is always the latest run (not inside `history/`).
 
@@ -769,7 +769,7 @@ US-059
 Title: Enforce pre-commit checks.
 Description: As a contributor, I want fast local checks to keep the codebase clean.
 Acceptance Criteria:
-- `pre-commit` hooks run: `ruff check`, `ruff format`, `mypy --strict src/codeguide/**`, `insert-license`, `commitlint`.
+- `pre-commit` hooks run: `ruff check`, `ruff format`, `mypy --strict src/wiedunflow/**`, `insert-license`, `commitlint`.
 - `pytest` is not in the pre-commit stack.
 - The `insert-license` hook adds the Apache 2.0 header to any new `.py` file that lacks one.
 
@@ -861,7 +861,7 @@ Acceptance Criteria:
 US-070
 Title: CLI prints boxed cost-gate estimate with `rich.panel`
 _Mapped to: FR-81 | Sprint: S5 track B | Owner: python-pro_
-Description: As a developer running `codeguide init`, I want to see a formatted cost estimate before any API calls, so I can make an informed go/no-go decision.
+Description: As a developer running `wiedun-flow init`, I want to see a formatted cost estimate before any API calls, so I can make an informed go/no-go decision.
 Acceptance Criteria:
 - Cost gate printed as `rich.panel` with HEAVY border, accent title `ESTIMATED COST`
 - Table rows: Model, Stage, Est. tokens, Est. cost; totals row; runtime estimate
@@ -872,7 +872,7 @@ Acceptance Criteria:
 US-071
 Title: CLI emits 7-stage output with exact copy and live counters
 _Mapped to: FR-82 | Sprint: S5 track B | Owner: python-pro + ai-engineer_
-Description: As a developer running `codeguide init`, I want to see clear stage progress with real-time cost/token counters.
+Description: As a developer running `wiedun-flow init`, I want to see clear stage progress with real-time cost/token counters.
 Acceptance Criteria:
 - Stage header: `[N/7] <Stage name>` in accent color
 - Detail lines: 5-space indent
@@ -883,7 +883,7 @@ Acceptance Criteria:
 US-072
 Title: CLI run report rendered as framed status-colored card
 _Mapped to: FR-89 | Sprint: S5 track B | Owner: python-pro_
-Description: As a developer who finished a `codeguide init` run, I want a concise final summary card with status indication.
+Description: As a developer who finished a `wiedun-flow init` run, I want a concise final summary card with status indication.
 Acceptance Criteria:
 - Framed card via `rich.panel`; left-border green (success) / amber (degraded) / red (failed)
 - Success/degraded fields: lessons narrated, files analysed, elapsed, cost, tokens, clickable tutorial link
@@ -893,7 +893,7 @@ Acceptance Criteria:
 US-073
 Title: CLI 429 backoff displayed with attempt/5 counter
 _Mapped to: FR-90 | Sprint: S5 track B | Owner: python-pro_
-Description: As a developer running `codeguide init`, I want transparent feedback when rate-limited, so I know the tool is retrying not hung.
+Description: As a developer running `wiedun-flow init`, I want transparent feedback when rate-limited, so I know the tool is retrying not hung.
 Acceptance Criteria:
 - Each 429: `  ⚠ HTTP 429 rate_limit_error (tokens-per-minute)` (warn)
 - Each retry: `  ⟳ backoff Ns (attempt K/5)` (warn)
@@ -927,7 +927,7 @@ Description: As a developer using the tutorial, I want to resize narration vs co
 Acceptance Criteria:
 - Splitter drag range clamped to 28–72% (narration fraction of content area)
 - `pointerdown/pointermove/pointerup` implementation; cursor `col-resize`
-- Persisted in `localStorage` key `codeguide:tweak:narr-frac:v2`
+- Persisted in `localStorage` key `wiedunflow:tweak:narr-frac:v2`
 - Disabled (hidden) on viewport <1024px
 - Details per ux-spec §Tutorial.components.splitter
 
@@ -939,7 +939,7 @@ Acceptance Criteria:
 - `⚙` icon in topbar opens slide-in tweaks panel (`width: 280px`, right side, shadow per ux-spec)
 - Production panel: only light/dark theme toggle
 - Prototype controls (palette/direction/font/confidence/degraded) NOT included
-- Theme persisted in `localStorage` key `codeguide:tweak:theme:v2`
+- Theme persisted in `localStorage` key `wiedunflow:tweak:theme:v2`
 - `Escape` closes panel; click outside closes panel
 
 US-078
@@ -976,12 +976,12 @@ Acceptance Criteria:
 ### Interactive picker for repository selection (v0.5.0, Sprint 9)
 
 US-088
-Title: Picker entry point — `codeguide` without arguments launches repo picker in TTY
+Title: Picker entry point — `wiedun-flow` without arguments launches repo picker in TTY
 _Mapped to: .ai/ux-spec.md §4.0 | Sprint: S9 track A | Owner: python-pro_
-Description: As a user running `codeguide` with no arguments in a terminal, I want an interactive menu to select a repository instead of remembering CLI flags.
+Description: As a user running `wiedun-flow` with no arguments in a terminal, I want an interactive menu to select a repository instead of remembering CLI flags.
 Acceptance Criteria:
-- `codeguide` (no args) in a TTY (`sys.stdin.isatty() and sys.stdout.isatty()`) launches `main_menu_loop` from `cli/menu.py`
-- `codeguide` with any subcommand (`codeguide generate ...`, `codeguide init`), or in non-TTY (pipes, CI), or when `CODEGUIDE_NO_MENU=1` is set → use existing Click group (no menu)
+- `wiedun-flow` (no args) in a TTY (`sys.stdin.isatty() and sys.stdout.isatty()`) launches `main_menu_loop` from `cli/menu.py`
+- `wiedun-flow` with any subcommand (`wiedun-flow generate ...`, `wiedun-flow init`), or in non-TTY (pipes, CI), or when `WIEDUNFLOW_NO_MENU=1` is set → use existing Click group (no menu)
 - Menu returns to top-level loop after each completed pipeline run
 - Implementation: `cli/main.py:main()` guards with 3-line TTY check before dispatching to Click group
 
@@ -990,7 +990,7 @@ Title: Read recent runs from LRU cache file
 _Mapped to: .ai/ux-spec.md §4.0 | Sprint: S9 track B | Owner: python-pro_
 Description: As a user, I want to re-run the same repo without typing the path again.
 Acceptance Criteria:
-- Recent runs source reads `~/.cache/codeguide/recent-runs.json` (LRU list, max 10 entries)
+- Recent runs source reads `~/.cache/wiedunflow/recent-runs.json` (LRU list, max 10 entries)
 - Each entry contains `repo_path` (absolute) and last-run timestamp
 - File missing or malformed → graceful empty list (no crash)
 - Entry with deleted `repo_path` → still displayed, validation happens after selection
@@ -1024,7 +1024,7 @@ Title: Write recent runs to LRU cache on successful tutorial generation
 _Mapped to: cli/menu.py (writeback after `_launch_pipeline` returns) | Sprint: S9 track B | Owner: python-pro_
 Description: As a user, I want subsequent runs of the same repo to appear in "Recent runs" without manual curation.
 Acceptance Criteria:
-- After a successful tutorial generation, the repo path is written to `~/.cache/codeguide/recent-runs.json`
+- After a successful tutorial generation, the repo path is written to `~/.cache/wiedunflow/recent-runs.json`
 - File format: list of `{repo_path, last_run_timestamp}` (JSON array)
 - LRU behavior: if path already exists in list, move it to top; drop oldest entries beyond 10
 - File missing → create with single entry
@@ -1037,7 +1037,7 @@ Title: PricingCatalog port — interface for per-model pricing lookups
 _Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
 Description: As a cost-gate feature, I need a pluggable interface to fetch live model pricing.
 Acceptance Criteria:
-- Protocol `PricingCatalog` in `src/codeguide/interfaces/pricing_catalog.py` with single method `blended_price_per_mtok(model_id: str) -> float | None`
+- Protocol `PricingCatalog` in `src/wiedunflow/interfaces/pricing_catalog.py` with single method `blended_price_per_mtok(model_id: str) -> float | None`
 - Returns blended USD/MTok (60% input + 40% output, empirical planning+narration split)
 - Returns `None` for unknown models so chains can fallback
 - Never raises — pricing lookup is non-critical
@@ -1047,16 +1047,16 @@ Title: StaticPricingCatalog — hardcoded fallback backed by MODEL_PRICES
 _Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
 Description: As a fallback, I need always-available pricing for common models without network calls.
 Acceptance Criteria:
-- `StaticPricingCatalog` in `src/codeguide/adapters/static_pricing_catalog.py`
+- `StaticPricingCatalog` in `src/wiedunflow/adapters/static_pricing_catalog.py`
 - Backed by `cli/cost_estimator.MODEL_PRICES` (single source of maintenance)
 - Used as leaf of every chain, ensuring cost gate never lacks a price
 
 US-095
 Title: LiteLLMPricingCatalog — fetch live pricing from LiteLLM GitHub JSON
 _Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
-Description: As the cost gate, I need current model prices that update independently of CodeGuide releases.
+Description: As the cost gate, I need current model prices that update independently of WiedunFlow releases.
 Acceptance Criteria:
-- `LiteLLMPricingCatalog` in `src/codeguide/adapters/litellm_pricing_catalog.py`
+- `LiteLLMPricingCatalog` in `src/wiedunflow/adapters/litellm_pricing_catalog.py`
 - Fetches https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json (3s timeout)
 - Blends `0.6 * input_cost_per_token + 0.4 * output_cost_per_token`, converts USD/MTok
 - Strips provider prefix (`openai/gpt-4.1` → `gpt-4.1`)
@@ -1067,9 +1067,9 @@ Title: CachedPricingCatalog — 24h disk cache decorator
 _Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
 Description: As performance optimization, I need cached pricing that refreshes daily.
 Acceptance Criteria:
-- `CachedPricingCatalog` in `src/codeguide/adapters/cached_pricing_catalog.py`
+- `CachedPricingCatalog` in `src/wiedunflow/adapters/cached_pricing_catalog.py`
 - Wraps any `upstream` catalog; reads `export_dump()` and calls `hydrate(prices)` for state management
-- Cache file: `~/.cache/codeguide/pricing-<provider>.json` (e.g., `pricing-litellm.json`)
+- Cache file: `~/.cache/wiedunflow/pricing-<provider>.json` (e.g., `pricing-litellm.json`)
 - TTL 86400 seconds (24h); fresher on rehydrate if older
 - Fallback chain: `ChainedPricingCatalog([CachedPricingCatalog(LiteLLM), StaticPricingCatalog()])`
 
@@ -1078,7 +1078,7 @@ Title: ChainedPricingCatalog — fallback chain where first non-None answer wins
 _Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
 Description: As orchestration, I need a clean fallback strategy for pricing lookups.
 Acceptance Criteria:
-- `ChainedPricingCatalog` in `src/codeguide/adapters/cached_pricing_catalog.py`
+- `ChainedPricingCatalog` in `src/wiedunflow/adapters/cached_pricing_catalog.py`
 - Query each catalog in order; first non-`None` answer wins
 - Factory `_build_pricing_chain()` in `cli/main.py` builds `[CachedPricingCatalog(LiteLLM), StaticPricingCatalog()]` unconditionally; `httpx` is a hard dependency declared in `[project.dependencies]`
 - Network failures inside `LiteLLMPricingCatalog` downgrade to empty dict; chain falls through to `StaticPricingCatalog`
@@ -1086,7 +1086,7 @@ Acceptance Criteria:
 US-098
 Title: httpx declared as explicit hard dependency in pyproject.toml
 _Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
-Description: As intent signaling, I want explicit declaration that CodeGuide imports httpx directly (PEP-621 honesty), not relying on transitive availability via anthropic/openai SDKs.
+Description: As intent signaling, I want explicit declaration that WiedunFlow imports httpx directly (PEP-621 honesty), not relying on transitive availability via anthropic/openai SDKs.
 Acceptance Criteria:
 - `httpx>=0.27` in `[project.dependencies]` of `pyproject.toml`
 - Plain `import httpx` at top of `litellm_pricing_catalog.py` (no try/except, no defensive `_HTTPX_AVAILABLE` flag — anthropic+openai already require httpx, so unavailability is impossible in any supported install)

@@ -8,7 +8,7 @@
 
 ## Context
 
-The CodeGuide UX design involves two user-facing surfaces: the CLI output (`codeguide init` terminal experience) and the generated `tutorial.html` offline reader. The skill `codeguide-ux-skill` contains high-fidelity prototypes exploring three CLI visual directions (Modern / Minimal / Retro ASCII) and three tutorial color palettes (A1 Paper / A2 / A3) with two narrative layouts (Direction A "clean technical" / Direction B "editorial reader").
+The WiedunFlow UX design involves two user-facing surfaces: the CLI output (`wiedun-flow init` terminal experience) and the generated `tutorial.html` offline reader. The skill `wiedunflow-ux-skill` contains high-fidelity prototypes exploring three CLI visual directions (Modern / Minimal / Retro ASCII) and three tutorial color palettes (A1 Paper / A2 / A3) with two narrative layouts (Direction A "clean technical" / Direction B "editorial reader").
 
 Design review conducted 2026-04-19 evaluated all nine combinations (3 CLI × 3 palettes × 2 directions). The review resulted in a clear consensus: **one** canonical direction for each surface. Without this decision recorded as an ADR, future feature requests to "restore the warm palette" or "re-enable direction B" would have low cost of entry — despite all variants being deliberately evaluated and rejected. An ADR serves as a forcing function for any future reversal, requiring explicit user research justification and a superseding ADR.
 
@@ -57,7 +57,7 @@ v0.2.0):
    are `--yes`, `--no-cost-prompt`, or non-TTY (`stdin.isatty() == False`).
    v0.1.0 only enforced `--max-cost` as a hard kill switch.
    - Rationale: Privacy and cost transparency are core product DNA
-     (zero-telemetry, BYOK, Apache 2.0). A first-time `codeguide ./repo`
+     (zero-telemetry, BYOK, Apache 2.0). A first-time `wiedunflow ./repo`
      run should pause and show "$2.28 OK?" rather than silently spending.
      Power users override with `--no-cost-prompt` once. Non-TTY auto-bypass
      keeps CI / pipes / `--log-format=json` flows unchanged.
@@ -69,7 +69,7 @@ v0.2.0):
 - **Single design system** reduces CSS maintenance and testing burden. Two color themes (light + dark) instead of 6–9 palette combinations.
 - **Reproducible snapshots** — Playwright visual regression tests have 2 targets (light / dark) instead of 9. Pixel-perfect parity between skill prototype and product is verifiable.
 - **Offline-first guarantee** — no external resources whatsoever. Fonts, styles, code, narration — all inlined in one HTML. Works over `file://` with no network calls.
-- **Clearer product positioning** — "CodeGuide generates interactive tutorial.html" is sharper than "CodeGuide with customizable palettes and themes." MVP focuses on capability, not customization.
+- **Clearer product positioning** — "WiedunFlow generates interactive tutorial.html" is sharper than "WiedunFlow with customizable palettes and themes." MVP focuses on capability, not customization.
 
 ### Negative
 
@@ -84,7 +84,7 @@ v0.2.0):
 
 To revisit any of the seven decisions above, the following steps are **mandatory:**
 
-1. **Gather quantitative user research** — e.g., usability testing with 5+ external developers, feedback surveys from >50 CodeGuide users, or adoption metrics showing friction (e.g., "users frequently disable dark theme" or "requests for warm palette in top 3 feature requests").
+1. **Gather quantitative user research** — e.g., usability testing with 5+ external developers, feedback surveys from >50 WiedunFlow users, or adoption metrics showing friction (e.g., "users frequently disable dark theme" or "requests for warm palette in top 3 feature requests").
 2. **Write a new ADR** — title it "ADR-00XX: Reversal of ADR-0011 — adding support for [palette/direction/font]". Document the research, cost estimate (CSS growth, testing, documentation), and rollout plan.
 3. **Update related documents** in the same PR:
    - `.ai/ux-spec.md` (add new palette/direction sections)
@@ -99,6 +99,6 @@ Until this process is completed, all design decisions above are immutable for MV
 - `.ai/prd.md` v0.1.2-draft, §1 Product Overview
 - `.ai/tech-stack.md` v0.1.2-draft, §11 Renderowanie i artefakt wyjściowy
 - `.ai/ux-spec.md` v0.1.0-draft (living spec for all 7 decisions)
-- `codeguide-ux-skill/SKILL.md` (approved decisions section)
-- `codeguide-ux-skill/reference/tutorial/README.md` (design tokens)
-- `codeguide-ux-skill/reference/cli/README.md` (CLI copy and color roles)
+- `wiedunflow-ux-skill/SKILL.md` (approved decisions section)
+- `wiedunflow-ux-skill/reference/tutorial/README.md` (design tokens)
+- `wiedunflow-ux-skill/reference/cli/README.md` (CLI copy and color roles)
