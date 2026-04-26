@@ -190,95 +190,6 @@ wheels = [
 ]
 
 [[package]]
-name = "codeguide"
-version = "0.5.0"
-source = { editable = "." }
-dependencies = [
-    { name = "anthropic" },
-    { name = "click" },
-    { name = "httpx" },
-    { name = "jedi" },
-    { name = "jinja2" },
-    { name = "markupsafe" },
-    { name = "mistune" },
-    { name = "networkx" },
-    { name = "numpy" },
-    { name = "openai" },
-    { name = "pathspec" },
-    { name = "platformdirs" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pygments" },
-    { name = "pyyaml" },
-    { name = "questionary" },
-    { name = "rank-bm25" },
-    { name = "rich" },
-    { name = "structlog" },
-    { name = "tenacity" },
-    { name = "tree-sitter" },
-    { name = "tree-sitter-python" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pillow" },
-    { name = "pip-audit" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-playwright" },
-    { name = "pytest-socket" },
-    { name = "pyyaml" },
-    { name = "ruff" },
-    { name = "syrupy" },
-    { name = "types-pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anthropic", specifier = ">=0.40.0" },
-    { name = "click", specifier = ">=8.1.7" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "jedi", specifier = ">=0.19.2" },
-    { name = "jinja2", specifier = ">=3.1" },
-    { name = "markupsafe", specifier = ">=2.1" },
-    { name = "mistune", specifier = ">=3.2.0" },
-    { name = "networkx", specifier = ">=3.3" },
-    { name = "numpy", specifier = ">=1.24" },
-    { name = "openai", specifier = ">=1.50.0" },
-    { name = "pathspec", specifier = ">=0.12.1" },
-    { name = "platformdirs", specifier = ">=4.3.0" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "pydantic-settings", specifier = ">=2.6.0" },
-    { name = "pygments", specifier = ">=2.17" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "questionary", specifier = ">=2.1.1,<3.0" },
-    { name = "rank-bm25", specifier = ">=0.2.2" },
-    { name = "rich", specifier = ">=13.7" },
-    { name = "structlog", specifier = ">=24.1" },
-    { name = "tenacity", specifier = ">=9.0.0" },
-    { name = "tree-sitter", specifier = ">=0.25.0" },
-    { name = "tree-sitter-python", specifier = ">=0.25.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.10" },
-    { name = "pillow", specifier = ">=10.0" },
-    { name = "pip-audit", specifier = ">=2.7" },
-    { name = "pre-commit", specifier = ">=3.8" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "pytest-playwright", specifier = ">=0.5" },
-    { name = "pytest-socket", specifier = ">=0.7" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "ruff", specifier = ">=0.5.0" },
-    { name = "syrupy", specifier = ">=4.6" },
-    { name = "types-pyyaml", specifier = ">=6.0" },
-]
-
-[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2001,4 +1912,93 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/35/a2/8e3becb46433538a38726c948d3399905a4c7cabd0df578ede5dc51f0ec2/wcwidth-0.6.0.tar.gz", hash = "sha256:cdc4e4262d6ef9a1a57e018384cbeb1208d8abbc64176027e2c2455c81313159", size = 159684, upload_time = "2026-02-06T19:19:40.919Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/68/5a/199c59e0a824a3db2b89c5d2dade7ab5f9624dbf6448dc291b46d5ec94d3/wcwidth-0.6.0-py3-none-any.whl", hash = "sha256:1a3a1e510b553315f8e146c54764f4fb6264ffad731b3d78088cdb1478ffbdad", size = 94189, upload_time = "2026-02-06T19:19:39.646Z" },
+]
+
+[[package]]
+name = "wiedunflow"
+version = "0.6.0"
+source = { editable = "." }
+dependencies = [
+    { name = "anthropic" },
+    { name = "click" },
+    { name = "httpx" },
+    { name = "jedi" },
+    { name = "jinja2" },
+    { name = "markupsafe" },
+    { name = "mistune" },
+    { name = "networkx" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "pathspec" },
+    { name = "platformdirs" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pygments" },
+    { name = "pyyaml" },
+    { name = "questionary" },
+    { name = "rank-bm25" },
+    { name = "rich" },
+    { name = "structlog" },
+    { name = "tenacity" },
+    { name = "tree-sitter" },
+    { name = "tree-sitter-python" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pillow" },
+    { name = "pip-audit" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-playwright" },
+    { name = "pytest-socket" },
+    { name = "pyyaml" },
+    { name = "ruff" },
+    { name = "syrupy" },
+    { name = "types-pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anthropic", specifier = ">=0.40.0" },
+    { name = "click", specifier = ">=8.1.7" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "jedi", specifier = ">=0.19.2" },
+    { name = "jinja2", specifier = ">=3.1" },
+    { name = "markupsafe", specifier = ">=2.1" },
+    { name = "mistune", specifier = ">=3.2.0" },
+    { name = "networkx", specifier = ">=3.3" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "openai", specifier = ">=1.50.0" },
+    { name = "pathspec", specifier = ">=0.12.1" },
+    { name = "platformdirs", specifier = ">=4.3.0" },
+    { name = "pydantic", specifier = ">=2.7" },
+    { name = "pydantic-settings", specifier = ">=2.6.0" },
+    { name = "pygments", specifier = ">=2.17" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "questionary", specifier = ">=2.1.1,<3.0" },
+    { name = "rank-bm25", specifier = ">=0.2.2" },
+    { name = "rich", specifier = ">=13.7" },
+    { name = "structlog", specifier = ">=24.1" },
+    { name = "tenacity", specifier = ">=9.0.0" },
+    { name = "tree-sitter", specifier = ">=0.25.0" },
+    { name = "tree-sitter-python", specifier = ">=0.25.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.10" },
+    { name = "pillow", specifier = ">=10.0" },
+    { name = "pip-audit", specifier = ">=2.7" },
+    { name = "pre-commit", specifier = ">=3.8" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-cov", specifier = ">=5.0" },
+    { name = "pytest-playwright", specifier = ">=0.5" },
+    { name = "pytest-socket", specifier = ">=0.7" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "ruff", specifier = ">=0.5.0" },
+    { name = "syrupy", specifier = ">=4.6" },
+    { name = "types-pyyaml", specifier = ">=6.0" },
 ]
