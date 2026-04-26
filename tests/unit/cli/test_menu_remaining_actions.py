@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.unit.cli._fake_menu_io import FakeMenuIO
 from wiedunflow.cli.menu import (
     _run_config_from_menu,
     _run_estimate_from_menu,
@@ -21,7 +22,6 @@ from wiedunflow.cli.menu import (
     _run_init_from_menu,
     _run_resume_from_menu,
 )
-from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 # Backward-compat alias for tests written against the pre-merge name.
 _run_show_config_from_menu = _run_config_from_menu

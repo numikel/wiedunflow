@@ -11,8 +11,8 @@ import yaml
 from pydantic import ValidationError as _ValidationError
 
 from wiedunflow.cli.config import (
-    WiedunflowConfig,
     ConfigError,
+    WiedunflowConfig,
     load_config,
     resolve_api_key,
 )

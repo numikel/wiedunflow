@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from wiedunflow.cli.menu import _subwizard_pick_repo
 from tests.unit.cli._fake_menu_io import FakeMenuIO
+from wiedunflow.cli.menu import _subwizard_pick_repo
 
 # ---------------------------------------------------------------------------
 # Helpers

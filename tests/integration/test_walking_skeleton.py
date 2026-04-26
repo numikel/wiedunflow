@@ -88,7 +88,7 @@ def test_tutorial_html_offline_footer_message(tutorial_html: Path) -> None:
 
 def test_default_output_filename_matches_wiedunflow_repo_pattern(
     tiny_repo_path: Path,
-    providers,  # noqa: ANN001 — fixture from conftest
+    providers,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

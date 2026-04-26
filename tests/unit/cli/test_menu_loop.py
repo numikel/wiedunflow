@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from tests.unit.cli._fake_menu_io import FakeMenuIO
 from wiedunflow.cli.menu import (
     MENU_EXIT,
     MENU_GENERATE,
@@ -21,7 +22,6 @@ from wiedunflow.cli.menu import (
     MenuIO,
     main_menu_loop,
 )
-from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 
 def _suppress_banner(monkeypatch: pytest.MonkeyPatch) -> None:

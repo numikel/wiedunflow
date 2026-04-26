@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from tests.unit.cli._fake_menu_io import FakeMenuIO
 from wiedunflow.cli.menu import (
     _SUMMARY_CANCEL,
     _SUMMARY_LAUNCH,
@@ -20,7 +21,6 @@ from wiedunflow.cli.menu import (
     _subwizard_summary_and_launch,
     _validate_int_in_range,
 )
-from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 # ---------------------------------------------------------------------------
 # _validate_int_in_range / _ask_int

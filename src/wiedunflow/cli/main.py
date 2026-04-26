@@ -38,7 +38,7 @@ from wiedunflow.adapters import (
 from wiedunflow.adapters.anthropic_provider import AnthropicProvider
 from wiedunflow.adapters.openai_provider import OpenAIProvider
 from wiedunflow.adapters.sqlite_cache import SQLiteCache
-from wiedunflow.cli.config import WiedunflowConfig, ConfigError, load_config, resolve_api_key
+from wiedunflow.cli.config import ConfigError, WiedunflowConfig, load_config, resolve_api_key
 from wiedunflow.cli.consent import (
     ConsentDeniedError,
     ConsentRequiredError,

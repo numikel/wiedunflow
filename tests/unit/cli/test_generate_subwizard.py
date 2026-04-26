@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.unit.cli._fake_menu_io import FakeMenuIO
 from wiedunflow.cli.menu import (
     _pick_hosted_model,
     _saved_section_payload,
@@ -22,7 +23,6 @@ from wiedunflow.cli.menu import (
     _subwizard_repo_output,
     _validate_repo_path,
 )
-from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 
 class _StubCatalog:

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.unit.cli._fake_menu_io import FakeMenuIO
 from wiedunflow.cli.menu import (
     _LIST_ADD,
     _LIST_DONE,
@@ -20,7 +21,6 @@ from wiedunflow.cli.menu import (
     _subwizard_filters,
     _validate_pattern,
 )
-from tests.unit.cli._fake_menu_io import FakeMenuIO
 
 # ---------------------------------------------------------------------------
 # _validate_pattern
