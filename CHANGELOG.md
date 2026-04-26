@@ -6,6 +6,37 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-26 — Repo Picker + Live Pricing
+
+### Added
+- **Sub-picker in §1 Generate sub-wizard** (3-source: Recent runs / Discover in cwd / Type path manually) — closes US-088, US-090, US-091. Users can select a repository interactively without typing paths.
+- **`cli/picker_sources.py`** — pure-logic functions `discover_git_repos()` (depth=1, .gitignore-aware, mtime sort DESC, cap 20) and `load_recent_runs()` (LRU from cache).
+- **Git repo discovery in cwd** — depth=1 walk, skip 13 hardcoded ignored dirs (`node_modules`, `.venv`, etc.), honor `.gitignore` via `pathspec`, sort by mtime DESC.
+- **Manual repo path entry** — `questionary.path()` via `MenuIO.path()` with validation (directory exists + has `.git/`).
+- **Recent runs LRU cache** — read/write `~/.cache/codeguide/recent-runs.json` (max 10 entries).
+- **`PricingCatalog` port** (`interfaces/pricing_catalog.py`) + 4 adapters for dynamic model pricing:
+  - `StaticPricingCatalog` — hardcoded fallback from `MODEL_PRICES`
+  - `LiteLLMPricingCatalog` — HTTP fetch from LiteLLM GitHub (~3500 models, auto-update)
+  - `CachedPricingCatalog` — 24h disk cache decorator (mirrors `CachedModelCatalog`)
+  - `ChainedPricingCatalog` — fallback chain; first non-`None` answer wins
+- **Live model pricing** via LiteLLM catalog — cost-gate estimates now stay current without CodeGuide releases. New models (`gpt-5.4-mini`, `claude-opus-4-8`) priced automatically once LiteLLM publishes them.
+- **`httpx>=0.27`** declared as explicit direct dependency (was implicit transitive via `anthropic`/`openai` SDKs); CodeGuide now imports it directly in `litellm_pricing_catalog.py` so PEP-621 honesty wins.
+- **ADR-0014** — Dynamic pricing catalog architecture (port + 4 adapters, 24h cache, three-sink rule extension for httpx).
+- **UX-spec §4.0** — Picker mode formalization (3-source flow, empty states exact copy, discovery scope, Back semantics).
+
+### Changed
+- §1 Generate sub-wizard: plain `io.text("Repo path:")` → interactive 3-source `_subwizard_pick_repo()` picker.
+- `cost_estimator.py` now uses `ChainedPricingCatalog` with fallback chain (live LiteLLM → static). Cost estimates more accurate.
+- Three-sink rule extended: `httpx` imports only in `adapters/litellm_pricing_catalog.py` (new lint test `test_no_httpx_outside_litellm_pricing.py`).
+
+### Fixed
+- Cost-gate accuracy for newly released models (pricing no longer tied to CodeGuide release cadence).
+
+### Internal
+- New ADR-0014 ("Dynamic pricing catalog") documents port architecture, 24h cache TTL, network-failure handling.
+- `pyproject.toml`: `httpx>=0.27` added to `[project.dependencies]` (explicit, not transitive).
+- 50+ new unit tests covering picker discovery, pricing catalogs, and cache behavior.
+
 ## [0.4.0] - 2026-04-25 — Interactive Menu-Driven TUI ("centrum dowodzenia")
 
 ### Added
@@ -310,7 +341,7 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - NOTICE auto-aggregation gate enforces Apache-2.0 dependency attribution at release time (US-062).
 
 ### Migration notes
-- Install: `uv pip install git+https://github.com/numikel/codeguide@v0.1.0` (no PyPI publish in MVP per FR-03; see roadmap for v0.2.0).
+- Install: `uv pip install git+https://github.com/numikel/code-guide@v0.1.0` (no PyPI publish in MVP per FR-03; see roadmap for v0.2.0).
 - Existing `run-report.json` consumers: new fields are additive. Schema version remains 1.0.0.
 
 ## [0.0.6] - 2026-04-24 — Privacy + Config + Hardening (Sprint 6)

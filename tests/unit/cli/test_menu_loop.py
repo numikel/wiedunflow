@@ -108,7 +108,7 @@ def test_each_menu_choice_dispatches_then_returns(
         "_run_generate_from_menu",
         "_run_config_from_menu",
         "_run_estimate_from_menu",
-        "_run_resume_from_menu",
+        "_run_recent_from_menu",
         "_run_help_from_menu",
     ):
         monkeypatch.setattr(f"codeguide.cli.menu.{helper}", lambda *a, **k: None)

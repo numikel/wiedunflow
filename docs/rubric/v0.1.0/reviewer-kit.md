@@ -7,7 +7,7 @@ Welcome! You are reviewing CodeGuide v0.1.0 for the MCP Python SDK. This kit wal
 ### Step 1: Clone the repository with submodules
 
 ```bash
-git clone https://github.com/Mkaminsky-dev/codeguide.git
+git clone https://github.com/numikel/code-guide.git
 cd codeguide
 git submodule update --init
 ```

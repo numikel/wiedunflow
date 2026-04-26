@@ -20,6 +20,23 @@ def _disable_menu_clear(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _disable_litellm_pricing_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stop the menu's default pricing chain from hitting the LiteLLM HTTP API.
+
+    Every menu code path that estimates cost lazily builds a
+    ``ChainedPricingCatalog`` whose primary is a ``LiteLLMPricingCatalog``.
+    Without this fixture each test would either wait 3s for an HTTP timeout
+    (offline CI runners) or pull half a megabyte of JSON. We pin the
+    upstream's internal ``_cache`` to an empty dict so the chain falls
+    through to ``StaticPricingCatalog`` instantly.
+    """
+    monkeypatch.setattr(
+        "codeguide.adapters.litellm_pricing_catalog.LiteLLMPricingCatalog._ensure_loaded",
+        lambda self: {},
+    )
+
+
+@pytest.fixture(autouse=True)
 def _isolate_user_config_path(
     tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ) -> Path:

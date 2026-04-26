@@ -7,7 +7,7 @@ Self-contained HTML tutorials from local Git repositories. Offline-first, BYOK (
 Install directly from this release tag:
 
 ```bash
-uv pip install git+https://github.com/numikel/codeguide@${{ github.ref_name }}
+uv pip install git+https://github.com/numikel/code-guide@${{ github.ref_name }}
 ```
 
 Or download the `.whl` from the assets below and install offline:

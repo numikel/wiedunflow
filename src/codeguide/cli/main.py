@@ -550,6 +550,31 @@ def _resolve_output_path(configured: Path | None) -> Path | None:
     return configured if configured.is_absolute() else (Path.cwd() / configured).resolve()
 
 
+def _build_pricing_chain() -> object:
+    """Build the live-pricing chain (LiteLLM cached → static fallback).
+
+    Extracted as a named function so tests can call it in isolation without
+    triggering the full ``_run_pipeline`` machinery.
+
+    Network failures (timeout, 5xx, malformed JSON) inside ``LiteLLMPricingCatalog``
+    downgrade to ``None`` per query, so the chain falls through to
+    :class:`StaticPricingCatalog` and never raises.
+    """
+    from codeguide.adapters.cached_pricing_catalog import (
+        CachedPricingCatalog,
+        ChainedPricingCatalog,
+    )
+    from codeguide.adapters.litellm_pricing_catalog import LiteLLMPricingCatalog
+    from codeguide.adapters.static_pricing_catalog import StaticPricingCatalog
+
+    return ChainedPricingCatalog(
+        [
+            CachedPricingCatalog(LiteLLMPricingCatalog(), provider_name="litellm"),
+            StaticPricingCatalog(),
+        ]
+    )
+
+
 def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with many exception paths
     *,
     repo_path: Path,
@@ -583,6 +608,10 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
     plan_label = str(getattr(llm_provider_obj, "model_plan", "plan"))
     narrate_label = str(getattr(llm_provider_obj, "model_narrate", "narrate"))
 
+    # ADR-0014: live pricing chain (LiteLLM 24h cache → static fallback)
+    # so the cost-gate USD estimate matches the user's actual provider rates.
+    pricing_chain = _build_pricing_chain()
+
     def _cost_gate(estimate: CostEstimate) -> bool:
         """Closure passed to ``generate_tutorial`` — Sprint 8 / US-084 / Q4."""
         return prompt_cost_gate(
@@ -610,6 +639,7 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
             max_cost_usd=max_cost_usd,
             progress=progress,
             cost_gate_callback=_cost_gate,
+            pricing_catalog=pricing_chain,
         )
     except KeyboardInterrupt:
         _write_final_report(

@@ -1,11 +1,11 @@
 # Product Requirements Document (PRD) - CodeGuide
 
-Document version: 0.1.0
-Last updated: 2026-04-24
+Document version: 0.1.3-draft
+Last updated: 2026-04-26
 Owner: Michał Kamiński
-Target release: CodeGuide v0.1.0 (MVP) — locked
+Target release: CodeGuide v0.5.0 (Repo Picker + Dynamic Pricing)
 
-> **Version lock note (2026-04-24)**: MVP specification is locked at v0.1.0. Subsequent refinements bump to `0.1.1-draft` and ship as patch releases; breaking spec changes move to `0.2.0-draft` on a roadmap branch.
+> **Version note (2026-04-26)**: Specification is iterative. Version bump from 0.1.0 → 0.1.3 reflects Sprint 9 additions (repo picker, pricing catalog).
 
 ## 1. Product Overview
 
@@ -972,6 +972,148 @@ Acceptance Criteria:
 - MEDIUM: `oklch(93% 0.08 80)` bg / `oklch(35% 0.12 80)` text (amber-tinted)
 - LOW: `oklch(93% 0.06 25)` bg / `oklch(35% 0.1 25)` text (red-tinted)
 - Colors match ux-spec §Tutorial.tokens (confidence pills)
+
+### Interactive picker for repository selection (v0.5.0, Sprint 9)
+
+US-088
+Title: Picker entry point — `codeguide` without arguments launches repo picker in TTY
+_Mapped to: .ai/ux-spec.md §4.0 | Sprint: S9 track A | Owner: python-pro_
+Description: As a user running `codeguide` with no arguments in a terminal, I want an interactive menu to select a repository instead of remembering CLI flags.
+Acceptance Criteria:
+- `codeguide` (no args) in a TTY (`sys.stdin.isatty() and sys.stdout.isatty()`) launches `main_menu_loop` from `cli/menu.py`
+- `codeguide` with any subcommand (`codeguide generate ...`, `codeguide init`), or in non-TTY (pipes, CI), or when `CODEGUIDE_NO_MENU=1` is set → use existing Click group (no menu)
+- Menu returns to top-level loop after each completed pipeline run
+- Implementation: `cli/main.py:main()` guards with 3-line TTY check before dispatching to Click group
+
+US-089
+Title: Read recent runs from LRU cache file
+_Mapped to: .ai/ux-spec.md §4.0 | Sprint: S9 track B | Owner: python-pro_
+Description: As a user, I want to re-run the same repo without typing the path again.
+Acceptance Criteria:
+- Recent runs source reads `~/.cache/codeguide/recent-runs.json` (LRU list, max 10 entries)
+- Each entry contains `repo_path` (absolute) and last-run timestamp
+- File missing or malformed → graceful empty list (no crash)
+- Entry with deleted `repo_path` → still displayed, validation happens after selection
+
+US-090
+Title: Discover git repositories in cwd depth=1 with .gitignore-aware filtering
+_Mapped to: .ai/ux-spec.md §4.0 | Sprint: S9 track A | Owner: python-pro_
+Description: As a user in a directory with multiple git projects, I want to quickly navigate to one without typing paths.
+Acceptance Criteria:
+- Walk `cwd` to max_depth=1 (only direct subdirectories, no recursion)
+- Skip hardcoded ignored dirs: `node_modules`, `.venv`, `venv`, `__pycache__`, `dist`, `build`, `target`, `.tox`, `.idea`, `.vscode`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`
+- Parse `cwd/.gitignore` (if exists) and filter results via `pathspec.PathSpec.from_lines("gitwildmatch", ...)`
+- Return dirs containing `.git/` subdir; sort by mtime DESC (newest first)
+- Format display: `[YYYY-MM-DD HH:MM] /path/to/repo` (ISO date+time)
+- Cap UI results to 20; silently drop tail if >20 found
+- Empty result → message "No git repositories found in current directory." → re-render source picker
+
+US-091
+Title: Manual path entry with git repo validation
+_Mapped to: .ai/ux-spec.md §4.0 | Sprint: S9 track A | Owner: python-pro_
+Description: As a user with a repo outside cwd, I want to type the path manually.
+Acceptance Criteria:
+- `io.path("Repo path:", only_directories=True)` prompt via `MenuIO.path()` (questionary under the hood)
+- Validation: path must exist + contain `.git/` subdir
+- On validation failure: print error message + retry prompt (max 3 attempts, then fall back to source picker)
+- On success: path returned to picker caller
+- Implementation: `MenuIO.path()` used for first time in real pipeline (previously draft in menu.py:155)
+
+US-092
+Title: Write recent runs to LRU cache on successful tutorial generation
+_Mapped to: cli/menu.py (writeback after `_launch_pipeline` returns) | Sprint: S9 track B | Owner: python-pro_
+Description: As a user, I want subsequent runs of the same repo to appear in "Recent runs" without manual curation.
+Acceptance Criteria:
+- After a successful tutorial generation, the repo path is written to `~/.cache/codeguide/recent-runs.json`
+- File format: list of `{repo_path, last_run_timestamp}` (JSON array)
+- LRU behavior: if path already exists in list, move it to top; drop oldest entries beyond 10
+- File missing → create with single entry
+- File corrupted → recover gracefully with single entry (no crash)
+
+### Dynamic pricing catalog (v0.5.0, Sprint 9)
+
+US-093
+Title: PricingCatalog port — interface for per-model pricing lookups
+_Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
+Description: As a cost-gate feature, I need a pluggable interface to fetch live model pricing.
+Acceptance Criteria:
+- Protocol `PricingCatalog` in `src/codeguide/interfaces/pricing_catalog.py` with single method `blended_price_per_mtok(model_id: str) -> float | None`
+- Returns blended USD/MTok (60% input + 40% output, empirical planning+narration split)
+- Returns `None` for unknown models so chains can fallback
+- Never raises — pricing lookup is non-critical
+
+US-094
+Title: StaticPricingCatalog — hardcoded fallback backed by MODEL_PRICES
+_Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
+Description: As a fallback, I need always-available pricing for common models without network calls.
+Acceptance Criteria:
+- `StaticPricingCatalog` in `src/codeguide/adapters/static_pricing_catalog.py`
+- Backed by `cli/cost_estimator.MODEL_PRICES` (single source of maintenance)
+- Used as leaf of every chain, ensuring cost gate never lacks a price
+
+US-095
+Title: LiteLLMPricingCatalog — fetch live pricing from LiteLLM GitHub JSON
+_Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
+Description: As the cost gate, I need current model prices that update independently of CodeGuide releases.
+Acceptance Criteria:
+- `LiteLLMPricingCatalog` in `src/codeguide/adapters/litellm_pricing_catalog.py`
+- Fetches https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json (3s timeout)
+- Blends `0.6 * input_cost_per_token + 0.4 * output_cost_per_token`, converts USD/MTok
+- Strips provider prefix (`openai/gpt-4.1` → `gpt-4.1`)
+- **Network errors**: timeout, 5xx, 404 → all downgrade to empty dict per-query, no crash
+
+US-096
+Title: CachedPricingCatalog — 24h disk cache decorator
+_Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
+Description: As performance optimization, I need cached pricing that refreshes daily.
+Acceptance Criteria:
+- `CachedPricingCatalog` in `src/codeguide/adapters/cached_pricing_catalog.py`
+- Wraps any `upstream` catalog; reads `export_dump()` and calls `hydrate(prices)` for state management
+- Cache file: `~/.cache/codeguide/pricing-<provider>.json` (e.g., `pricing-litellm.json`)
+- TTL 86400 seconds (24h); fresher on rehydrate if older
+- Fallback chain: `ChainedPricingCatalog([CachedPricingCatalog(LiteLLM), StaticPricingCatalog()])`
+
+US-097
+Title: ChainedPricingCatalog — fallback chain where first non-None answer wins
+_Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
+Description: As orchestration, I need a clean fallback strategy for pricing lookups.
+Acceptance Criteria:
+- `ChainedPricingCatalog` in `src/codeguide/adapters/cached_pricing_catalog.py`
+- Query each catalog in order; first non-`None` answer wins
+- Factory `_build_pricing_chain()` in `cli/main.py` builds `[CachedPricingCatalog(LiteLLM), StaticPricingCatalog()]` unconditionally; `httpx` is a hard dependency declared in `[project.dependencies]`
+- Network failures inside `LiteLLMPricingCatalog` downgrade to empty dict; chain falls through to `StaticPricingCatalog`
+
+US-098
+Title: httpx declared as explicit hard dependency in pyproject.toml
+_Mapped to: docs/adr/0014-dynamic-pricing-catalog.md | Sprint: S9 track B | Owner: python-pro_
+Description: As intent signaling, I want explicit declaration that CodeGuide imports httpx directly (PEP-621 honesty), not relying on transitive availability via anthropic/openai SDKs.
+Acceptance Criteria:
+- `httpx>=0.27` in `[project.dependencies]` of `pyproject.toml`
+- Plain `import httpx` at top of `litellm_pricing_catalog.py` (no try/except, no defensive `_HTTPX_AVAILABLE` flag — anthropic+openai already require httpx, so unavailability is impossible in any supported install)
+- New test `tests/unit/cli/test_no_httpx_outside_litellm_pricing.py` (clone `test_no_questionary_outside_menu.py`) ensures httpx not imported elsewhere — three-sink rule extension
+
+US-099
+Title: UX-spec §4.0 Picker mode — formalizes repo selection UI
+_Mapped to: .ai/ux-spec.md §4.0 | Sprint: S9 track C | Owner: technical-writer_
+Description: As UX specification, I document the three-source picker (Recent / Discover / Manual) flow and acceptance criteria.
+Acceptance Criteria:
+- Section added to UX-spec with source selector, drill-down per source, Back semantics, validation, empty states
+- Exact copy for empty states: "No recent runs found. Choose another source." etc.
+- Discovery scope: max_depth=1, skip list, .gitignore-aware, mtime sort DESC, cap 20
+- Cross-references to `cli/menu.py`, `cli/picker_sources.py`, `interfaces/pricing_catalog.py` as applicable
+
+US-100
+Title: PRD v0.1.3 bump — formalize v0.5.0 user stories (US-088..US-099)
+_Mapped to: .ai/prd.md | Sprint: S9 track C | Owner: technical-writer_
+Description: As documentation, I capture the complete v0.5.0 feature set in formalized user stories.
+Acceptance Criteria:
+- PRD version bumped 0.1.0 → 0.1.3-draft
+- US-088 through US-099 added with title, description, acceptance criteria
+- All FRs referenced (none new; US-088/090/091 are v0.5.0 realizations of v0.4.0+ pipeline)
+- CHANGELOG.md updated with `[0.5.0]` section (Added/Changed/Fixed)
+- README.md notes LiteLLM pricing auto-update + 24h cache fallback
+- Implementation-plan.md Sprint 9 marked DONE
+- CLAUDE.md ADR_INDEX includes ADR-0014
 
 ## 6. Success Metrics
 

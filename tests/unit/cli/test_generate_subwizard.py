@@ -88,7 +88,7 @@ def test_validate_repo_path_empty_string() -> None:
 
 
 def test_subwizard_repo_output_happy_path(git_repo: Path) -> None:
-    io = FakeMenuIO(responses=[str(git_repo), ""])
+    io = FakeMenuIO(responses=["Type path manually", str(git_repo), ""])
 
     result = _subwizard_repo_output(io)
 
@@ -99,7 +99,7 @@ def test_subwizard_repo_output_happy_path(git_repo: Path) -> None:
 
 def test_subwizard_repo_output_explicit_output(git_repo: Path, tmp_path: Path) -> None:
     out = tmp_path / "out" / "tutorial.html"
-    io = FakeMenuIO(responses=[str(git_repo), str(out)])
+    io = FakeMenuIO(responses=["Type path manually", str(git_repo), str(out)])
 
     result = _subwizard_repo_output(io)
 
@@ -111,8 +111,10 @@ def test_subwizard_repo_output_retry_on_invalid(git_repo: Path, tmp_path: Path) 
     """Invalid path → error printed → re-prompt (no advance) → valid path accepted."""
     io = FakeMenuIO(
         responses=[
-            str(tmp_path / "missing"),  # rejected
-            str(git_repo),  # accepted
+            "Type path manually",  # source selector, first pick attempt
+            str(tmp_path / "missing"),  # path prompt — rejected (invalid repo)
+            "Type path manually",  # source selector, second pick attempt
+            str(git_repo),  # path prompt — accepted
             "",  # output_path skipped
         ]
     )
@@ -130,7 +132,7 @@ def test_subwizard_repo_output_abort_on_repo(git_repo: Path) -> None:
 
 
 def test_subwizard_repo_output_abort_on_output(git_repo: Path) -> None:
-    io = FakeMenuIO(responses=[str(git_repo), None])
+    io = FakeMenuIO(responses=["Type path manually", str(git_repo), None])
 
     assert _subwizard_repo_output(io) is None
 
