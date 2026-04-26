@@ -26,7 +26,7 @@ _NOW = datetime(2026, 4, 20, 0, 0, 0, tzinfo=UTC)
 
 def _make_metadata(total_lessons: int = 1, **overrides: object) -> ManifestMetadata:
     return ManifestMetadata(
-        codeguide_version="0.0.3",
+        wiedunflow_version="0.0.3",
         total_lessons=total_lessons,
         generated_at=_NOW,
         has_readme=True,
@@ -60,13 +60,13 @@ def _make_spec(symbol: str = "mod.fn", lesson_id: str = "lesson-001") -> LessonS
 
 def test_manifest_metadata_constructs_successfully() -> None:
     meta = ManifestMetadata(
-        codeguide_version="0.0.3",
+        wiedunflow_version="0.0.3",
         total_lessons=3,
         generated_at=_NOW,
         has_readme=True,
     )
     assert meta.schema_version == "1.0.0"
-    assert meta.codeguide_version == "0.0.3"
+    assert meta.wiedunflow_version == "0.0.3"
     assert meta.total_lessons == 3
     assert meta.has_readme is True
     assert meta.doc_coverage is None
@@ -76,7 +76,7 @@ def test_manifest_metadata_schema_version_wrong_raises() -> None:
     with pytest.raises(ValidationError):
         ManifestMetadata(
             schema_version="2.0.0",  # type: ignore[arg-type]
-            codeguide_version="0.0.3",
+            wiedunflow_version="0.0.3",
             total_lessons=1,
             generated_at=_NOW,
         )

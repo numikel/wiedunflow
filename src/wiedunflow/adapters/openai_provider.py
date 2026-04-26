@@ -246,7 +246,7 @@ def _parse_plan_response(raw: str) -> LessonManifest:
     lessons: tuple[LessonSpec, ...] = tuple(LessonSpec.model_validate(spec) for spec in raw_lessons)
     metadata = ManifestMetadata(
         schema_version="1.0.0",
-        codeguide_version=__version__,
+        wiedunflow_version=__version__,
         total_lessons=len(lessons),
         generated_at=datetime.now(UTC),
         has_readme=True,
@@ -285,7 +285,7 @@ def _log_backoff(retry_state: RetryCallState) -> None:
     )
 
 
-_PLAN_SYSTEM_PROMPT = """You are CodeGuide, a tutorial planner. Given a ranked call-graph outline, produce a JSON lesson manifest.
+_PLAN_SYSTEM_PROMPT = """You are WiedunFlow, a tutorial planner. Given a ranked call-graph outline, produce a JSON lesson manifest.
 
 STRICT RULES:
 - Output ONLY JSON matching the schema (no prose, no markdown fences).
@@ -317,7 +317,7 @@ JSON SCHEMA:
 }"""
 
 
-_NARRATE_SYSTEM_PROMPT = """You are CodeGuide, a narrator writing a single tutorial lesson in Markdown.
+_NARRATE_SYSTEM_PROMPT = """You are WiedunFlow, a narrator writing a single tutorial lesson in Markdown.
 
 CONSTRAINTS:
 - Audience: mid-level Python developer.
@@ -372,7 +372,7 @@ speculative ones.
 - Return ONLY the markdown narrative (no JSON wrapper)."""
 
 
-_DESCRIBE_SYSTEM_PROMPT = """You are CodeGuide, producing concise leaf-symbol descriptions for a tutorial.
+_DESCRIBE_SYSTEM_PROMPT = """You are WiedunFlow, producing concise leaf-symbol descriptions for a tutorial.
 
 CONSTRAINTS:
 - Output plain markdown, 2-4 sentences, ~80 words max.

@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""CodeGuide configuration — loading, validation, and precedence chain.
+"""WiedunFlow configuration — loading, validation, and precedence chain.
 
 Precedence (highest to lowest):
   1. CLI flags (``cli_overrides``)
-  2. Environment variables (``CODEGUIDE_*``)
+  2. Environment variables (``WIEDUNFLOW_*``)
   3. ``--config <path>`` YAML
   4. ``./tutorial.config.yaml`` (cwd)
-  5. ``~/.config/codeguide/config.yaml`` (user-level)
+  5. ``~/.config/wiedunflow/config.yaml`` (user-level)
   6. Built-in defaults
 """
 
@@ -32,13 +32,13 @@ class ConfigError(Exception):
 
 def user_config_path() -> Path:
     """Return the platform-appropriate user-level config path."""
-    return Path(platformdirs.user_config_dir("codeguide")) / "config.yaml"
+    return Path(platformdirs.user_config_dir("wiedunflow")) / "config.yaml"
 
 
-class CodeguideConfig(BaseSettings):
-    """Validated configuration model for a CodeGuide run.
+class WiedunflowConfig(BaseSettings):
+    """Validated configuration model for a WiedunFlow run.
 
-    All ``CODEGUIDE_*`` environment variables are picked up automatically by
+    All ``WIEDUNFLOW_*`` environment variables are picked up automatically by
     Pydantic BaseSettings.  Nested YAML keys (``llm.provider``) are flattened
     to ``llm_provider`` etc. before being passed as init kwargs.
 
@@ -87,7 +87,7 @@ class CodeguideConfig(BaseSettings):
     narration_snippet_validation: bool = True
 
     model_config = SettingsConfigDict(
-        env_prefix="CODEGUIDE_",
+        env_prefix="WIEDUNFLOW_",
         env_nested_delimiter="__",
         extra="ignore",
     )
@@ -97,8 +97,8 @@ def load_config(
     *,
     cli_overrides: dict[str, Any] | None = None,
     cli_config_path: Path | None = None,
-) -> CodeguideConfig:
-    """Build a validated ``CodeguideConfig`` applying the full precedence chain.
+) -> WiedunflowConfig:
+    """Build a validated ``WiedunflowConfig`` applying the full precedence chain.
 
     Args:
         cli_overrides: Values from CLI flags (``None`` values are filtered out
@@ -107,7 +107,7 @@ def load_config(
             YAML, before CLI overrides.
 
     Returns:
-        A fully-resolved and validated ``CodeguideConfig``.
+        A fully-resolved and validated ``WiedunflowConfig``.
     """
     # Filter out None values — they represent "not supplied" CLI flags.
     clean_overrides: dict[str, Any] = {
@@ -131,14 +131,14 @@ def load_config(
     # supplied as an init kwarg.  Strip YAML entries that have a corresponding
     # env var set (unless the CLI also overrides that field — CLI always wins).
     for field_name in list(merged_yaml.keys()):
-        env_name = f"CODEGUIDE_{field_name.upper()}"
+        env_name = f"WIEDUNFLOW_{field_name.upper()}"
         if env_name in os.environ and field_name not in clean_overrides:
             merged_yaml.pop(field_name)
 
     # Build init kwargs: YAML (already env-stripped) + CLI (dominates).
     init_kwargs: dict[str, Any] = {**merged_yaml, **clean_overrides}
 
-    config = CodeguideConfig(**init_kwargs)
+    config = WiedunflowConfig(**init_kwargs)
 
     # US-003: emit DEBUG log for key resolved config fields with their source.
     _log_resolved_config(config, clean_overrides, merged_yaml)
@@ -147,7 +147,7 @@ def load_config(
 
 
 def _log_resolved_config(
-    config: CodeguideConfig,
+    config: WiedunflowConfig,
     cli_overrides: dict[str, Any],
     yaml_values: dict[str, Any],
 ) -> None:
@@ -156,7 +156,7 @@ def _log_resolved_config(
     for field in key_fields:
         if field in cli_overrides:
             source = "cli"
-        elif f"CODEGUIDE_{field.upper()}" in os.environ:
+        elif f"WIEDUNFLOW_{field.upper()}" in os.environ:
             source = "env"
         elif field in yaml_values:
             source = "yaml"
@@ -284,7 +284,7 @@ def _load_yaml_flat(path: Path) -> dict[str, Any]:
     return flat
 
 
-def resolve_api_key(config: CodeguideConfig) -> str:
+def resolve_api_key(config: WiedunflowConfig) -> str:
     """Extract and return the plain API key for the configured provider.
 
     Resolution order per provider:
@@ -296,7 +296,7 @@ def resolve_api_key(config: CodeguideConfig) -> str:
       placeholder (OSS endpoints typically ignore the api_key).
 
     Args:
-        config: Resolved ``CodeguideConfig``.
+        config: Resolved ``WiedunflowConfig``.
 
     Returns:
         The plain-text API key string (may be ``"not-needed"`` for local endpoints).
@@ -331,7 +331,7 @@ def _require_env(env_var: str, provider: str) -> str:
     return key
 
 
-def _resolve_custom_key(config: CodeguideConfig) -> str:
+def _resolve_custom_key(config: WiedunflowConfig) -> str:
     """Resolve API key for the ``custom`` provider (Ollama / LM Studio / vLLM).
 
     Reads the env var named by ``config.llm_api_key_env`` when set; falls back

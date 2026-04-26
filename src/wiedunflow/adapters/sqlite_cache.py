@@ -93,11 +93,11 @@ def _default_db_path() -> Path:
     """Return the default SQLite database path for the current platform.
 
     Delegates to :func:`platformdirs.user_cache_path` which resolves to:
-    - Linux:   ``~/.cache/codeguide/cache.db``
-    - Windows: ``%LOCALAPPDATA%\\codeguide\\Cache\\cache.db``
-    - macOS:   ``~/Library/Caches/codeguide/cache.db``
+    - Linux:   ``~/.cache/wiedunflow/cache.db``
+    - Windows: ``%LOCALAPPDATA%\wiedunflow\Cache\\cache.db``
+    - macOS:   ``~/Library/Caches/wiedunflow/cache.db``
     """
-    base: Path = platformdirs.user_cache_path("codeguide", appauthor=False, ensure_exists=True)
+    base: Path = platformdirs.user_cache_path("wiedunflow", appauthor=False, ensure_exists=True)
     return base / "cache.db"
 
 

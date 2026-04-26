@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""RunReport entity — structured record of a codeguide run emitted as run-report.json.
+"""RunReport entity — structured record of a wiedun-flow run emitted as run-report.json.
 
 Produced at the end of every invocation (successful, degraded, failed, or
-interrupted) and written atomically to ``.codeguide/run-report.json`` by
+interrupted) and written atomically to ``.wiedunflow/run-report.json`` by
 :mod:`wiedunflow.cli.run_report_writer`.
 
 Acceptance criteria covered:
@@ -23,9 +23,9 @@ RunStatus = Literal["ok", "degraded", "failed", "interrupted"]
 
 
 class RunReport(BaseModel):
-    """Structured record of a single ``codeguide`` invocation.
+    """Structured record of a single ``wiedun-flow`` invocation.
 
-    Serialised to ``.codeguide/run-report.json`` via the v1 schema.  The schema
+    Serialised to ``.wiedunflow/run-report.json`` via the v1 schema.  The schema
     version is pinned so downstream tooling can evolve without breaking old
     reports.
 

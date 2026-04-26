@@ -126,8 +126,8 @@ class Bm25Store:
     Example::
 
         store = Bm25Store()
-        store.index([("readme", "Install with pip install codeguide")])
-        results = store.search("install codeguide", k=3)
+        store.index([("readme", "Install with pip install wiedunflow")])
+        results = store.search("install wiedunflow", k=3)
         # [("readme", 0.832...)]
     """
 

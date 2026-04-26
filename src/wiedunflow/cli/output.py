@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Rich-based user-facing output sink for the CodeGuide CLI (Sprint 5, decision #6).
+"""Rich-based user-facing output sink for the WiedunFlow CLI (Sprint 5, decision #6).
 
 Two-sinks architecture:
 - ``output.py`` (this module) renders user-facing UI: cost gate, stage headers,
@@ -45,7 +45,7 @@ _COLOR_ROLES: dict[str, Style] = {
 
 
 def make_theme() -> Theme:
-    """Return the Rich Theme with all 8 CodeGuide color roles (US-074)."""
+    """Return the Rich Theme with all 8 WiedunFlow color roles (US-074)."""
     return Theme({name: style for name, style in _COLOR_ROLES.items()})
 
 
@@ -322,14 +322,14 @@ def render_stage_done(console: Console, *, summary: str) -> None:
 
 
 def render_banner(console: Console, *, version: str) -> None:
-    """Print the CodeGuide startup banner (US-086, Sprint 8 gap-fill).
+    """Print the WiedunFlow startup banner (US-086, Sprint 8 gap-fill).
 
     UX-spec §4.1 was silent on a startup banner — this function fills the gap
     with a minimal accent-toned identification line shown before preflight.
     Mirrors the ``claude`` CLI startup feel without external assets.
     """
     console.print()
-    console.print(f"[accent]CodeGuide[/accent] [dim]v{version}[/dim]")
+    console.print(f"[accent]WiedunFlow[/accent] [dim]v{version}[/dim]")
     console.print("[dim]offline-friendly tutorial generator from local Git repos[/dim]")
     console.print()
 

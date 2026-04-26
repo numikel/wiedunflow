@@ -4,7 +4,7 @@
 
 Consent is persisted per-provider via the :class:`~wiedunflow.interfaces.consent_store.ConsentStore`
 port.  The default adapter is :class:`~wiedunflow.adapters.yaml_consent_store.YamlConsentStore`
-which writes to ``<user_config_dir>/codeguide/consent.yaml`` with ``0o600`` permissions.
+which writes to ``<user_config_dir>/wiedunflow/consent.yaml`` with ``0o600`` permissions.
 
 The session-scoped in-memory ``_granted`` set is kept for backward compatibility:
 tests that call :func:`_reset_for_tests` still work.  After a successful grant
@@ -84,7 +84,7 @@ def _default_store() -> ConsentStore:
 
     from wiedunflow.adapters.yaml_consent_store import YamlConsentStore  # noqa: PLC0415
 
-    consent_path = Path(platformdirs.user_config_dir("codeguide")) / "consent.yaml"
+    consent_path = Path(platformdirs.user_config_dir("wiedunflow")) / "consent.yaml"
     return YamlConsentStore(path=consent_path)
 
 
@@ -153,9 +153,9 @@ def _print_banner(provider: str) -> None:
     click.echo(f"  Your source code will be sent to {provider}.")
     click.echo("=" * 60)
     click.echo("")
-    click.echo("  - CodeGuide reads your local repository and sends")
+    click.echo("  - WiedunFlow reads your local repository and sends")
     click.echo(f"    excerpts to the {provider} LLM API for analysis.")
-    click.echo("  - No telemetry or analytics is collected by CodeGuide.")
+    click.echo("  - No telemetry or analytics is collected by WiedunFlow.")
     click.echo(f"  - Review the provider's data policy: {_provider_policy_url(provider)}")
     click.echo("  - Bypass in future runs with --no-consent-prompt or --yes.")
     click.echo("")

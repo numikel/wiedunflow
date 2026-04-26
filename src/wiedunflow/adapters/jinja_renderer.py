@@ -3,7 +3,7 @@
 """Jinja2-backed HTML renderer for the Sprint 5 pixel-perfect tutorial template.
 
 Output contract (ADR-0009 schema v1.0.0):
-  #tutorial-meta      -> {repo, sha, branch, generated_at, codeguide_version,
+  #tutorial-meta      -> {repo, sha, branch, generated_at, wiedunflow_version,
                           run_status, total_lessons, skipped_count}
   #tutorial-clusters  -> [{id, label, kicker?, description?}]
   #tutorial-lessons   -> [{id, cluster_id, title, confidence, status,
@@ -21,14 +21,14 @@ from typing import TYPE_CHECKING, Any
 import mistune
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from wiedunflow import __version__ as _codeguide_version
+from wiedunflow import __version__ as _wiedunflow_version
 from wiedunflow.adapters.pygments_highlighter import highlight_python
 
 
 class _OfflineHTMLRenderer(mistune.HTMLRenderer):
     """Markdown HTML renderer that preserves the ``file://`` offline invariant.
 
-    CodeGuide tutorials must not contain any external URLs (FR-14 / US-040).
+    WiedunFlow tutorials must not contain any external URLs (FR-14 / US-040).
     Opus narration occasionally cites external docs as markdown links; rendering
     them as ``<a href="https://...">`` trips ``validate_offline_invariant``.
     We strip the href and emit the link text only. Images are dropped entirely
@@ -250,7 +250,7 @@ def _build_meta(
 ) -> dict[str, Any]:
     return {
         "schema_version": "1.0.0",
-        "codeguide_version": _codeguide_version,
+        "wiedunflow_version": _wiedunflow_version,
         "repo": repo_name,
         "sha": lesson_plan.repo_commit_hash,
         "branch": lesson_plan.repo_branch,
@@ -312,7 +312,7 @@ class JinjaRenderer:
         lesson_plan: LessonPlan,
         *,
         repo_name: str,
-        codeguide_version: str | None = None,
+        wiedunflow_version: str | None = None,
         generated_at: str,
         doc_coverage: DocCoverage | None = None,
         has_readme: bool = True,
@@ -328,7 +328,7 @@ class JinjaRenderer:
         Args:
             lesson_plan: Ordered collection of lessons to embed.
             repo_name: Human-readable repository name.
-            codeguide_version: Package version string (defaults to :mod:`wiedunflow.__version__`).
+            wiedunflow_version: Package version string (defaults to :mod:`wiedunflow.__version__`).
             generated_at: ISO-8601 timestamp string.
             doc_coverage: Optional resolver coverage metrics (footer badge).
             has_readme: False triggers info banner about missing README.
@@ -340,7 +340,7 @@ class JinjaRenderer:
         """
         template = self._env.get_template("tutorial.html.j2")
         run_status = "degraded" if degraded else "ok"
-        version = codeguide_version or _codeguide_version
+        version = wiedunflow_version or _wiedunflow_version
 
         symbol_lookup = {s.name: s for s in symbols} if symbols else None
         lessons_payload = [
@@ -363,7 +363,7 @@ class JinjaRenderer:
                 repo_name=repo_name,
                 repo_branch=lesson_plan.repo_branch,
                 repo_commit_hash=lesson_plan.repo_commit_hash,
-                codeguide_version=version,
+                wiedunflow_version=version,
                 generated_at=generated_at,
                 doc_coverage=doc_coverage,
                 has_readme=has_readme,

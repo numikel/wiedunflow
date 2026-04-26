@@ -25,7 +25,7 @@ def _make_manifest(*lesson_ids: str) -> LessonManifest:
         for lid in lesson_ids
     )
     metadata = ManifestMetadata(
-        codeguide_version="0.0.4",
+        wiedunflow_version="0.0.4",
         total_lessons=len(specs),
         generated_at=datetime.now(UTC),
     )

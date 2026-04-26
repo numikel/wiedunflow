@@ -61,12 +61,12 @@ def test_tutorial_html_has_three_json_payloads(tutorial_html: Path) -> None:
 
 
 def test_tutorial_html_has_schema_version(tutorial_html: Path) -> None:
-    """US-048: meta payload carries schema_version and codeguide_version."""
+    """US-048: meta payload carries schema_version and wiedunflow_version."""
     meta = _extract_json(tutorial_html.read_text(encoding="utf-8"), "tutorial-meta")
     assert isinstance(meta, dict)
     assert meta["schema_version"] == "1.0.0"
-    assert "codeguide_version" in meta
-    assert meta["codeguide_version"]
+    assert "wiedunflow_version" in meta
+    assert meta["wiedunflow_version"]
 
 
 def test_tutorial_html_has_topbar_and_footer(tutorial_html: Path) -> None:

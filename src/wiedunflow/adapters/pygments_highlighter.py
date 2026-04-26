@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Pygments-based syntax highlighting with CodeGuide `.tok-*` CSS classes.
+"""Pygments-based syntax highlighting with WiedunFlow `.tok-*` CSS classes.
 
 Decision #4 (Sprint 5 plan): custom `HtmlFormatter` subclass maps Pygments
 token types to `.tok-kw/.tok-str/.tok-com/.tok-fn/.tok-cls/.tok-num` CSS classes
@@ -38,8 +38,8 @@ _TOKEN_TO_CLASS: tuple[tuple[object, str], ...] = (
 )
 
 
-class CodeGuideHtmlFormatter(HtmlFormatter):  # type: ignore[misc]
-    """Maps Pygments TokenType to CodeGuide-specific `.tok-*` CSS classes."""
+class WiedunFlowHtmlFormatter(HtmlFormatter):  # type: ignore[misc]
+    """Maps Pygments TokenType to WiedunFlow-specific `.tok-*` CSS classes."""
 
     def _get_css_class(self, ttype: object) -> str:
         for token_type, css_class in _TOKEN_TO_CLASS:
@@ -62,5 +62,5 @@ def highlight_python(code: str) -> str:
         ``nowrap=True`` flag omits the surrounding ``<div>``/``<pre>`` wrapper
         so callers can embed the output inside their own container elements.
     """
-    formatter = CodeGuideHtmlFormatter(nowrap=True, noclasses=False)
+    formatter = WiedunFlowHtmlFormatter(nowrap=True, noclasses=False)
     return str(highlight(code, PythonLexer(), formatter))

@@ -59,7 +59,7 @@ def click_repo_path() -> Path:
 
 
 def test_s3_click_baseline(tmp_path: Path, click_repo_path: Path) -> None:
-    """Run the full CodeGuide pipeline on click with a real Anthropic key."""
+    """Run the full WiedunFlow pipeline on click with a real Anthropic key."""
     if "ANTHROPIC_API_KEY" not in os.environ:
         pytest.skip("ANTHROPIC_API_KEY not set — eval tests require a real API key")
 
@@ -69,13 +69,13 @@ def test_s3_click_baseline(tmp_path: Path, click_repo_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "codeguide",
+            "wiedun-flow",
             "generate",
             str(click_repo_path),
             "--yes",
             "--no-consent-prompt",
         ],
-        cwd=tmp_path,  # codeguide writes tutorial.html into cwd (no --output flag)
+        cwd=tmp_path,  # wiedun-flow writes tutorial.html into cwd (no --output flag)
         env={**os.environ},
         capture_output=True,
         text=True,

@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: Apache-2.0
  * Copyright 2026 Michał Kamiński
  *
- * CodeGuide tutorial.html vanilla JS navigation (Sprint 5 track C).
+ * WiedunFlow tutorial.html vanilla JS navigation (Sprint 5 track C).
  * Inlined into tutorial.html.j2 via {% include %} — no external script tags.
- * Namespace: window.CodeGuide (contract anchored by ADR-0009).
+ * Namespace: window.WiedunFlow (contract anchored by ADR-0009).
  */
 
 (function () {
@@ -13,19 +13,19 @@
   var SCHEMA_VERSION_SUPPORTED = "1.0.0";
   var BREAKPOINT_PX = 1024;
 
-  var CodeGuide = (window.CodeGuide = window.CodeGuide || {});
-  CodeGuide._errors = [];
+  var WiedunFlow = (window.WiedunFlow = window.WiedunFlow || {});
+  WiedunFlow._errors = [];
 
   function safeJSON(id) {
     var el = document.getElementById(id);
     if (!el) {
-      CodeGuide._errors.push("missing-" + id);
+      WiedunFlow._errors.push("missing-" + id);
       return null;
     }
     try {
       return JSON.parse(el.textContent || "null");
     } catch (e) {
-      CodeGuide._errors.push("parse-" + id);
+      WiedunFlow._errors.push("parse-" + id);
       return null;
     }
   }
@@ -47,7 +47,7 @@
     var v = meta.schema_version;
     if (v && v !== SCHEMA_VERSION_SUPPORTED) {
       try {
-        console.warn("CodeGuide: unknown schema_version '" + v + "', supported: " + SCHEMA_VERSION_SUPPORTED);
+        console.warn("WiedunFlow: unknown schema_version '" + v + "', supported: " + SCHEMA_VERSION_SUPPORTED);
       } catch (e) { /* no console */ }
     }
   }
@@ -307,7 +307,7 @@
     options = options || {};
     var idx = indexOfLesson(lessons, id);
     if (idx < 0) {
-      try { console.warn("CodeGuide: unknown lesson id '" + id + "', falling back to first"); } catch (e) { /* noop */ }
+      try { console.warn("WiedunFlow: unknown lesson id '" + id + "', falling back to first"); } catch (e) { /* noop */ }
       id = lessons[0].id; idx = 0;
     }
     // v0.3.0 — any intentional navigation (Next/Prev buttons, sidebar click,
@@ -315,8 +315,8 @@
     // visited. Skipped for hash routing (URL paste / first load) and no-op
     // re-navigations to the same lesson so we don't paint freshly-opened
     // bookmarks as already-read.
-    if (!options.fromHash && CodeGuide._activeId && CodeGuide._activeId !== id) {
-      markVisited(repoId, CodeGuide._activeId);
+    if (!options.fromHash && WiedunFlow._activeId && WiedunFlow._activeId !== id) {
+      markVisited(repoId, WiedunFlow._activeId);
     }
     var lesson = lessons[idx];
     applyLayout(lesson);
@@ -333,8 +333,8 @@
     if (narrationParent) { narrationParent.scrollTop = 0; }
     scrollHighlightIntoView();
     if (!options.fromHash) { location.hash = "#/lesson/" + id; }
-    writeStorage("codeguide:" + repoId + ":last-lesson", id);
-    CodeGuide._activeIndex = idx; CodeGuide._activeId = id;
+    writeStorage("wiedunflow:" + repoId + ":last-lesson", id);
+    WiedunFlow._activeIndex = idx; WiedunFlow._activeId = id;
     // B6: schedule visited after 5s of dwell (reading signal)
     scheduleVisited(repoId, id);
   }
@@ -344,17 +344,17 @@
     var next = document.getElementById("tutorial-next");
     if (prev) {
       prev.addEventListener("click", function () {
-        if (CodeGuide._activeIndex > 0) {
-          navigateTo(lessons, repoId, lessonIdFromIndex(lessons, CodeGuide._activeIndex - 1), {});
+        if (WiedunFlow._activeIndex > 0) {
+          navigateTo(lessons, repoId, lessonIdFromIndex(lessons, WiedunFlow._activeIndex - 1), {});
         }
       });
     }
     if (next) {
       next.addEventListener("click", function () {
-        if (CodeGuide._activeIndex < lessons.length - 1) {
+        if (WiedunFlow._activeIndex < lessons.length - 1) {
           // B6: intentional Next click = mark current lesson visited immediately
-          if (CodeGuide._activeId) { markVisited(repoId, CodeGuide._activeId); }
-          navigateTo(lessons, repoId, lessonIdFromIndex(lessons, CodeGuide._activeIndex + 1), {});
+          if (WiedunFlow._activeId) { markVisited(repoId, WiedunFlow._activeId); }
+          navigateTo(lessons, repoId, lessonIdFromIndex(lessons, WiedunFlow._activeIndex + 1), {});
         }
       });
     }
@@ -399,10 +399,10 @@
     document.addEventListener("keydown", function (e) {
       var el = document.activeElement;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) { return; }
-      if (e.key === "ArrowLeft" && CodeGuide._activeIndex > 0) {
-        navigateTo(lessons, repoId, lessonIdFromIndex(lessons, CodeGuide._activeIndex - 1), {});
-      } else if (e.key === "ArrowRight" && CodeGuide._activeIndex < lessons.length - 1) {
-        navigateTo(lessons, repoId, lessonIdFromIndex(lessons, CodeGuide._activeIndex + 1), {});
+      if (e.key === "ArrowLeft" && WiedunFlow._activeIndex > 0) {
+        navigateTo(lessons, repoId, lessonIdFromIndex(lessons, WiedunFlow._activeIndex - 1), {});
+      } else if (e.key === "ArrowRight" && WiedunFlow._activeIndex < lessons.length - 1) {
+        navigateTo(lessons, repoId, lessonIdFromIndex(lessons, WiedunFlow._activeIndex + 1), {});
       }
     });
   }
@@ -437,7 +437,7 @@
       content.style.gridTemplateColumns = (clamped * 100).toFixed(2) + "% 10px " + ((1 - clamped) * 100).toFixed(2) + "%";
     }
 
-    var saved = parseFloat(readStorage("codeguide:tweak:narr-frac:v2", "0.5"));
+    var saved = parseFloat(readStorage("wiedunflow:tweak:narr-frac:v2", "0.5"));
     applyFrac(isNaN(saved) ? 0.5 : saved);
 
     var dragging = false;
@@ -458,7 +458,7 @@
       try { splitter.releasePointerCapture(e.pointerId); } catch (err) { /* noop */ }
       var style = content.style.gridTemplateColumns || "";
       var m = style.match(/^([\d.]+)%/);
-      if (m) { writeStorage("codeguide:tweak:narr-frac:v2", String(parseFloat(m[1]) / 100)); }
+      if (m) { writeStorage("wiedunflow:tweak:narr-frac:v2", String(parseFloat(m[1]) / 100)); }
     });
   }
 
@@ -514,7 +514,7 @@
   }
 
   function _activeRepoId() {
-    var meta = window.CodeGuide && window.CodeGuide._meta;
+    var meta = window.WiedunFlow && window.WiedunFlow._meta;
     return (meta && meta.repo) ? meta.repo : "default";
   }
 
@@ -569,7 +569,7 @@
     themeBtns.forEach(function (btn) {
       btn.addEventListener("click", function () {
         var t = btn.getAttribute("data-theme-set") || "light";
-        applyTheme(t); writeStorage("codeguide:tweak:theme:v2", t);
+        applyTheme(t); writeStorage("wiedunflow:tweak:theme:v2", t);
         setSegOn(panel, "data-theme-set", t);
       });
     });
@@ -579,7 +579,7 @@
     fontBtns.forEach(function (btn) {
       btn.addEventListener("click", function () {
         var s = btn.getAttribute("data-font-size-set") || "md";
-        applyFontSize(s); writeStorage("codeguide:tweak:font-size:v1", s);
+        applyFontSize(s); writeStorage("wiedunflow:tweak:font-size:v1", s);
         setSegOn(panel, "data-font-size-set", s);
       });
     });
@@ -592,7 +592,7 @@
           var app = document.getElementById("tutorial-app");
           var nowHidden = !(app && app.classList.contains("toc-hidden"));
           applyTocHidden(nowHidden);
-          writeStorage("codeguide:tweak:toc-hidden:v1", nowHidden ? "1" : "0");
+          writeStorage("wiedunflow:tweak:toc-hidden:v1", nowHidden ? "1" : "0");
           btn.textContent = nowHidden ? "Show TOC sidebar" : "Hide TOC sidebar";
           btn.classList.toggle("on", nowHidden);
         } else if (action === "reset-visited") {
@@ -659,8 +659,8 @@
       if (e.ctrlKey || e.metaKey || e.altKey) { return; }
 
       var key = e.key;
-      var idx = (window.CodeGuide && typeof CodeGuide._activeIndex === "number")
-        ? CodeGuide._activeIndex : 0;
+      var idx = (window.WiedunFlow && typeof WiedunFlow._activeIndex === "number")
+        ? WiedunFlow._activeIndex : 0;
 
       if (key === "j" || key === "ArrowDown") {
         if (idx < lessons.length - 1) {
@@ -691,15 +691,15 @@
 
   function _initTweaksFromStorage(panel) {
     if (!panel) { return; }
-    var savedTheme = readStorage("codeguide:tweak:theme:v2", "light");
+    var savedTheme = readStorage("wiedunflow:tweak:theme:v2", "light");
     applyTheme(savedTheme);
     setSegOn(panel, "data-theme-set", savedTheme);
 
-    var savedSize = readStorage("codeguide:tweak:font-size:v1", "md");
+    var savedSize = readStorage("wiedunflow:tweak:font-size:v1", "md");
     applyFontSize(savedSize);
     setSegOn(panel, "data-font-size-set", savedSize);
 
-    var savedTocHidden = readStorage("codeguide:tweak:toc-hidden:v1", "0") === "1";
+    var savedTocHidden = readStorage("wiedunflow:tweak:toc-hidden:v1", "0") === "1";
     applyTocHidden(savedTocHidden);
     var tocBtn = panel.querySelector('[data-action="toggle-toc"]');
     if (tocBtn) {
@@ -712,13 +712,13 @@
   // A lesson is marked visited either:
   //   (a) 5 seconds after navigation (reading signal), or
   //   (b) immediately when the user explicitly clicks Next/TOC link.
-  // State persisted to localStorage under "codeguide:<repoId>:visited-lessons:v1".
+  // State persisted to localStorage under "wiedunflow:<repoId>:visited-lessons:v1".
 
   var VISITED_TIMEOUT_MS = 5000;
   var _visitedTimer = null;
 
   function visitedKey(repoId) {
-    return "codeguide:" + repoId + ":visited-lessons:v1";
+    return "wiedunflow:" + repoId + ":visited-lessons:v1";
   }
 
   function readVisited(repoId) {
@@ -761,11 +761,11 @@
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  CodeGuide.init = function () {
+  WiedunFlow.init = function () {
     var meta = safeJSON("tutorial-meta");
     var clusters = safeJSON("tutorial-clusters") || [];
     var lessons = safeJSON("tutorial-lessons") || [];
-    CodeGuide._meta = meta; CodeGuide._clusters = clusters; CodeGuide._lessons = lessons;
+    WiedunFlow._meta = meta; WiedunFlow._clusters = clusters; WiedunFlow._lessons = lessons;
     if (!lessons.length) { return; }
 
     validateSchema(meta);
@@ -783,7 +783,7 @@
     _initTweaksFromStorage(document.getElementById("tweaks-panel"));
     initGlobalShortcuts(lessons, repoId);
 
-    var startId = activeLessonId() || readStorage("codeguide:" + repoId + ":last-lesson", lessons[0].id);
+    var startId = activeLessonId() || readStorage("wiedunflow:" + repoId + ":last-lesson", lessons[0].id);
     navigateTo(lessons, repoId, startId || lessons[0].id, { fromHash: !!activeLessonId() });
   };
 })();

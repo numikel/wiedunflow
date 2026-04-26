@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Interactive first-run wizard for ``codeguide init`` (US-002 / US-003).
+"""Interactive first-run wizard for ``wiedun-flow init`` (US-002 / US-003).
 
 Guides the user through setting up a user-level ``config.yaml`` with LLM
 provider credentials.  All prompts can be bypassed by passing the

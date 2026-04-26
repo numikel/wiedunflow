@@ -69,7 +69,7 @@ def test_planning_integration_schema_version_in_output(planning_tutorial_html: P
     assert "1.0.0" in html, "schema_version 1.0.0 not found in tutorial HTML"
 
 
-def test_planning_integration_codeguide_version_in_output(planning_tutorial_html: Path) -> None:
-    """The footer must carry the current codeguide_version."""
+def test_planning_integration_wiedunflow_version_in_output(planning_tutorial_html: Path) -> None:
+    """The footer must carry the current wiedunflow_version."""
     html = planning_tutorial_html.read_text(encoding="utf-8")
-    assert __version__ in html, f"codeguide_version {__version__} not found in tutorial HTML"
+    assert __version__ in html, f"wiedunflow_version {__version__} not found in tutorial HTML"

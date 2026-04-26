@@ -24,10 +24,10 @@ def _capture() -> tuple[Console, io.StringIO]:
     return console, buffer
 
 
-def test_banner_includes_codeguide_name() -> None:
+def test_banner_includes_wiedunflow_name() -> None:
     console, buffer = _capture()
     render_banner(console, version="0.2.0")
-    assert "CodeGuide" in buffer.getvalue()
+    assert "WiedunFlow" in buffer.getvalue()
 
 
 def test_banner_includes_version() -> None:

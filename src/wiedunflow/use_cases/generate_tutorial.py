@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import structlog
 from pydantic import BaseModel, ConfigDict
 
-from wiedunflow import __version__ as _codeguide_version
+from wiedunflow import __version__ as _wiedunflow_version
 from wiedunflow.adapters.jinja_renderer import JinjaRenderer, _markdown_to_html
 from wiedunflow.adapters.pygments_highlighter import highlight_python as _highlight_python
 from wiedunflow.cli.cost_estimator import CostEstimate
@@ -176,7 +176,7 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     max_cost_usd: float | None = None,
     progress: StageReporter | NoOpReporter | None = None,
     cost_gate_callback: Callable[[CostEstimate], bool] | None = None,
-    # v0.2.1 quality controls (passed through from CodeguideConfig):
+    # v0.2.1 quality controls (passed through from WiedunflowConfig):
     planning_entry_point_first: str = "auto",
     planning_skip_trivial_helpers: bool = False,
     narration_min_words_trivial: int = 50,
@@ -184,12 +184,13 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     # ADR-0013 follow-up: pricing catalog for cost gate accuracy.
     pricing_catalog: object | None = None,
 ) -> GenerationResult:
-    """Run the 7-stage pipeline and write tutorial.html.
+    """Run the 7-stage pipeline and write the tutorial HTML.
 
     Args:
         repo_path: Absolute path to the Git repository root.
         providers: Port implementations to use (stubs in S1, real in S2+).
-        output_path: Destination file; defaults to cwd / 'tutorial.html'.
+        output_path: Destination file; defaults to ``cwd / wiedunflow-<repo>.html``
+            (the repo directory name is used as the slug).
         excludes: Additional gitignore-style patterns to exclude (additive
             over ``.gitignore``).  Threaded through to the ingestion stage.
         includes: Patterns to un-ignore despite ``.gitignore`` or *excludes*.
@@ -225,13 +226,13 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
         KeyboardInterrupt: When ``should_abort`` returns ``True`` between
             stages (graceful SIGINT — US-027).
     """
+    repo_name = repo_path.name
+
     if output_path is None:
-        output_path = Path("tutorial.html").resolve()
+        output_path = Path(f"wiedunflow-{repo_name}.html").resolve()
 
     if progress is None:
         progress = NoOpReporter()
-
-    repo_name = repo_path.name
 
     def _check_abort() -> None:
         if should_abort is not None and should_abort():
@@ -315,7 +316,7 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
         update={
             "metadata": ManifestMetadata(
                 schema_version="1.0.0",
-                codeguide_version=_codeguide_version,
+                wiedunflow_version=_wiedunflow_version,
                 total_lessons=len(manifest.lessons),
                 generated_at=now,
                 has_readme=ingestion.has_readme,
@@ -377,7 +378,7 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
             lessons=len(manifest.lessons),
         )
 
-    # --review-plan (US-016): write the manifest to .codeguide/manifest.json and
+    # --review-plan (US-016): write the manifest to .wiedunflow/manifest.json and
     # open it in the resolved editor.  On save, re-validate; an invalid manifest
     # falls back to the original planner output.
     if review_plan:
@@ -646,12 +647,12 @@ def _build_preview_lessons(manifest: LessonManifest) -> list[Lesson]:
 def _review_plan_interactive(manifest: LessonManifest, repo_path: Path) -> LessonManifest:
     """Open the manifest in ``$EDITOR`` for manual review (US-016).
 
-    Writes ``<repo>/.codeguide/manifest.edited.json`` so edits survive across
+    Writes ``<repo>/.wiedunflow/manifest.edited.json`` so edits survive across
     runs and can be diffed. On save, the file is validated back into a
     ``LessonManifest``; an invalid edit falls back to the original with a
     structured warning so the run continues rather than hard-failing.
     """
-    edit_dir = repo_path / ".codeguide"
+    edit_dir = repo_path / ".wiedunflow"
     edit_dir.mkdir(parents=True, exist_ok=True)
     edit_path = edit_dir / "manifest.edited.json"
     edit_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
@@ -911,7 +912,7 @@ def _stage_build(
     html = renderer.render(
         lesson_plan=lesson_plan,
         repo_name=repo_name,
-        codeguide_version=_codeguide_version,
+        wiedunflow_version=_wiedunflow_version,
         generated_at=generated_at,
         doc_coverage=doc_coverage,
         has_readme=has_readme,

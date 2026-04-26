@@ -3,7 +3,7 @@
 """Integration tests for US-004 config precedence chain.
 
 Each test plants a *conflicting* lower-priority source and asserts the
-higher-priority source wins. The resolved ``CodeguideConfig.llm_provider``
+higher-priority source wins. The resolved ``WiedunflowConfig.llm_provider``
 is the probe variable because every layer can carry it.
 
 Boundary map
@@ -44,10 +44,10 @@ def _write_yaml(path: Path, provider: str) -> None:
     path.write_text(yaml.safe_dump({"llm": {"provider": provider}}), encoding="utf-8")
 
 
-def _clean_codeguide_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Remove all ``CODEGUIDE_*`` env vars so they cannot leak between tests."""
+def _clean_wiedunflow_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove all ``WIEDUNFLOW_*`` env vars so they cannot leak between tests."""
     for var in list(os.environ):
-        if var.startswith("CODEGUIDE_"):
+        if var.startswith("WIEDUNFLOW_"):
             monkeypatch.delenv(var, raising=False)
 
 
@@ -61,9 +61,9 @@ class TestConfigPrecedenceChain:
     """US-004 AC2: every precedence boundary verified with conflicting values."""
 
     def test_cli_flag_overrides_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Boundary 1: CLI > env — CLI wins even when CODEGUIDE_LLM_PROVIDER is set."""
-        _clean_codeguide_env(monkeypatch)
-        monkeypatch.setenv("CODEGUIDE_LLM_PROVIDER", "openai")  # would lose
+        """Boundary 1: CLI > env — CLI wins even when WIEDUNFLOW_LLM_PROVIDER is set."""
+        _clean_wiedunflow_env(monkeypatch)
+        monkeypatch.setenv("WIEDUNFLOW_LLM_PROVIDER", "openai")  # would lose
         monkeypatch.chdir(tmp_path)  # no project config in tmp_path
 
         # Patch user_config_path to point at a non-existent file
@@ -73,14 +73,14 @@ class TestConfigPrecedenceChain:
 
         cfg = load_config(cli_overrides={"llm_provider": "anthropic"})
 
-        assert cfg.llm_provider == "anthropic", "CLI flag must override env CODEGUIDE_LLM_PROVIDER"
+        assert cfg.llm_provider == "anthropic", "CLI flag must override env WIEDUNFLOW_LLM_PROVIDER"
 
     def test_env_overrides_cli_config_path(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Boundary 2: env > --config YAML — env wins over an explicit --config file."""
-        _clean_codeguide_env(monkeypatch)
-        monkeypatch.setenv("CODEGUIDE_LLM_PROVIDER", "openai")
+        _clean_wiedunflow_env(monkeypatch)
+        monkeypatch.setenv("WIEDUNFLOW_LLM_PROVIDER", "openai")
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(
             config_module, "user_config_path", lambda: tmp_path / "nonexistent.yaml"
@@ -92,14 +92,14 @@ class TestConfigPrecedenceChain:
         cfg = load_config(cli_config_path=config_file)
 
         assert cfg.llm_provider == "openai", (
-            "Env CODEGUIDE_LLM_PROVIDER must override --config YAML"
+            "Env WIEDUNFLOW_LLM_PROVIDER must override --config YAML"
         )
 
     def test_cli_config_overrides_project_config(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Boundary 3: --config > ./tutorial.config.yaml — explicit path beats cwd default."""
-        _clean_codeguide_env(monkeypatch)
+        _clean_wiedunflow_env(monkeypatch)
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(
             config_module, "user_config_path", lambda: tmp_path / "nonexistent.yaml"
@@ -118,10 +118,10 @@ class TestConfigPrecedenceChain:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Boundary 4: ./tutorial.config.yaml > user-level config."""
-        _clean_codeguide_env(monkeypatch)
+        _clean_wiedunflow_env(monkeypatch)
         monkeypatch.chdir(tmp_path)
 
-        user_cfg = tmp_path / "user_home" / ".config" / "codeguide" / "config.yaml"
+        user_cfg = tmp_path / "user_home" / ".config" / "wiedun-flow" / "config.yaml"
         _write_yaml(user_cfg, "anthropic")  # would lose
         monkeypatch.setattr(config_module, "user_config_path", lambda: user_cfg)
 
@@ -137,10 +137,10 @@ class TestConfigPrecedenceChain:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Boundary 5: user-level config > built-in defaults."""
-        _clean_codeguide_env(monkeypatch)
+        _clean_wiedunflow_env(monkeypatch)
         monkeypatch.chdir(tmp_path)  # no project config
 
-        user_cfg = tmp_path / "user_home" / ".config" / "codeguide" / "config.yaml"
+        user_cfg = tmp_path / "user_home" / ".config" / "wiedun-flow" / "config.yaml"
         _write_yaml(user_cfg, "openai")
         monkeypatch.setattr(config_module, "user_config_path", lambda: user_cfg)
 
@@ -152,7 +152,7 @@ class TestConfigPrecedenceChain:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Boundary 6: no source supplies a value → built-in default applies."""
-        _clean_codeguide_env(monkeypatch)
+        _clean_wiedunflow_env(monkeypatch)
         monkeypatch.chdir(tmp_path)
 
         # Point user_config_path at a non-existent file — no YAML anywhere.
@@ -174,10 +174,10 @@ class TestConfigPrecedenceChain:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """End-to-end: CLI=anthropic + env=openai + project=custom + user=openai_compatible → CLI wins."""
-        _clean_codeguide_env(monkeypatch)
-        monkeypatch.setenv("CODEGUIDE_LLM_PROVIDER", "openai")  # layer 2 — loses
+        _clean_wiedunflow_env(monkeypatch)
+        monkeypatch.setenv("WIEDUNFLOW_LLM_PROVIDER", "openai")  # layer 2 — loses
 
-        user_cfg = tmp_path / "user_home" / ".config" / "codeguide" / "config.yaml"
+        user_cfg = tmp_path / "user_home" / ".config" / "wiedun-flow" / "config.yaml"
         _write_yaml(user_cfg, "openai_compatible")  # layer 5 — loses
         monkeypatch.setattr(config_module, "user_config_path", lambda: user_cfg)
 
@@ -198,7 +198,7 @@ class TestConfigPrecedenceChain:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
         """US-003: DEBUG lines 'config resolved: <key>=<value> from <source>' are emitted."""
-        _clean_codeguide_env(monkeypatch)
+        _clean_wiedunflow_env(monkeypatch)
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(
             config_module, "user_config_path", lambda: tmp_path / "nonexistent.yaml"

@@ -5,7 +5,7 @@
 Asserts per-US-050/US-048/US-056:
 - HTML output < 8 MB for a medium-sized real repository.
 - Output embeds ADR-0009 schema_version "1.0.0".
-- ``.codeguide/run-report.json`` is valid after the run.
+- ``.wiedunflow/run-report.json`` is valid after the run.
 
 **Run policy**: opt-in via ``pytest -m eval``. Requires ``ANTHROPIC_API_KEY``
 and the pinned corpus submodules under ``tests/eval/corpus/repos/``. Skips
@@ -58,12 +58,12 @@ def test_s5_size_budget_and_schema(tmp_path: Path, repo_name: str) -> None:
         [
             "uv",
             "run",
-            "codeguide",
+            "wiedun-flow",
             str(working_repo),
             "--yes",
             "--no-consent-prompt",
             "--cache-path",
-            str(tmp_path / "codeguide-cache.sqlite"),
+            str(tmp_path / "wiedun-flow-cache.sqlite"),
         ],
         cwd=tmp_path,
         capture_output=True,
@@ -72,7 +72,7 @@ def test_s5_size_budget_and_schema(tmp_path: Path, repo_name: str) -> None:
         check=False,
     )
     assert result.returncode in (0, 2), (
-        f"codeguide exited with {result.returncode} on {repo_name}:\n"
+        f"wiedun-flow exited with {result.returncode} on {repo_name}:\n"
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
 
@@ -90,7 +90,7 @@ def test_s5_size_budget_and_schema(tmp_path: Path, repo_name: str) -> None:
         f"{repo_name}: missing schema_version in rendered HTML (US-048/ADR-0009)"
     )
 
-    run_report = working_repo / ".codeguide" / "run-report.json"
+    run_report = working_repo / ".wiedunflow" / "run-report.json"
     assert run_report.exists(), f"{repo_name}: run-report.json missing"
     data = json.loads(run_report.read_text(encoding="utf-8"))
     assert data.get("status") in ("ok", "degraded"), (

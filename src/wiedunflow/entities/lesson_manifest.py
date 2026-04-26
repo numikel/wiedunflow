@@ -30,7 +30,7 @@ class ManifestMetadata(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     schema_version: Literal["1.0.0"] = "1.0.0"
-    codeguide_version: str
+    wiedunflow_version: str
     total_lessons: int
     generated_at: datetime
     has_readme: bool = True

@@ -172,7 +172,7 @@ def test_us046_last_lesson_persists(tutorial_html: Path) -> None:
 
         keys = page.evaluate("() => Object.keys(localStorage)")
         last_lesson_keys = [k for k in keys if k.endswith(":last-lesson")]
-        assert last_lesson_keys, f"Expected a codeguide:*:last-lesson key; got {keys}"
+        assert last_lesson_keys, f"Expected a wiedun-flow:*:last-lesson key; got {keys}"
         stored = page.evaluate(f"() => localStorage.getItem({last_lesson_keys[0]!r})")
         assert stored == active_id
 
@@ -203,7 +203,7 @@ def test_us048_schema_version_warn_on_mismatch(tutorial_html: Path) -> None:
                 const payload = JSON.parse(el.textContent);
                 payload.schema_version = '99.0.0';
                 el.textContent = JSON.stringify(payload);
-                window.CodeGuide.init();
+                window.WiedunFlow.init();
             }"""
         )
         page.wait_for_timeout(200)
@@ -222,7 +222,7 @@ def test_us076_splitter_persists_narration_fraction(tutorial_html: Path) -> None
         _open(page, tutorial_html)
 
         # Write a known fraction, re-init, verify CSS grid matches.
-        page.evaluate("""() => localStorage.setItem('codeguide:tweak:narr-frac:v2', '0.3')""")
+        page.evaluate("""() => localStorage.setItem('wiedunflow:tweak:narr-frac:v2', '0.3')""")
         page.reload(wait_until="load", timeout=30_000)
         page.wait_for_function(
             """() => document.querySelector('.lesson-link.active') !== null""",
@@ -252,7 +252,7 @@ def test_us077_theme_toggle_persists(tutorial_html: Path) -> None:
 
         theme_attr = page.evaluate("() => document.documentElement.getAttribute('data-theme')")
         assert theme_attr == "dark"
-        stored = page.evaluate("() => localStorage.getItem('codeguide:tweak:theme:v2')")
+        stored = page.evaluate("() => localStorage.getItem('wiedunflow:tweak:theme:v2')")
         assert stored == "dark"
 
         browser.close()

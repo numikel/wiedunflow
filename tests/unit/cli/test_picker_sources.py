@@ -300,10 +300,10 @@ def test_discover_head_mtime_oserror_falls_back_to_zero(tmp_path: Path) -> None:
 
 
 def test_recent_runs_path_uses_platformdirs() -> None:
-    """_recent_runs_path() must return a Path under the codeguide cache dir."""
+    """_recent_runs_path() must return a Path under the wiedun-flow cache dir."""
     from wiedunflow.cli.picker_sources import _recent_runs_path
 
     path = _recent_runs_path()
 
     assert path.name == "recent-runs.json"
-    assert "codeguide" in str(path)
+    assert "wiedun-flow" in str(path)

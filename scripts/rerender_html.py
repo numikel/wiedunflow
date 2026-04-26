@@ -102,7 +102,7 @@ def main(argv: list[str]) -> int:
         repo_name=meta.get("repo", "unknown"),
         repo_branch=meta.get("branch", "main"),
         repo_commit_hash=meta.get("sha", "0000000"),
-        codeguide_version=meta.get("codeguide_version", "0.3.0"),
+        wiedunflow_version=meta.get("wiedunflow_version", "0.3.0"),
         generated_at=meta.get("generated_at", ""),
         run_status=meta.get("run_status", "ok"),
         skipped_count=meta.get("skipped_count", 0),

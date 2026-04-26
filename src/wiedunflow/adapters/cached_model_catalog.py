@@ -5,11 +5,11 @@
 ADR-0013 decision 11. The model picker is rendered every time the user
 opens the Generate sub-wizard; hitting the provider API on every render
 adds 200-1500ms latency and consumes API quota. This decorator caches the
-result for 24 hours in ``~/.cache/codeguide/models-<provider>.json``.
+result for 24 hours in ``~/.cache/wiedunflow/models-<provider>.json``.
 
 Cache invalidation:
 - TTL — 24 hours from file mtime.
-- Manual — ``rm ~/.cache/codeguide/models-*.json``.
+- Manual — ``rm ~/.cache/wiedunflow/models-*.json``.
 - "Refresh now" menu option — Step 5 wires this to ``CachedModelCatalog.refresh()``.
 
 The cache is intentionally naive (single JSON file per provider, no schema
@@ -34,8 +34,8 @@ DEFAULT_TTL_SECONDS: int = 24 * 60 * 60  # 24 hours
 
 
 def _cache_dir() -> Path:
-    """Return the platform-appropriate cache directory for CodeGuide model lists."""
-    return Path(platformdirs.user_cache_dir("codeguide"))
+    """Return the platform-appropriate cache directory for WiedunFlow model lists."""
+    return Path(platformdirs.user_cache_dir("wiedunflow"))
 
 
 class CachedModelCatalog:

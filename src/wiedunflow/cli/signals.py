@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""SIGINT handler for the codeguide CLI (US-027, US-028).
+"""SIGINT handler for the wiedun-flow CLI (US-027, US-028).
 
 Two-phase Ctrl+C behaviour:
 

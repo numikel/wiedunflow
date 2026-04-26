@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""CodeGuide — generate interactive HTML tutorials from local Git repositories."""
+"""WiedunFlow — generate interactive HTML tutorials from local Git repositories."""
 
 from __future__ import annotations
 

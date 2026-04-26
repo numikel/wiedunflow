@@ -2,7 +2,7 @@
 # Copyright 2026 Michał Kamiński
 """Run-report history rotation (US-058).
 
-Keeps the last 10 timestamped copies under ``<repo>/.codeguide/history/``.
+Keeps the last 10 timestamped copies under ``<repo>/.wiedunflow/history/``.
 """
 
 from __future__ import annotations

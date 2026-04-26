@@ -16,7 +16,7 @@ GPT-4.1 / GPT-5.4 pricing instead of the legacy Anthropic Haiku/Opus rates.
 Future enhancement (v0.5+): fetch the LiteLLM
 ``model_prices_and_context_window.json`` (https://github.com/BerriAI/litellm)
 and cache it for 24h so newly-released models pick up correct pricing
-without a CodeGuide release.
+without a WiedunFlow release.
 """
 
 from __future__ import annotations

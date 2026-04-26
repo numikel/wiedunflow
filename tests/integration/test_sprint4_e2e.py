@@ -102,7 +102,7 @@ def _invoke_cli(repo: Path, extra: list[str] | None = None) -> Any:
 
 
 def _load_report(repo: Path) -> dict[str, Any]:
-    report_path = repo / ".codeguide" / "run-report.json"
+    report_path = repo / ".wiedunflow" / "run-report.json"
     assert report_path.exists(), f"run-report.json missing at {report_path}"
     data: dict[str, Any] = json.loads(report_path.read_text(encoding="utf-8"))
     return data

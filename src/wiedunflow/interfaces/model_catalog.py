@@ -5,8 +5,8 @@
 ADR-0013 decision 11: model lists are fetched dynamically from the provider
 API (``client.models.list()``) rather than hardcoded as Pydantic Literals.
 Hardcoded fallbacks are used only when the API call fails (offline, missing
-key, rate limit, 5xx). This keeps CodeGuide current with new model releases
-without requiring a CodeGuide release.
+key, rate limit, 5xx). This keeps WiedunFlow current with new model releases
+without requiring a WiedunFlow release.
 
 Adapters live in ``wiedunflow.adapters.{anthropic,openai}_model_catalog``.
 A ``CachedModelCatalog`` decorator (``wiedunflow.adapters.cached_model_catalog``)

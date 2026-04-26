@@ -24,7 +24,7 @@ from importlib import metadata
 from pathlib import Path
 
 _HEADER = """\
-CodeGuide
+WiedunFlow
 Copyright 2026 Michał Kamiński
 
 This product includes software developed at Astral (https://astral.sh/)
@@ -51,7 +51,7 @@ def _find_apache_deps() -> list[tuple[str, str]]:
     A distribution is considered Apache-2.0 when its ``Classifier`` field
     contains the string ``"Apache"`` or its ``License`` field does.
 
-    The ``codeguide`` package itself is excluded — it is the project being
+    The ``wiedun-flow`` package itself is excluded — it is the project being
     built, not a third-party runtime dependency.
     """
     apache_deps: list[tuple[str, str]] = []
@@ -66,7 +66,7 @@ def _find_apache_deps() -> list[tuple[str, str]]:
             continue
         # Exclude the project itself — its NOTICE is the file we are writing,
         # not a third-party attribution block.
-        if name.lower() == "codeguide":
+        if name.lower() == "wiedun-flow":
             continue
         classifiers = dist.metadata.get_all("Classifier") or []
         # Use .get() to avoid DeprecationWarning from implicit None returns

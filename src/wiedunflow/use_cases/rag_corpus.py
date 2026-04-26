@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""RAG corpus builder — Stage 3 of the CodeGuide pipeline.
+"""RAG corpus builder — Stage 3 of the WiedunFlow pipeline.
 
 Gathers documents from multiple sources (symbol docstrings, README, docs/**,
 CONTRIBUTING, git commit messages) and optionally indexes them into a

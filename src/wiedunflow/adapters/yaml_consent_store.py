@@ -29,12 +29,12 @@ class YamlConsentStore:
     Args:
         path: Optional explicit path to the ``consent.yaml`` file.  When
             ``None``, defaults to
-            ``<user_config_dir>/codeguide/consent.yaml``.
+            ``<user_config_dir>/wiedunflow/consent.yaml``.
     """
 
     def __init__(self, path: Path | None = None) -> None:
         self._path: Path = path or (
-            Path(platformdirs.user_config_dir("codeguide")) / "consent.yaml"
+            Path(platformdirs.user_config_dir("wiedunflow")) / "consent.yaml"
         )
 
     # ------------------------------------------------------------------

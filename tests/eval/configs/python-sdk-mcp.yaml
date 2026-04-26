@@ -1,7 +1,7 @@
 # Release-gate eval config for modelcontextprotocol/python-sdk (primary benchmark).
 # Decision D2: Opus-4-7 for MCP SDK narration to match quality gate rubric.
 #
-# YAML keys must match the flat field names in `CodeguideConfig` after the
+# YAML keys must match the flat field names in `WiedunflowConfig` after the
 # `llm.*` namespace flattening in `cli/config.py::_load_yaml_flat`. Earlier
 # revisions used `narration_model` / `leaf_description_model` and
 # `tutorial.max_lessons`, which the parser silently ignored.

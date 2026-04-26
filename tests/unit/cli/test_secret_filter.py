@@ -98,7 +98,7 @@ def test_redact_path_keeps_internal_path(tmp_path: Path) -> None:
     """Paths INSIDE repo_root must NOT be replaced by redact_path()."""
     repo_root = tmp_path / "myrepo"
     repo_root.mkdir()
-    internal = str(repo_root / "src" / "codeguide" / "cli" / "main.py")
+    internal = str(repo_root / "src" / "wiedun-flow" / "cli" / "main.py")
     msg = f"parsing {internal}"
     result = redact_path(msg, repo_root)
     # Internal paths are kept - only external absolute paths are replaced

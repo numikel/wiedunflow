@@ -87,7 +87,7 @@ class FakeLLMProvider:
             lessons=lessons,
             metadata=ManifestMetadata(
                 schema_version="1.0.0",
-                codeguide_version="0.0.3",
+                wiedunflow_version="0.0.3",
                 total_lessons=len(lessons),
                 generated_at=datetime(2026, 4, 20, 0, 0, 0, tzinfo=UTC),
                 has_readme=True,

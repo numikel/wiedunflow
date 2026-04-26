@@ -61,7 +61,7 @@ def _build_manifest(specs: tuple[LessonSpec, ...]) -> LessonManifest:
     return LessonManifest(
         lessons=specs,
         metadata=ManifestMetadata(
-            codeguide_version="0.2.1",
+            wiedunflow_version="0.2.1",
             total_lessons=len(specs),
             generated_at=datetime.now(UTC),
         ),

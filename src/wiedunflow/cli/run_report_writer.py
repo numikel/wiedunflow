@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Atomic writer for ``.codeguide/run-report.json``.
+"""Atomic writer for ``.wiedunflow/run-report.json``.
 
 The write is atomic (tmp-file + ``Path.replace``) so a crashing process never
 leaves a half-written report that a subsequent ``--resume`` could mistake for
@@ -16,17 +16,17 @@ from wiedunflow.entities.run_report import RunReport
 
 __all__ = ["RunReportWriter", "write_run_report"]
 
-_REPORT_DIR_NAME = ".codeguide"
+_REPORT_DIR_NAME = ".wiedunflow"
 _REPORT_FILE_NAME = "run-report.json"
 
 
 def write_run_report(report: RunReport, repo_path: Path) -> Path:
-    """Write a ``RunReport`` to ``<repo_path>/.codeguide/run-report.json`` atomically.
+    """Write a ``RunReport`` to ``<repo_path>/.wiedunflow/run-report.json`` atomically.
 
     Args:
         report: Validated ``RunReport`` instance.
         repo_path: Repository root; the report is written under
-            ``<repo_path>/.codeguide/``.
+            ``<repo_path>/.wiedunflow/``.
 
     Returns:
         Absolute path to the persisted report file.

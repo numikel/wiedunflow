@@ -5,7 +5,7 @@
 Drives the headless renderer to assert that:
   - ``#tutorial-progress > span`` width advances on next-button navigation.
   - ``#tutorial-progress-label`` text reads ``Lesson N / M`` after navigation.
-  - ``localStorage["codeguide:<repo>:visited-lessons:v1"]`` records the active
+  - ``localStorage["wiedunflow:<repo>:visited-lessons:v1"]`` records the active
     lesson immediately on Next click.
   - ``.lesson-link.visited`` decoration is restored from localStorage on reload.
   - ``.helper-appendix`` block is rendered iff the lesson payload carries
@@ -133,7 +133,7 @@ def test_visited_marker_set_on_next_click(tutorial_html: Path) -> None:
         page.locator("#tutorial-next").click()
         page.wait_for_timeout(200)
 
-        # Find the visited-lessons key — namespace is codeguide:<repo>:visited-lessons:v1
+        # Find the visited-lessons key — namespace is wiedun-flow:<repo>:visited-lessons:v1
         keys = page.evaluate(
             """() => Object.keys(localStorage).filter(k => k.indexOf('visited-lessons:v1') !== -1)"""
         )
@@ -166,7 +166,7 @@ def test_visited_painted_after_reload(tutorial_html: Path) -> None:
                 return meta.repo || meta.repo_name || 'unknown';
             }"""
         )
-        key = f"codeguide:{repo_id}:visited-lessons:v1"
+        key = f"wiedunflow:{repo_id}:visited-lessons:v1"
         # Pass key + target_id as args to evaluate (avoids JS-injection escaping issues).
         page.evaluate(
             "([k, id]) => localStorage.setItem(k, JSON.stringify([id]))",

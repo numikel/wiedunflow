@@ -85,9 +85,9 @@ def test_subwizard_limits_skip_returns_defaults() -> None:
 
 
 def test_subwizard_limits_skip_with_saved_uses_saved() -> None:
-    from wiedunflow.cli.config import CodeguideConfig
+    from wiedunflow.cli.config import WiedunflowConfig
 
-    saved = CodeguideConfig(
+    saved = WiedunflowConfig(
         llm_concurrency=15,
         llm_max_retries=7,
         llm_max_wait_s=90,

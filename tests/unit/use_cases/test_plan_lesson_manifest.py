@@ -54,7 +54,7 @@ class StubPlanLLM:
 
 def _make_metadata(total_lessons: int) -> ManifestMetadata:
     return ManifestMetadata(
-        codeguide_version="0.0.3",
+        wiedunflow_version="0.0.3",
         total_lessons=total_lessons,
         generated_at=_NOW,
         has_readme=True,

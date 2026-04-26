@@ -3,7 +3,7 @@
 """``CachedPricingCatalog`` + ``ChainedPricingCatalog`` decorators.
 
 Mirror ``CachedModelCatalog`` for the pricing surface (24h disk TTL at
-``~/.cache/codeguide/pricing-<provider>.json``) plus a chain helper that
+``~/.cache/wiedunflow/pricing-<provider>.json``) plus a chain helper that
 falls back to a secondary catalog when the primary returns ``None``.
 
 Typical wiring used by the menu / cost gate::
@@ -30,8 +30,8 @@ DEFAULT_TTL_SECONDS: int = 24 * 60 * 60  # 24 hours
 
 
 def _cache_dir() -> Path:
-    """Return the platform-appropriate cache directory for CodeGuide pricing files."""
-    return Path(platformdirs.user_cache_dir("codeguide"))
+    """Return the platform-appropriate cache directory for WiedunFlow pricing files."""
+    return Path(platformdirs.user_cache_dir("wiedunflow"))
 
 
 class CachedPricingCatalog:

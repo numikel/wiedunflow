@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_SRC_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "codeguide"
+_SRC_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "wiedun-flow"
 _ALLOWLIST = {
     "src/wiedunflow/cli/menu.py",
 }

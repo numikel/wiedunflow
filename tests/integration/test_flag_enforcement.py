@@ -129,7 +129,7 @@ class TestReviewPlan:
         )
         assert len(calls) == 1
         assert calls[0].name == "manifest.edited.json"
-        assert calls[0].parent.name == ".codeguide"
+        assert calls[0].parent.name == ".wiedunflow"
         assert result.output_path.exists()
 
     def test_review_plan_handles_invalid_edit_gracefully(

@@ -4,7 +4,7 @@
 
 Coverage:
 
-- YAML ``output_path:`` is parsed into ``CodeguideConfig.output_path`` as
+- YAML ``output_path:`` is parsed into ``WiedunflowConfig.output_path`` as
   :class:`pathlib.Path`.
 - CLI ``--output``/``-o`` flag overrides the YAML value (precedence rule).
 - Empty / missing config keeps ``output_path == None`` so the orchestrator
@@ -19,21 +19,21 @@ from pathlib import Path
 
 import pytest
 
-from wiedunflow.cli.config import CodeguideConfig, load_config
+from wiedunflow.cli.config import WiedunflowConfig, load_config
 from wiedunflow.cli.main import _resolve_output_path
 
 # ---------------------------------------------------------------------------
-# CodeguideConfig — output_path field
+# WiedunflowConfig — output_path field
 # ---------------------------------------------------------------------------
 
 
 def test_default_output_path_is_none() -> None:
-    config = CodeguideConfig()
+    config = WiedunflowConfig()
     assert config.output_path is None
 
 
 def test_output_path_accepts_string_value() -> None:
-    config = CodeguideConfig(output_path="./out/tutorial.html")
+    config = WiedunflowConfig(output_path="./out/tutorial.html")
     assert config.output_path == Path("out/tutorial.html")
 
 

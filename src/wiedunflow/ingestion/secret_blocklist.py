@@ -6,7 +6,7 @@ Files whose names match any pattern in ``HARD_REFUSE_PATTERNS`` are silently
 dropped during file collection, regardless of ``.gitignore``, ``--include``,
 or ``--exclude`` flags.  The only escape hatch is the
 ``security.allow_secret_files`` list in ``tutorial.config.yaml`` (mapped to
-``CodeguideConfig.security_allow_secret_files``), which accepts **exact file
+``WiedunflowConfig.security_allow_secret_files``), which accepts **exact file
 names** (not patterns) that should be un-blocked.
 
 Design rationale (ADR-0010):
@@ -52,7 +52,7 @@ def is_hard_refused(
         path: The file path to check (only ``path.name`` is used).
         allow_list: Exact file names that override the blocklist (e.g.
             ``frozenset({".env.example"})``) — populated from
-            ``CodeguideConfig.security_allow_secret_files``.
+            ``WiedunflowConfig.security_allow_secret_files``.
 
     Returns:
         ``True`` when the file name matches at least one pattern in

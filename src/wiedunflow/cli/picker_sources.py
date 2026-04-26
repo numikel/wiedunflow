@@ -115,13 +115,13 @@ def discover_git_repos(
 
 def _recent_runs_path() -> Path:
     """Return the path to the shared recent-runs JSON file."""
-    return Path(platformdirs.user_cache_dir("codeguide")) / "recent-runs.json"
+    return Path(platformdirs.user_cache_dir("wiedunflow")) / "recent-runs.json"
 
 
 def load_recent_runs(*, limit: int = 10) -> list[Path]:
     """Return the last *limit* repo paths from the recent-runs history.
 
-    Reads ``~/.cache/codeguide/recent-runs.json`` (written by
+    Reads ``~/.cache/wiedunflow/recent-runs.json`` (written by
     ``menu._append_to_recent_runs``).  Each entry may use key ``"repo_path"``
     or, for legacy compatibility, ``"repo"``.
 

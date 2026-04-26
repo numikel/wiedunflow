@@ -8,8 +8,8 @@ rule: rich → output.py, questionary → menu.py, plain print → menu_banner.p
 prompts via the ``MenuIO`` Protocol injection — never import questionary
 directly.
 
-The menu activates only when ``codeguide`` is invoked with no arguments in
-a TTY. ``codeguide generate <repo>`` and ``codeguide init`` keep their
+The menu activates only when ``wiedun-flow`` is invoked with no arguments in
+a TTY. ``wiedun-flow generate <repo>`` and ``wiedun-flow init`` keep their
 existing one-shot CLI behavior bit-exact (Sprint 7 eval CI workflow contract).
 
 Step 3 (current): MenuIO Protocol + QuestionaryMenuIO + main_menu_loop with
@@ -30,7 +30,7 @@ from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from wiedunflow.adapters.anthropic_model_catalog import AnthropicModelCatalog
 from wiedunflow.adapters.cached_model_catalog import CachedModelCatalog
 from wiedunflow.adapters.openai_model_catalog import OpenAIModelCatalog
-from wiedunflow.cli.config import CodeguideConfig, load_config, user_config_path
+from wiedunflow.cli.config import WiedunflowConfig, load_config, user_config_path
 from wiedunflow.cli.menu_banner import print_banner
 from wiedunflow.cli.picker_sources import discover_git_repos, load_recent_runs
 from wiedunflow.interfaces.model_catalog import ModelCatalog
@@ -177,9 +177,9 @@ def _clear_screen() -> None:
     Modern terminals (Windows Terminal, VS Code, iTerm2, kitty, WezTerm,
     PowerShell 7+) interpret these escapes natively. Legacy ``cmd.exe``
     (without VT enabled) renders them as garbage glyphs; the
-    ``CODEGUIDE_NO_CLEAR=1`` env var disables clearing for that case.
+    ``WIEDUNFLOW_NO_CLEAR=1`` env var disables clearing for that case.
     """
-    if os.environ.get("CODEGUIDE_NO_CLEAR"):
+    if os.environ.get("WIEDUNFLOW_NO_CLEAR"):
         return
     # \033[2J = clear screen, \033[3J = clear scrollback, \033[H = cursor home.
     print("\033[2J\033[3J\033[H", end="", flush=True)
@@ -193,10 +193,10 @@ def _redraw_chrome(breadcrumb: str | None = None) -> None:
     every section. Optional ``breadcrumb`` shows where the user is
     ("Generate · Section 1/5 · Repo & Output", "Initialize config", etc.).
 
-    Tests set ``CODEGUIDE_NO_CLEAR=1`` to suppress the entire chrome (clear
+    Tests set ``WIEDUNFLOW_NO_CLEAR=1`` to suppress the entire chrome (clear
     AND banner) so ``capsys`` assertions stay focused on the wizard text.
     """
-    if os.environ.get("CODEGUIDE_NO_CLEAR"):
+    if os.environ.get("WIEDUNFLOW_NO_CLEAR"):
         return
     _clear_screen()
     print_banner()
@@ -206,15 +206,15 @@ def _redraw_chrome(breadcrumb: str | None = None) -> None:
 
 
 def _should_launch_menu() -> bool:
-    """Return ``True`` when ``codeguide`` should launch the interactive menu.
+    """Return ``True`` when ``wiedun-flow`` should launch the interactive menu.
 
     Activation conditions (all must be true):
     - ``sys.argv[1:]`` is empty (no subcommand or positional args).
     - ``sys.stdin.isatty()`` AND ``sys.stdout.isatty()`` (real interactive
       terminal — both directions must be a TTY so a CI job with stdout
       hooked to a log file does not accidentally launch the menu).
-    - ``CODEGUIDE_NO_MENU`` env var is **not** set (emergency escape hatch
-      for scripts that want to invoke ``codeguide`` with no args without
+    - ``WIEDUNFLOW_NO_MENU`` env var is **not** set (emergency escape hatch
+      for scripts that want to invoke ``wiedun-flow`` with no args without
       entering interactive mode).
 
     Returns:
@@ -225,7 +225,7 @@ def _should_launch_menu() -> bool:
         return False
     if not (sys.stdin.isatty() and sys.stdout.isatty()):
         return False
-    return not os.environ.get("CODEGUIDE_NO_MENU")
+    return not os.environ.get("WIEDUNFLOW_NO_MENU")
 
 
 def main_menu_loop(
@@ -259,7 +259,7 @@ def main_menu_loop(
 
         if choice is None:
             # Esc / Ctrl+C from the top-level menu — confirm exit.
-            if io.confirm("Exit CodeGuide?", default=True):
+            if io.confirm("Exit WiedunFlow?", default=True):
                 return
             continue
 
@@ -401,7 +401,7 @@ def _run_init_from_menu(
     previous step with the prior value pre-filled. Esc on the first step
     aborts the wizard back to the menu (ADR-0013 D#6).
 
-    Mirrors ``init_wizard.run_init_wizard`` (which still backs ``codeguide
+    Mirrors ``init_wizard.run_init_wizard`` (which still backs ``wiedun-flow
     init`` via Click prompts) but uses the ``MenuIO`` Protocol so the menu's
     look and feel stays consistent. Writes the same nested YAML structure
     to ``user_config_path()``.
@@ -613,13 +613,13 @@ def _llm_block(data: dict[str, Any]) -> dict[str, Any]:
     return block if isinstance(block, dict) else data.setdefault("llm", {})
 
 
-def _edit_provider(io: MenuIO, saved: CodeguideConfig) -> str | None:
+def _edit_provider(io: MenuIO, saved: WiedunflowConfig) -> str | None:
     return io.select("Provider:", choices=_PROVIDERS, default=saved.llm_provider)
 
 
 def _edit_model(
     io: MenuIO,
-    saved: CodeguideConfig,
+    saved: WiedunflowConfig,
     *,
     label: str,
     current: str,
@@ -634,14 +634,14 @@ def _edit_model(
     return io.text(label, default=current)
 
 
-def _edit_audience(io: MenuIO, saved: CodeguideConfig) -> str | None:
+def _edit_audience(io: MenuIO, saved: WiedunflowConfig) -> str | None:
     return io.select("Target audience:", choices=_AUDIENCE_LEVELS, default=saved.target_audience)
 
 
 def _apply_edit(
     field: str,
     new_value: Any,
-    saved: CodeguideConfig,
+    saved: WiedunflowConfig,
     raw_yaml: dict[str, Any],
 ) -> bool:
     """Mutate ``raw_yaml`` in place. Returns True on save, False on no-op (None value)."""
@@ -681,7 +681,7 @@ def _apply_edit(
     return True
 
 
-def _render_config_panel(saved: CodeguideConfig) -> None:
+def _render_config_panel(saved: WiedunflowConfig) -> None:
     """Render the read-only config panel (also used as the editor's header)."""
     from wiedunflow.cli.output import init_console, render_info_panel
 
@@ -936,7 +936,7 @@ def _wait_for_return_to_menu(io: MenuIO) -> None:
 
 # ---------------------------------------------------------------------------
 # Recent runs — JSON-backed history of past pipeline launches.
-# Stored as a small list of dicts in ``~/.cache/codeguide/recent-runs.json``.
+# Stored as a small list of dicts in ``~/.cache/wiedunflow/recent-runs.json``.
 # Each entry: timestamp, repo_path, output_path, provider, models, exit_code.
 # ---------------------------------------------------------------------------
 
@@ -949,7 +949,7 @@ def _recent_runs_path() -> Path:
     """Return the path to the recent-runs JSON history file."""
     import platformdirs
 
-    return Path(platformdirs.user_cache_dir("codeguide")) / _RECENT_RUNS_FILE
+    return Path(platformdirs.user_cache_dir("wiedunflow")) / _RECENT_RUNS_FILE
 
 
 def _load_recent_runs() -> list[dict[str, Any]]:
@@ -1080,17 +1080,17 @@ def _run_help_from_menu(io: MenuIO) -> None:
     lines = [
         ("Generate tutorial", "5-section sub-wizard → 7-stage pipeline → tutorial.html"),
         ("Recent runs", "Re-open a previous run's tutorial.html (history of last 20)"),
-        ("Configuration", "Initialize or edit ~/.config/codeguide/config.yaml"),
+        ("Configuration", "Initialize or edit ~/.config/wiedunflow/config.yaml"),
         ("Estimate cost", "File-count heuristic estimate before launching"),
         ("Resume last run", "Re-launch with cached checkpoints (if any)"),
         ("Help", "This panel"),
         ("Exit", "Esc + confirm"),
     ]
-    render_info_panel(console, title="CODEGUIDE MENU · QUICK REFERENCE", lines=lines)
+    render_info_panel(console, title="WIEDUNFLOW MENU · QUICK REFERENCE", lines=lines)
     print()
-    print("  Tip: invoke `codeguide generate <repo>` for one-shot CLI mode (CI-friendly).")
-    print("       Set CODEGUIDE_NO_MENU=1 to disable this menu globally.")
-    print("       Set CODEGUIDE_NO_CLEAR=1 if your terminal mangles the screen-clear escapes.")
+    print("  Tip: invoke `wiedun-flow generate <repo>` for one-shot CLI mode (CI-friendly).")
+    print("       Set WIEDUNFLOW_NO_MENU=1 to disable this menu globally.")
+    print("       Set WIEDUNFLOW_NO_CLEAR=1 if your terminal mangles the screen-clear escapes.")
     _wait_for_return_to_menu(io)
 
 
@@ -1102,7 +1102,7 @@ def _run_help_from_menu(io: MenuIO) -> None:
 # ---------------------------------------------------------------------------
 
 
-# Provider enum mirrors `CodeguideConfig.llm_provider` Literal exactly.
+# Provider enum mirrors `WiedunflowConfig.llm_provider` Literal exactly.
 _PROVIDERS: list[str] = ["anthropic", "openai", "openai_compatible", "custom"]
 
 # Providers whose plan/narrate model can be picked from a dynamic catalog.
@@ -1111,8 +1111,8 @@ _PROVIDERS: list[str] = ["anthropic", "openai", "openai_compatible", "custom"]
 _HOSTED_PROVIDERS: frozenset[str] = frozenset({"anthropic", "openai"})
 
 
-def _try_load_saved_config() -> CodeguideConfig | None:
-    """Load the user's saved ``~/.config/codeguide/config.yaml`` if present.
+def _try_load_saved_config() -> WiedunflowConfig | None:
+    """Load the user's saved ``~/.config/wiedunflow/config.yaml`` if present.
 
     Used to power the §2 express path ("Use saved config? Y/n"). Failures
     (missing file, invalid YAML, validation error) silently return ``None``
@@ -1269,7 +1269,7 @@ def _subwizard_repo_output(io: MenuIO) -> dict[str, Any] | None:
     }
 
 
-def _format_saved_summary(saved: CodeguideConfig) -> str:
+def _format_saved_summary(saved: WiedunflowConfig) -> str:
     """One-line summary of the saved config used in the express-path prompt."""
     return (
         f"{saved.llm_provider} / {saved.llm_model_plan} (plan) + "
@@ -1277,8 +1277,8 @@ def _format_saved_summary(saved: CodeguideConfig) -> str:
     )
 
 
-def _saved_section_payload(saved: CodeguideConfig) -> dict[str, Any]:
-    """Materialize §2 fields from a ``CodeguideConfig`` for the express path."""
+def _saved_section_payload(saved: WiedunflowConfig) -> dict[str, Any]:
+    """Materialize §2 fields from a ``WiedunflowConfig`` for the express path."""
     return {
         "llm_provider": saved.llm_provider,
         "llm_model_plan": saved.llm_model_plan,
@@ -1313,7 +1313,7 @@ def _pick_hosted_model(io: MenuIO, *, catalog: ModelCatalog, label: str) -> str 
 def _subwizard_provider_models(
     io: MenuIO,
     *,
-    saved: CodeguideConfig | None,
+    saved: WiedunflowConfig | None,
     anthropic_catalog: ModelCatalog,
     openai_catalog: ModelCatalog,
 ) -> dict[str, Any] | None:
@@ -1572,7 +1572,7 @@ def _ask_int(io: MenuIO, label: str, *, default: int, low: int, high: int) -> in
 def _subwizard_limits(
     io: MenuIO,
     *,
-    saved: CodeguideConfig | None = None,
+    saved: WiedunflowConfig | None = None,
 ) -> dict[str, Any] | None:
     """§4 — collect concurrency/retries/wait/max_lessons/audience.
 
@@ -1820,7 +1820,7 @@ def _launch_pipeline(payload: dict[str, Any]) -> None:
     """Build providers from ``payload`` and run the existing CLI pipeline.
 
     Reuses ``_build_llm_provider`` and ``_run_pipeline`` from ``cli.main`` so
-    the 7-stage Rich-Live experience is identical to ``codeguide generate``.
+    the 7-stage Rich-Live experience is identical to ``wiedun-flow generate``.
     questionary's prompt_toolkit application has already exited by the time
     this runs (modal pipeline guarantee — ADR-0013 D#4).
     """

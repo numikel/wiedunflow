@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""CodeGuide CLI entrypoint.
+"""WiedunFlow CLI entrypoint.
 
-Sprint 6 restructure: the top-level ``codeguide`` command is now a click
+Sprint 6 restructure: the top-level ``wiedun-flow`` command is now a click
 group with two subcommands:
 
-* ``codeguide init`` — interactive wizard (US-002 / Track A).
-* ``codeguide generate <repo>`` — run the 7-stage tutorial pipeline.
+* ``wiedun-flow init`` — interactive wizard (US-002 / Track A).
+* ``wiedun-flow generate <repo>`` — run the 7-stage tutorial pipeline.
 
 The ``_DefaultToGenerate`` group subclass preserves backward compatibility:
-``codeguide <repo>`` (pre-Sprint 6 UX) still works — the first positional
+``wiedun-flow <repo>`` (pre-Sprint 6 UX) still works — the first positional
 that is not a known subcommand is interpreted as a repo path and routed
 through ``generate``.
 """
@@ -38,7 +38,7 @@ from wiedunflow.adapters import (
 from wiedunflow.adapters.anthropic_provider import AnthropicProvider
 from wiedunflow.adapters.openai_provider import OpenAIProvider
 from wiedunflow.adapters.sqlite_cache import SQLiteCache
-from wiedunflow.cli.config import CodeguideConfig, ConfigError, load_config, resolve_api_key
+from wiedunflow.cli.config import WiedunflowConfig, ConfigError, load_config, resolve_api_key
 from wiedunflow.cli.consent import (
     ConsentDeniedError,
     ConsentRequiredError,
@@ -77,8 +77,8 @@ logger = logging.getLogger(__name__)
 class _DefaultToGenerate(click.Group):
     """Click group that treats an unknown first positional as a repo path.
 
-    This keeps the pre-Sprint-6 UX alive: ``codeguide ./repo`` is rewritten
-    to ``codeguide generate ./repo`` at parse time. Known subcommands
+    This keeps the pre-Sprint-6 UX alive: ``wiedun-flow ./repo`` is rewritten
+    to ``wiedun-flow generate ./repo`` at parse time. Known subcommands
     (``init``, ``generate``) still resolve normally.
     """
 
@@ -101,9 +101,9 @@ class _DefaultToGenerate(click.Group):
     cls=_DefaultToGenerate,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
-@click.version_option(__version__, prog_name="codeguide")
+@click.version_option(__version__, prog_name="wiedun-flow")
 def cli() -> None:
-    """CodeGuide — generate interactive HTML tutorials from local Git repositories."""
+    """WiedunFlow — generate interactive HTML tutorials from local Git repositories."""
 
 
 @cli.command("init")
@@ -153,7 +153,7 @@ def init_cmd(
 ) -> None:
     """Interactive wizard — write a user-level ``config.yaml`` (US-002).
 
-    All prompts can be skipped via flags (US-003). Running ``codeguide init``
+    All prompts can be skipped via flags (US-003). Running ``wiedun-flow init``
     a second time refuses to overwrite the existing file unless ``--force``
     is passed.
     """
@@ -456,10 +456,10 @@ def generate_cmd(
 def main() -> None:
     """Process entrypoint — launches the interactive menu (no args + TTY) or the click group.
 
-    ADR-0013: when ``codeguide`` is invoked with no arguments in an interactive
+    ADR-0013: when ``wiedun-flow`` is invoked with no arguments in an interactive
     terminal, the menu-driven TUI launches. All other invocations
-    (``codeguide generate <repo>``, ``codeguide init``, ``codeguide --version``,
-    non-TTY, ``CODEGUIDE_NO_MENU=1``) flow through the existing click group
+    (``wiedun-flow generate <repo>``, ``wiedun-flow init``, ``wiedun-flow --version``,
+    non-TTY, ``WIEDUNFLOW_NO_MENU=1``) flow through the existing click group
     bit-exact.
     """
     from wiedunflow.cli.menu import QuestionaryMenuIO, _should_launch_menu, main_menu_loop
@@ -471,7 +471,7 @@ def main() -> None:
 
 
 def _build_llm_provider(
-    config: CodeguideConfig,
+    config: WiedunflowConfig,
     *,
     no_consent_prompt: bool,
     yes: bool,
@@ -737,7 +737,7 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
                 status="failed",
                 lines=[
                     ("failed at", "<unknown>"),
-                    ("see", ".codeguide/run-report.json for stack trace"),
+                    ("see", ".wiedunflow/run-report.json for stack trace"),
                 ],
             )
         else:
@@ -816,7 +816,7 @@ def _write_final_report(
     failed_at_lesson: str | None = None,
     hallucinated_symbols: tuple[str, ...] = (),
 ) -> None:
-    """Build a ``RunReport`` and write it under ``<repo>/.codeguide/``.
+    """Build a ``RunReport`` and write it under ``<repo>/.wiedunflow/``.
 
     Silently swallows I/O failures -- a crashing run-report writer must never
     mask the underlying pipeline failure the CLI is trying to report.
@@ -843,14 +843,14 @@ def _write_final_report(
         logger.warning("run_report_write_failed: %s", exc)
 
 
-_GITIGNORE_ENTRY = ".codeguide/\n"
+_GITIGNORE_ENTRY = ".wiedunflow/\n"
 
 
 def ensure_gitignore_entry(repo_path: Path) -> None:
-    """Append ``.codeguide/`` to ``.gitignore`` idempotently (US-057).
+    """Append ``.wiedunflow/`` to ``.gitignore`` idempotently (US-057).
 
     Creates ``.gitignore`` if absent. Preserves any existing content. If the
-    ``.codeguide/`` entry is already present (with or without trailing newline)
+    ``.wiedunflow/`` entry is already present (with or without trailing newline)
     the file is left untouched.
     """
     gitignore_path = repo_path / ".gitignore"
@@ -859,7 +859,7 @@ def ensure_gitignore_entry(repo_path: Path) -> None:
         return
     existing = gitignore_path.read_text(encoding="utf-8")
     if any(
-        line.strip() == ".codeguide/" or line.strip() == ".codeguide"
+        line.strip() == ".wiedunflow/" or line.strip() == ".wiedunflow"
         for line in existing.splitlines()
     ):
         return
@@ -873,13 +873,13 @@ def rotate_run_report_history(repo_path: Path) -> None:
     Silent-safe: any I/O error is logged via structlog but must not surface to
     the user — failure to rotate is a non-fatal observability concern.
     """
-    current = repo_path / ".codeguide" / "run-report.json"
+    current = repo_path / ".wiedunflow" / "run-report.json"
     if not current.is_file():
         return
     try:
         write_history_copy(
             current_report=current,
-            history_dir=repo_path / ".codeguide" / "history",
+            history_dir=repo_path / ".wiedunflow" / "history",
             keep_latest=10,
         )
     except OSError as exc:

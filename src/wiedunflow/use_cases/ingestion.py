@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Ingestion use case — Stage 1 of the CodeGuide pipeline.
+"""Ingestion use case — Stage 1 of the WiedunFlow pipeline.
 
 Discovers Python source files in a repository, respecting ``.gitignore`` and
 user-supplied exclude/include patterns, detects monorepo sub-trees, and
@@ -58,7 +58,7 @@ def ingest(
             set, ``repo_root`` is this path and ``detected_subtree`` is ``None``.
         security_allow_secret_files: Exact file names that override the
             hard-refuse secret blocklist (from
-            ``CodeguideConfig.security_allow_secret_files``).
+            ``WiedunflowConfig.security_allow_secret_files``).
 
     Returns:
         A populated :class:`~wiedunflow.entities.ingestion_result.IngestionResult`.

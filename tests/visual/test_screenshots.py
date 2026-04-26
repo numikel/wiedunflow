@@ -12,7 +12,7 @@ Per Sprint 5 plan decision #2:
 
 Baselines are stored as PNG under ``tests/visual/baselines/linux/``. The first
 run on a given host calls ``pytest.skip`` after writing the baseline so
-developers have a record to inspect. Set ``CODEGUIDE_VISUAL_UPDATE=1`` to
+developers have a record to inspect. Set ``WIEDUNFLOW_VISUAL_UPDATE=1`` to
 regenerate baselines intentionally.
 """
 
@@ -41,7 +41,7 @@ _THEMES: tuple[str, ...] = ("light", "dark")
 
 def _is_linux_ci() -> bool:
     """Only run the comparison on Linux CI — other OSes skip with reason."""
-    if os.environ.get("CODEGUIDE_VISUAL_UPDATE") == "1":
+    if os.environ.get("WIEDUNFLOW_VISUAL_UPDATE") == "1":
         return True
     return sys.platform.startswith("linux")
 
@@ -88,7 +88,7 @@ def _capture_and_compare(html_path: Path, viewport_name: str, theme: str) -> Non
         )
         # Apply theme via localStorage + reload so the reader boots with the
         # correct data-theme attribute before the first paint.
-        page.evaluate(f"() => localStorage.setItem('codeguide:tweak:theme:v2', {theme!r})")
+        page.evaluate(f"() => localStorage.setItem('wiedunflow:tweak:theme:v2', {theme!r})")
         page.reload(wait_until="load", timeout=30_000)
         page.wait_for_function(
             """() => document.querySelector('.lesson-link.active') !== null""",
@@ -97,7 +97,7 @@ def _capture_and_compare(html_path: Path, viewport_name: str, theme: str) -> Non
         actual = page.screenshot(full_page=False, type="png")
         browser.close()
 
-    should_update = os.environ.get("CODEGUIDE_VISUAL_UPDATE") == "1"
+    should_update = os.environ.get("WIEDUNFLOW_VISUAL_UPDATE") == "1"
     if not baseline_path.exists() or should_update:
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
         baseline_path.write_bytes(actual)

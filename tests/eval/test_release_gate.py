@@ -63,7 +63,7 @@ def _repo_by_name(name: str) -> dict[str, Any]:
 
 
 def _run_report_path(repo_path: Path) -> Path:
-    return repo_path / ".codeguide" / "run-report.json"
+    return repo_path / ".wiedunflow" / "run-report.json"
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +110,7 @@ def test_repo_generates_without_crash(
     eval_api_key: str,
     eval_repos: dict[str, dict[str, Any]],
 ) -> None:
-    """Run the full CodeGuide pipeline on a pinned OSS repo; assert exit code 0.
+    """Run the full WiedunFlow pipeline on a pinned OSS repo; assert exit code 0.
 
     Uses the per-repo config override in ``tests/eval/configs/<name>.yaml`` to
     route narration to the correct model (Opus for MCP SDK, Sonnet for others).
@@ -124,7 +124,7 @@ def test_repo_generates_without_crash(
     cmd = [
         sys.executable,
         "-m",
-        "codeguide",
+        "wiedun-flow",
         "generate",
         str(repo_path),
         "--yes",
@@ -143,7 +143,7 @@ def test_repo_generates_without_crash(
         check=False,
     )
     assert result.returncode == 0, (
-        f"codeguide generate exited {result.returncode} for repo '{repo_name}'.\n"
+        f"wiedun-flow generate exited {result.returncode} for repo '{repo_name}'.\n"
         f"stderr:\n{result.stderr[-4000:]}\n"
         f"stdout:\n{result.stdout[-2000:]}"
     )
@@ -310,21 +310,21 @@ def test_mcp_concept_coverage(
 def test_mcp_rubric_archive_exists() -> None:
     """Rubric signoff YAML must exist and report avg_score >= 3.0 (US-066).
 
-    When ``CODEGUIDE_SKIP_RUBRIC_GATE=1`` is set (pre-rubric-collection CI
+    When ``WIEDUNFLOW_SKIP_RUBRIC_GATE=1`` is set (pre-rubric-collection CI
     runs), the test is skipped rather than failed.  In release gating, the
     variable must be unset so the absence of the file is a hard failure.
     """
-    skip_gate = os.environ.get("CODEGUIDE_SKIP_RUBRIC_GATE", "0") == "1"
+    skip_gate = os.environ.get("WIEDUNFLOW_SKIP_RUBRIC_GATE", "0") == "1"
 
     if not _RUBRIC_SIGNOFF.exists():
         if skip_gate:
             pytest.skip(
                 f"Rubric signoff not yet collected at {_RUBRIC_SIGNOFF} "
-                "(CODEGUIDE_SKIP_RUBRIC_GATE=1 -- skipping for pre-rubric CI run)"
+                "(WIEDUNFLOW_SKIP_RUBRIC_GATE=1 -- skipping for pre-rubric CI run)"
             )
         pytest.fail(
             f"Rubric signoff YAML not found at {_RUBRIC_SIGNOFF}. "
-            "Collect the rubric before tagging a release (unset CODEGUIDE_SKIP_RUBRIC_GATE)."
+            "Collect the rubric before tagging a release (unset WIEDUNFLOW_SKIP_RUBRIC_GATE)."
         )
 
     with _RUBRIC_SIGNOFF.open("r", encoding="utf-8") as fh:

@@ -312,7 +312,7 @@ def test_show_config_with_saved_renders_panel(
         "llm:\n  provider: anthropic\n  model_plan: claude-sonnet-4-6\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_LLM_PROVIDER", raising=False)
     # Render once → user picks [Done] → loop exits without edits.
     io = FakeMenuIO(responses=["[Done]"])
 
@@ -334,7 +334,7 @@ def test_show_config_edit_audience_persists_to_yaml(
         "target_audience: mid\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_TARGET_AUDIENCE", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_TARGET_AUDIENCE", raising=False)
     io = FakeMenuIO(
         responses=[
             "Audience",  # field selector
@@ -358,7 +358,7 @@ def test_show_config_edit_max_lessons_persists(
         "llm:\n  provider: anthropic\n  model_plan: claude-sonnet-4-6\n  model_narrate: claude-opus-4-7\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_MAX_LESSONS", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_MAX_LESSONS", raising=False)
     io = FakeMenuIO(responses=["Max lessons", "12", "[Done]"])
 
     _run_show_config_from_menu(io)
@@ -376,7 +376,7 @@ def test_show_config_edit_concurrency_persists(
         "llm:\n  provider: anthropic\n  model_plan: claude-sonnet-4-6\n  model_narrate: claude-opus-4-7\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_LLM_CONCURRENCY", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_LLM_CONCURRENCY", raising=False)
     io = FakeMenuIO(responses=["Concurrency", "15", "[Done]"])
 
     _run_show_config_from_menu(io)
@@ -395,7 +395,7 @@ def test_show_config_edit_base_url_empty_clears(
         "  base_url: http://localhost:11434/v1\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_LLM_BASE_URL", raising=False)
     io = FakeMenuIO(responses=["Base URL", "", "[Done]"])
 
     _run_show_config_from_menu(io)
@@ -415,7 +415,7 @@ def test_show_config_esc_on_field_keeps_existing_value(
         "max_lessons: 30\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("CODEGUIDE_MAX_LESSONS", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_MAX_LESSONS", raising=False)
     io = FakeMenuIO(responses=["Max lessons", None, "[Done]"])
 
     _run_show_config_from_menu(io)
@@ -592,9 +592,9 @@ def test_help_renders_panel(capsys: pytest.CaptureFixture[str]) -> None:
     _run_help_from_menu(io)
 
     out = capsys.readouterr().out
-    assert "CODEGUIDE MENU" in out
+    assert "WIEDUNFLOW MENU" in out
     assert "Generate tutorial" in out
-    assert "CODEGUIDE_NO_MENU" in out
+    assert "WIEDUNFLOW_NO_MENU" in out
 
 
 # ---------------------------------------------------------------------------
