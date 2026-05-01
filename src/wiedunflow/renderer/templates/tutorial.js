@@ -138,15 +138,35 @@
 
   }
 
+  function _lessonHasExplicitCode(lesson) {
+    // Returns true when the lesson has code that should be shown in the right pane.
+    // Conservative: code_snippet (server-built from lesson.code_refs) counts —
+    // the lesson was planned with code. Only truly code-free lessons (no code_refs
+    // at all, and no code_panel_html) collapse to single-column layout.
+    if (!lesson) { return false; }
+    if (typeof lesson.code_panel_html === "string" && lesson.code_panel_html.length) { return true; }
+    if (lesson.code_snippet) { return true; }
+    var segs = lesson.segments;
+    if (segs && segs.length) {
+      for (var i = 0; i < segs.length; i++) {
+        if (segs[i].code_ref) { return true; }
+      }
+    }
+    return false;
+  }
+
   function applyLayout(lesson) {
     // v0.3.0 — toggle the .layout-single class on #tutorial-content so CSS
     // can collapse the right code pane (closing lesson). Default "split"
     // strips the class so the standard 2-pane layout is restored.
+    // v0.8.0 — also collapse when the lesson has no explicit code reference
+    // (only the server-side code_snippet fallback), so narration-only lessons
+    // don't show an unreferenced code block on the right.
     var content = document.getElementById("tutorial-content");
     var codePane = document.getElementById("tutorial-code");
     var splitter = document.getElementById("tutorial-splitter");
     if (!content) { return; }
-    var single = !!(lesson && lesson.layout === "single");
+    var single = !!(lesson && (lesson.layout === "single" || !_lessonHasExplicitCode(lesson)));
     content.classList.toggle("layout-single", single);
     // Belt-and-braces: also flip inline style so the collapse works even if
     // a later CSS rule wins specificity. Cleared on the next non-single

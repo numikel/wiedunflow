@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from wiedunflow.adapters.dynamic_import_detector import detect_dynamic_imports
+from wiedunflow.adapters.dynamic_import_detector import (
+    detect_dynamic_imports,
+    detect_strict_uncertainty,
+)
 
 # ---------------------------------------------------------------------------
 # Parametrised positive cases — each pattern that MUST be detected
@@ -110,3 +113,43 @@ def test_multiline_importlib() -> None:
         ")\n"
     )
     assert detect_dynamic_imports(source) is True
+
+
+# ---------------------------------------------------------------------------
+# detect_strict_uncertainty — conservative function used for is_uncertain flag
+# ---------------------------------------------------------------------------
+
+
+class TestDetectStrictUncertainty:
+    """detect_strict_uncertainty flags only importlib/dunder-import patterns."""
+
+    def test_importlib_import_module_is_strict(self) -> None:
+        source = "import importlib\nmod = importlib.import_module('os')\n"
+        assert detect_strict_uncertainty(source) is True
+
+    def test_dunder_import_is_strict(self) -> None:
+        source = "mod = __import__('sys')\n"
+        assert detect_strict_uncertainty(source) is True
+
+    def test_getattr_is_not_strict(self) -> None:
+        """getattr detects dynamic dispatch but does not mark is_uncertain."""
+        source = "import os\nfn = getattr(os, 'getcwd')\n"
+        assert detect_strict_uncertainty(source) is False
+
+    def test_globals_subscript_is_not_strict(self) -> None:
+        source = "fn = globals()['my_func']\n"
+        assert detect_strict_uncertainty(source) is False
+
+    def test_locals_subscript_is_not_strict(self) -> None:
+        source = "fn = locals()['helper']\n"
+        assert detect_strict_uncertainty(source) is False
+
+    def test_static_import_is_not_strict(self) -> None:
+        source = "import os\nfrom pathlib import Path\n"
+        assert detect_strict_uncertainty(source) is False
+
+    def test_empty_string_is_not_strict(self) -> None:
+        assert detect_strict_uncertainty("") is False
+
+    def test_syntax_error_is_not_strict(self) -> None:
+        assert detect_strict_uncertainty("def (broken:") is False

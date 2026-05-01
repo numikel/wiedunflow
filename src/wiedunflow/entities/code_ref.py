@@ -35,6 +35,17 @@ class CodeRef(BaseModel):
     role: CodeRefRole = "primary"
     source_excerpt: str | None = Field(default=None, max_length=4000)
 
+    @model_validator(mode="before")
+    @classmethod
+    def fix_inverted_lines(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        start = data.get("line_start")
+        end = data.get("line_end")
+        if isinstance(start, int) and isinstance(end, int) and end < start:
+            data = dict(data, line_start=end, line_end=start)
+        return data
+
     @model_validator(mode="after")
     def validate_lines(self) -> Self:
         if self.line_start < 1:

@@ -8,7 +8,10 @@ from typing import Any
 import jedi
 import structlog
 
-from wiedunflow.adapters.dynamic_import_detector import detect_dynamic_imports
+from wiedunflow.adapters.dynamic_import_detector import (
+    detect_dynamic_imports,
+    detect_strict_uncertainty,
+)
 from wiedunflow.entities.call_graph import CallGraph
 from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.resolution_stats import ResolutionStats
@@ -198,7 +201,13 @@ def _propagate_dynamic_markers(
         sym_path = sym.file_path if sym.file_path.is_absolute() else repo_root / sym.file_path
         source = _read_source(sym_path, source_cache)
         if source is not None and detect_dynamic_imports(source):
-            updated.append(sym.model_copy(update={"is_dynamic_import": True, "is_uncertain": True}))
+            # is_uncertain only when the *module itself* is dynamic (importlib/
+            # __import__).  Plain getattr() usage keeps is_uncertain=False so
+            # the symbol stays in allowed_symbols for the planning grounding set.
+            is_uncertain = detect_strict_uncertainty(source)
+            updated.append(
+                sym.model_copy(update={"is_dynamic_import": True, "is_uncertain": is_uncertain})
+            )
         else:
             updated.append(sym)
     return updated
@@ -262,6 +271,7 @@ class JediResolver:
         """
         symbol_by_name: dict[str, CodeSymbol] = {s.name: s for s in symbols}
         # One Project per resolve() call -- heavy object, reused across all edges.
+        # smart_sys_path=True (default) detects src-layout automatically.
         project: Any = jedi.Project(path=str(repo_root))
         source_cache: dict[Path, str] = {}
         resolved_edges: list[tuple[str, str]] = []

@@ -1,10 +1,10 @@
 # Release-gate eval config for dateutil/dateutil.
-# Overrides: Sonnet narration for cost-optimised non-MCP eval run.
+# Flat layout (dateutil/ at root); tests nested inside package as dateutil/test/.
 llm:
   provider: "openai"
   model_plan: "gpt-5.4-mini"
   model_narrate: "gpt-5.4"
-  leaf_description_model: "claude-haiku-4-5"
-tutorial:
-  max_lessons: 30
-  target_audience: "mid-level Python developer"
+max_lessons: 30
+target_audience: "mid-level Python developer"
+exclude_patterns:
+  - "dateutil/test/**"

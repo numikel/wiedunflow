@@ -123,16 +123,16 @@ def test_ungrounded_symbol_triggers_retry() -> None:
 
 def test_two_consecutive_failures_raise_planning_fatal_error() -> None:
     bad = _make_manifest(["mod.GHOST"])
-    stub = StubPlanLLM([bad, bad])
+    stub = StubPlanLLM([bad, bad, bad])
     with pytest.raises(PlanningFatalError) as exc_info:
         plan_with_retry(stub, "outline", frozenset({"mod.add"}))
-    assert exc_info.value.attempts == 2
-    assert len(stub.calls) == 2
+    assert exc_info.value.attempts == 3
+    assert len(stub.calls) == 3
 
 
 def test_planning_fatal_error_carries_last_error_message() -> None:
     bad = _make_manifest(["nope"])
-    stub = StubPlanLLM([bad, bad])
+    stub = StubPlanLLM([bad, bad, bad])
     with pytest.raises(PlanningFatalError) as exc_info:
         plan_with_retry(stub, "outline", frozenset())
     assert exc_info.value.last_error != ""

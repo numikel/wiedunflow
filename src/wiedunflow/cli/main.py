@@ -429,8 +429,8 @@ def generate_cmd(
         exit_code = _run_pipeline(
             repo_path=repo_path,
             providers=providers,
-            excludes=excludes,
-            includes=includes,
+            excludes=tuple(config.exclude_patterns) + excludes,
+            includes=tuple(config.include_patterns) + includes,
             root=root,
             max_lessons=config.max_lessons,
             should_abort=sigint.should_finish.is_set,

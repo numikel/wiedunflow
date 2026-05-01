@@ -73,3 +73,38 @@ def _has_subscript_on_scope_call(tree: ast.AST) -> bool:
         ):
             return True
     return False
+
+
+def detect_strict_uncertainty(source: str) -> bool:
+    """Return True only for patterns where the *module itself* is dynamically determined.
+
+    More conservative than :func:`detect_dynamic_imports`.  Only flags
+    ``importlib.import_module(...)`` and ``__import__(...)`` — patterns where
+    the entire module resolved at runtime makes static FQN analysis impossible.
+
+    The ``getattr`` pattern and ``globals/locals`` subscripts are intentionally
+    excluded: while these affect *values* at runtime, the *symbols defined in
+    the file* remain statically discoverable by tree-sitter, so marking them all
+    as ``is_uncertain`` would incorrectly exclude them from the planner's
+    grounding set.
+
+    Used by :func:`~wiedunflow.adapters.jedi_resolver._propagate_dynamic_markers`
+    to decide whether to set ``is_uncertain=True`` on a symbol (which removes it
+    from ``allowed_symbols``).  :func:`detect_dynamic_imports` is kept for
+    the broader "flag the edge as uncertain" use-case.
+    """
+    if not source.strip():
+        return False
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr == "import_module":
+            return True
+        if isinstance(func, ast.Name) and func.id == "__import__":
+            return True
+    return False

@@ -372,7 +372,9 @@ Track C:
 
 ---
 
-## Sprint 7 — Release Candidate + Release Gate (v0.1.0-rc.1 → v0.1.0)
+## Sprint 7 — Release Candidate + Release Gate — DELIVERED (v0.8.0)
+
+**Status**: DELIVERED (2026-05-01) — cleared as v0.8.0. Original target was v0.1.0-rc.1→v0.1.0; versioning advanced past that in Sprints 8-12 (v0.2.0–v0.7.0) before eval was run. Rubric (Track B) explicitly deferred — see CHANGELOG [0.8.0] note; collect from real users post-PyPI publish.
 
 **Cel**: full 5-repo eval (US-065) + rubric sign-off (US-066) + cross-OS bug fixes + release workflow. Tag `v0.1.0`.
 

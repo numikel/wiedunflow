@@ -211,6 +211,36 @@ def test_static_import_no_dynamic_marker(
 
 
 # ---------------------------------------------------------------------------
+# Test: getattr-only file → is_dynamic_import=True, is_uncertain=False
+# ---------------------------------------------------------------------------
+
+
+def test_getattr_only_marks_dynamic_but_not_uncertain(
+    tmp_path: Path,
+    resolver: JediResolver,
+) -> None:
+    """A file using getattr (but no importlib) gets is_dynamic_import=True, is_uncertain=False.
+
+    This ensures symbols in files with normal getattr usage are not excluded
+    from the planning grounding set (allowed_symbols).
+    """
+    getattr_py = tmp_path / "dispatch.py"
+    getattr_py.write_text(
+        "def lookup(obj, attr: str):\n    return getattr(obj, attr)\n",
+        encoding="utf-8",
+    )
+
+    sym = _sym("lookup", getattr_py, lineno=1)
+    raw = _raw_graph([sym], [])
+
+    result = resolver.resolve([sym], raw, tmp_path)
+
+    output_sym = next(s for s in result.nodes if s.name == "lookup")
+    assert output_sym.is_dynamic_import is True
+    assert output_sym.is_uncertain is False
+
+
+# ---------------------------------------------------------------------------
 # Test: cycle graph does not crash the resolver
 # ---------------------------------------------------------------------------
 

@@ -163,9 +163,7 @@ class TestConfigPrecedenceChain:
         cfg = load_config()
 
         assert cfg.llm_provider == "openai", "Built-in default must be 'openai'"
-        assert cfg.llm_model_plan == "gpt-5.4", (
-            "Built-in default model_plan must be 'gpt-5.4'"
-        )
+        assert cfg.llm_model_plan == "gpt-5.4", "Built-in default model_plan must be 'gpt-5.4'"
         assert cfg.llm_model_narrate == "gpt-5.4", (
             "Built-in default model_narrate must be 'gpt-5.4'"
         )

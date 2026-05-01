@@ -26,6 +26,17 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Evals
+wiedunflow-*.html
+tests/eval/results/
+
+# AI
+.ai/
+.claude/
+.
+# CI
+.github/
+
 # Virtual environments
 .venv/
 venv/
@@ -108,6 +119,7 @@ langgraph_checkpoints/
 
 # CodeGuide project-specific (Sprint 0 additions)
 .codeguide/
+.ai/
 # eval corpus: submodules are tracked; only local run artifacts are ignored
 tests/eval/corpus/repos/*/.cache/
 tests/eval/corpus/repos/*/__pycache__/

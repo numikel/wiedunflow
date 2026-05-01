@@ -10,7 +10,7 @@
 
 ## Install
 
-> Available on PyPI from v0.1.0. Until then, install from source (see Development Setup in
+> Available on PyPI from v0.9.0. For v0.8.0 install from source (see Development Setup in
 > [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ```bash
@@ -57,7 +57,7 @@ Code's custom-agent picker. Arrow keys + Enter + Esc — no flags to remember.
  ╚███╔███╔╝██║███████╗██████╔╝╚██████╔╝██║ ╚████║███████╗███████╗╚██████╔╝╚███╔███╔╝
   ╚══╝╚══╝ ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚══════╝ ╚═════╝  ╚══╝╚══╝
 
-  v0.6.0 · interactive tutorial generator from your local Git repository
+  v0.8.0 · interactive tutorial generator from your local Git repository
 
 ? What would you like to do?
   ❯ Initialize config
@@ -192,7 +192,7 @@ click group class rewrites an unknown first positional to `generate <positional>
 Running `wiedun-flow ./my-repo` in a TTY produces:
 
 ```
-WiedunFlow v0.6.0
+WiedunFlow v0.8.0
 offline-friendly tutorial generator from local Git repos
 
 [1/7] Ingestion
@@ -470,7 +470,7 @@ The following limitations are acknowledged in v0.1.0 and prioritized for v0.2.0+
 - **Narration language**: English only. Non-English language support and i18n infrastructure are deferred to v0.2.0+.
 - **Dynamic constructs**: Dynamic imports, runtime polymorphism, reflection, and metaclass-based dispatch are detected and flagged as `uncertain` in the output HTML. Symbol resolution does not attempt to trace these patterns — see the code directly for runtime behavior.
 - **Lesson capacity**: Hard cap at 30 regular lessons per tutorial (configurable via `tutorial.max_lessons`). Very large repositories are aggressively pruned to maintain narrative coherence. A synthetic "Where to go next" lesson is always appended as lesson 31.
-- **Installation channel**: v0.1.0 ships as a Git-installable package only. PyPI release is explicitly deferred to v0.2.0+ per FR-03.
+- **Installation channel**: PyPI distribution is available from v0.9.0. Prior versions install from source.
 
 ## License
 

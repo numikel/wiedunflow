@@ -73,12 +73,17 @@ def _run_report_path(repo_path: Path) -> Path:
 
 @pytest.fixture(scope="session")
 def eval_api_key() -> str:
-    """Skip the entire eval suite when no API key is available."""
-    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    """Skip the entire eval suite when no API key is available.
+
+    Prefers OPENAI_API_KEY (default per ADR-0015); falls back to
+    ANTHROPIC_API_KEY for Anthropic-provider eval runs.
+    """
+    key = os.environ.get("OPENAI_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "")
     if not key:
         pytest.skip(
-            "ANTHROPIC_API_KEY not set -- eval suite requires a real API key. "
-            "Set the variable and re-run with `uv run pytest -m eval`."
+            "Neither OPENAI_API_KEY nor ANTHROPIC_API_KEY is set -- eval suite "
+            "requires a real API key. Set the variable and re-run with "
+            "`uv run pytest -m eval`."
         )
     return key
 
@@ -124,7 +129,7 @@ def test_repo_generates_without_crash(
     cmd = [
         sys.executable,
         "-m",
-        "wiedun-flow",
+        "wiedunflow",
         "generate",
         str(repo_path),
         "--yes",
@@ -229,12 +234,21 @@ def _extract_concepts_from_output(repo_path: Path) -> set[str]:
     """Collect all concept strings from the lesson plan JSON embedded in HTML.
 
     Looks for a ``<script type="application/json" id="lesson-data">`` block in
-    ``tutorial.html`` and reads ``teaches`` + ``concepts_introduced`` fields.
-    Falls back to scanning run-report.json when the HTML is absent.
+    the generated HTML and reads ``teaches`` + ``concepts_introduced`` fields.
+
+    Searches (in order):
+    1. ``wiedunflow-<repo_name>.html`` in CWD (default output filename).
+    2. ``tutorial*.html`` in *repo_path* (legacy pattern, kept for compatibility).
     """
     concepts: set[str] = set()
 
-    html_candidates = list(repo_path.glob("tutorial*.html"))
+    repo_name = repo_path.name
+    cwd_html = Path.cwd() / f"wiedunflow-{repo_name}.html"
+    html_candidates: list[Path] = []
+    if cwd_html.exists():
+        html_candidates.append(cwd_html)
+    html_candidates.extend(repo_path.glob("tutorial*.html"))
+
     for html_path in html_candidates:
         text = html_path.read_text(encoding="utf-8", errors="replace")
         # Extract JSON from the lesson-data script tag.

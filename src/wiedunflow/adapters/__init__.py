@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from wiedunflow.adapters.bm25_store import Bm25Store
 from wiedunflow.adapters.cycle_detector import detect_cycles
-from wiedunflow.adapters.dynamic_import_detector import detect_dynamic_imports
+from wiedunflow.adapters.dynamic_import_detector import (
+    detect_dynamic_imports,
+    detect_strict_uncertainty,
+)
 from wiedunflow.adapters.fake_clock import FakeClock
 from wiedunflow.adapters.fake_llm_provider import FakeLLMProvider
 from wiedunflow.adapters.git_context import get_git_context
@@ -35,5 +38,6 @@ __all__ = [
     "YamlConsentStore",
     "detect_cycles",
     "detect_dynamic_imports",
+    "detect_strict_uncertainty",
     "get_git_context",
 ]

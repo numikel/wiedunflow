@@ -16,7 +16,7 @@ from wiedunflow.interfaces.ports import LLMProvider
 
 logger = structlog.get_logger(__name__)
 
-_MAX_PLANNING_ATTEMPTS = 2
+_MAX_PLANNING_ATTEMPTS = 3
 
 
 class PlanningFatalError(RuntimeError):

@@ -98,9 +98,10 @@ def test_code_ref_line_start_zero_raises() -> None:
         CodeRef(file_path=Path("a.py"), symbol="a.fn", line_start=0, line_end=5)
 
 
-def test_code_ref_line_end_before_start_raises() -> None:
-    with pytest.raises(ValidationError, match="line_end"):
-        CodeRef(file_path=Path("a.py"), symbol="a.fn", line_start=5, line_end=3)
+def test_code_ref_line_end_before_start_auto_swaps() -> None:
+    ref = CodeRef(file_path=Path("a.py"), symbol="a.fn", line_start=5, line_end=3)
+    assert ref.line_start == 3
+    assert ref.line_end == 5
 
 
 def test_code_ref_equal_start_end_valid() -> None:

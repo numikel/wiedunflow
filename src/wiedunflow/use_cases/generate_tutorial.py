@@ -679,8 +679,12 @@ def _collect_allowed_symbols(
     """Derive the set of symbols the planner may reference.
 
     Excludes symbols that are:
-    - Marked ``is_uncertain`` or ``is_dynamic_import`` in the AST snapshot.
-    - Members of any SCC cycle group (topological order is undefined inside cycles).
+    - Marked ``is_uncertain`` in the AST snapshot (importlib/``__import__`` in source).
+
+    Cyclic symbols are intentionally NOT excluded: the grounding invariant checks
+    symbol *existence* (ADR-0007), not lesson ordering.  Excluding cycles caused
+    false-negative grounding failures when the LLM legitimately referenced a symbol
+    that lives in a call cycle (e.g. dateutil.parser._parser.parse).
 
     Args:
         ranked: Stage 3 output with ``ranked_symbols`` and ``cycle_groups``.
@@ -689,14 +693,14 @@ def _collect_allowed_symbols(
     Returns:
         Frozenset of clean, groundable symbol names.
     """
-    uncertain: set[str] = {s.name for s in symbols if s.is_uncertain or s.is_dynamic_import}
-    cyclic: set[str] = set()
-    for group in ranked.cycle_groups:
-        cyclic.update(group)
+    # Only exclude symbols whose resolution is genuinely uncertain (importlib/
+    # __import__ in source file).  is_dynamic_import alone (set for getattr
+    # usage) no longer implies ungroundable — see detect_strict_uncertainty.
+    uncertain: set[str] = {s.name for s in symbols if s.is_uncertain}
     return frozenset(
         s.symbol_name
         for s in ranked.ranked_symbols
-        if s.symbol_name not in uncertain and s.symbol_name not in cyclic
+        if s.symbol_name not in uncertain
     )
 
 

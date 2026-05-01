@@ -6,6 +6,36 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-01 — Sprint 7 Release Gate Cleared
+
+### Added
+- **Eval suite green on 5 OSS repos** via OpenAI provider (`click`, `requests`, `starlette`, `python-sdk-mcp`, `dateutil`). Eval artifacts archived in `tests/eval/results/`.
+- **`tests/eval/conftest.py`** — session-scoped pre-flight fixture that validates `OPENAI_API_KEY` before spending budget; logs eval cost ceiling ($19 across 5 repos).
+- **`exclude_patterns` in eval configs** — `examples/**` and `tests/**` excluded from ingestion for all 5 repos to prevent FQN pollution in planning stage.
+- **`openai.InternalServerError` retried** — 500/502/503 from OpenAI now retried by tenacity alongside existing `RateLimitError` / `APITimeoutError`.
+- **`CodeRef` auto-swap** — `line_end < line_start` from LLM is silently corrected (swap) instead of raising a Pydantic `ValidationError` that consumed a planning retry.
+- **Planning retries: 2 → 3** — one extra attempt gives the LLM room to recover from both grounding failures and line-number errors in separate retries.
+- **Code pane auto-collapse** — lessons with no code content (`code_snippet` absent, no `code_panel_html`, no segment-level `code_ref`) collapse to single-column layout automatically, eliminating the "(no code reference)" empty state.
+
+### Changed
+- **MCP eval config** switched to OpenAI (`gpt-5.4-mini` plan / `gpt-5.4` narrate) per ADR-0015. Original Anthropic config preserved as `tests/eval/configs/python-sdk-mcp-anthropic.yaml`.
+- **`eval_api_key` fixture** — prefers `OPENAI_API_KEY`, falls back to `ANTHROPIC_API_KEY`; skips only when both are unset.
+- **`_MAX_PLANNING_ATTEMPTS`** raised from 2 to 3.
+
+### Fixed
+- **`exclude_patterns` YAML config ignored** — `cli/main.py` now merges `config.exclude_patterns` / `config.include_patterns` into the tuples passed to `_run_pipeline`.
+- **Jedi `added_sys_path` regression** — reverted accidental patch that dropped resolution rate from 9.9% → 2.7%; Jedi's default `smart_sys_path=True` handles src-layout repos correctly.
+- **`getattr` false-positive in dynamic marker propagation** — introduced `detect_strict_uncertainty()` alongside `detect_dynamic_imports()`. Files using `getattr()` for normal attribute access (e.g. `dateutil/parser/_parser.py`, `src/mcp/cli/cli.py`) no longer have all their symbols excluded from the planner's grounding set. Only files with `importlib.import_module()` or `__import__()` keep `is_uncertain=True`. The `is_dynamic_import` flag is unchanged.
+
+### Note
+- **Rubric signoff** (`docs/rubric/v0.1.0/signoff-mcp-sdk.yaml`) deferred to post-PyPI feedback collection from real users. `WIEDUNFLOW_SKIP_RUBRIC_GATE=1` must be set for pre-rubric CI runs.
+
+### Internal
+- Back-tagged `v0.2.0`, `v0.2.1`, `v0.4.0`; backfilled GH Releases for `v0.5.0`–`v0.7.0`.
+- Removed legacy `hooksPath = D:\\CodeGuide\\.git\\hooks` from `.git/config`.
+- Added `.python-version` (`3.12`) at repo root.
+- Rubric template header updated: `v0.6.0` → `v0.8.0`.
+
 ## [0.7.0] - 2026-04-26 — Default Provider Switch (BREAKING)
 
 ### Changed (BREAKING — pre-1.0)

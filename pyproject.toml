@@ -1,6 +1,6 @@
 [project]
 name = "wiedunflow"
-version = "0.7.0"
+version = "0.8.0"
 description = "Generate interactive, self-contained HTML tutorials from local Git repositories"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -160,7 +160,7 @@ addopts = [
 testpaths = ["tests"]
 norecursedirs = ["tests/eval/corpus/repos", ".git", ".venv"]
 markers = [
-    "eval: end-to-end tests that call real LLM APIs (require ANTHROPIC_API_KEY, excluded from default run)",
+    "eval: end-to-end tests that call real LLM APIs (require OPENAI_API_KEY or ANTHROPIC_API_KEY, excluded from default run)",
     "eval_robustness: analysis-only robustness tests on 5 pinned OSS repos with FakeLLMProvider (opt-in, log-only)",
     "integration: walking skeleton e2e tests",
     "playwright: headless browser tests (require playwright install)",
