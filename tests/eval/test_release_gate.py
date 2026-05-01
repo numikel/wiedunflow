@@ -231,14 +231,17 @@ def test_repo_skipped_ratio(
 
 
 def _extract_concepts_from_output(repo_path: Path) -> set[str]:
-    """Collect all concept strings from the lesson plan JSON embedded in HTML.
-
-    Looks for a ``<script type="application/json" id="lesson-data">`` block in
-    the generated HTML and reads ``teaches`` + ``concepts_introduced`` fields.
+    """Collect concept strings from lesson data JSON embedded in the generated HTML.
 
     Searches (in order):
     1. ``wiedunflow-<repo_name>.html`` in CWD (default output filename).
     2. ``tutorial*.html`` in *repo_path* (legacy pattern, kept for compatibility).
+
+    Extracts text from the ``tutorial-lessons`` script tag (current format) which
+    holds a JSON array of lesson objects.  For each lesson the ``title`` and the
+    first 1 000 characters of ``narrative`` are added as searchable strings so
+    that the YAML pattern regexes can match them.  The legacy ``teaches`` /
+    ``concepts_introduced`` fields are also collected when present.
     """
     concepts: set[str] = set()
 
@@ -251,16 +254,34 @@ def _extract_concepts_from_output(repo_path: Path) -> set[str]:
 
     for html_path in html_candidates:
         text = html_path.read_text(encoding="utf-8", errors="replace")
-        # Extract JSON from the lesson-data script tag.
+        # Current format: <script … id="tutorial-lessons">JSON array</script>
         match = re.search(
-            r'<script[^>]+id=["\']lesson-data["\'][^>]*>(.*?)</script>',
+            r'<script[^>]+id=["\']tutorial-lessons["\'][^>]*>(.*?)</script>',
             text,
             re.DOTALL | re.IGNORECASE,
         )
+        # Legacy fallback: id="lesson-data" with {lessons: [...]} wrapper
+        if not match:
+            match = re.search(
+                r'<script[^>]+id=["\']lesson-data["\'][^>]*>(.*?)</script>',
+                text,
+                re.DOTALL | re.IGNORECASE,
+            )
         if match:
             try:
-                data = json.loads(match.group(1))
-                for lesson in data.get("lessons", []):
+                raw = json.loads(match.group(1))
+                lessons: list[dict[str, Any]] = (
+                    raw if isinstance(raw, list) else raw.get("lessons", [])
+                )
+                for lesson in lessons:
+                    # Current format: title + narrative text
+                    title = lesson.get("title", "")
+                    if title:
+                        concepts.add(title.lower())
+                    narrative = lesson.get("narrative", "")
+                    if narrative:
+                        concepts.add(narrative[:1000].lower())
+                    # Legacy fields (kept for compatibility)
                     teaches = lesson.get("teaches", "")
                     if teaches:
                         concepts.add(teaches.lower())
