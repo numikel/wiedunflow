@@ -35,6 +35,7 @@ WiedunFlow is a Python CLI that turns a local Git repository into a single, self
 - Target Python **3.11+** (pattern matching, `tomllib`, improved `TypedDict`, exception groups)
 - Type hints are **mandatory** on public APIs of pipeline modules; prefer `from __future__ import annotations`
 - Lint + format: `ruff` (lint + format) as the single source of truth; `mypy --strict` on `src/wiedunflow/**`
+- Before finishing any coding task, always run a full quality check in this exact order: `uv run ruff format .` -> `uv run ruff check .` -> `uv run mypy src/wiedunflow` -> `uv run pytest`.
 - Use `pathlib.Path`, never raw `os.path` strings
 - Use async only where it genuinely pays off (concurrent LLM calls in the generation stage) — keep the rest synchronous
 - Structured logs (`structlog` or stdlib `logging` with a JSON formatter), never `print()` inside the pipeline

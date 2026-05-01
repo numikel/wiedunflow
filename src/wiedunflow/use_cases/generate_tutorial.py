@@ -697,11 +697,7 @@ def _collect_allowed_symbols(
     # __import__ in source file).  is_dynamic_import alone (set for getattr
     # usage) no longer implies ungroundable — see detect_strict_uncertainty.
     uncertain: set[str] = {s.name for s in symbols if s.is_uncertain}
-    return frozenset(
-        s.symbol_name
-        for s in ranked.ranked_symbols
-        if s.symbol_name not in uncertain
-    )
+    return frozenset(s.symbol_name for s in ranked.ranked_symbols if s.symbol_name not in uncertain)
 
 
 def _build_closing_spec(
