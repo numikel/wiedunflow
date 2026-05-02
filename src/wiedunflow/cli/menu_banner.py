@@ -24,6 +24,6 @@ _BANNER = r"""
 def print_banner() -> None:
     """Render the ASCII welcome banner + version + tagline. Called once per session."""
     print(_BANNER)
-    tagline = f"  v{__version__} · sage-guided tutorial generator from your local Git repository"
+    tagline = f"  v{__version__} · multi-agent tutorial generator from your local Git repository"
     print(tagline)
     print()

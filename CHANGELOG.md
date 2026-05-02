@@ -6,6 +6,57 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-02 — Multi-Agent Narration Pipeline
+
+### Added
+- **Multi-agent narration pipeline (Stage 5/6)** — replaces single-shot `narrate()` with Orchestrator → Researcher × N (8 tools) → Writer → Reviewer per lesson. Sequential per-lesson invariant keeps `concepts_introduced` coherent. Filesystem-mediated workspace at `~/.wiedunflow/runs/<run_id>/` (`processing/` → `finished/` atomic checkpoint via `os.replace`).
+- **`LLMProvider.run_agent()` port + adapters** — manual tool-call loop in `OpenAIProvider` (function calling) and `AnthropicProvider` (tool use). `ToolSpec`, `ToolCall`, `ToolResult`, `AgentTurn`, `AgentResult` types.
+- **Agent cards** at `src/wiedunflow/use_cases/agents/{orchestrator,researcher,writer,reviewer}.md` — YAML frontmatter (tools, suggested_model_role, budgets, input_schema) + body prompt with `{{name}}` placeholder syntax. Loader at `agents/loader.py`.
+- **8 researcher tools** (`agents/tools/*.json`): `read_symbol_body`, `get_callers`, `get_callees`, `search_docs`, `read_tests`, `grep_usages`, `list_files_in_dir`, `read_lines`. Each tool has size cap and is a closure over the AST snapshot.
+- **5 dispatch tools** for Orchestrator: `dispatch_researcher`, `dispatch_writer`, `dispatch_reviewer`, `mark_lesson_done`, `skip_lesson`.
+- **Structured output for Reviewer** — `submit_verdict` terminal tool with JSON Schema enforced by provider (OpenAI Structured Outputs / Anthropic tool use). Eliminates malformed-JSON failure mode entirely.
+- **Structured output for Writer** — `submit_lesson_draft` terminal tool with forced 4-section schema (`overview`, `how_it_works`, `key_details`, `what_to_watch_for`) + `cited_symbols: list[str]` + `uncertain_regions: list[{symbol, callout}]`. Programmatic `cited_symbols ⊂ research_notes` sanity check.
+- **Writer prompt strictness** — "Verbatim Citation Discipline" section (no symbol invention, full signature quote, re-read-before-write self-check) and "Uncertainty Discipline" section (mandatory `> [!note]` callouts for UNCERTAIN-flagged research, no assertion-tone for runtime dispatch).
+- **`SpendMeter` cost reporting wire-through** — created in `_run_pipeline`, propagated to `generate_tutorial → _stage_generation → run_lesson → llm.run_agent`. Adapter providers (`anthropic_provider.py:280`, `openai_provider.py:312`) charge per-call. Final `RunReport.total_cost_usd` and CLI success banner show real cost (was hardcoded `0.0`).
+- **Workspace `finished/` consistency** — fallback `SkippedLesson` paths in `run_lesson` and `run_closing_lesson` now persist to `finished/lesson-N/lesson.json` via `_persist_skipped_lesson` helper. Resume scan now sees all lessons (was: only ~3/16 in cold-start scenario).
+- **Tier 1: Jedi venv auto-detection** — `_detect_python_path(repo_root, override)` in `jedi_resolver.py` searches `.venv/` → `venv/` → `env/` (cross-platform: `Scripts/python.exe` on Windows, `bin/python` on Unix). Falls back to user override via `--python-path PATH` flag. WARNING log when no venv found.
+- **Tier 1: `--python-path` flag** — explicit venv override for `wiedun-flow generate`.
+- **Tier 1: `--bootstrap-venv` flag (opt-in, default off)** — runs `uv sync --no-dev` in the analyzed repo before Stage 2 to bootstrap a missing venv. Graceful degradation on failure.
+- **Tier 2: Heuristic call graph fallback** — when Jedi `infer()` returns empty, `_heuristic_name_match()` does last-component name lookup in AST `symbol_by_name`. Single match → `RESOLVED_HEURISTIC` tag; ambiguous → `UNCERTAIN` with `candidates: list[str]`; zero → `UNRESOLVED` (status quo). Backward-compatible: `resolved_pct` still reflects strict Jedi resolution; new `resolved_heuristic_count` field in `ResolutionStats`, plus computed `resolved_pct_with_heuristic` property.
+- **`{{name}}` placeholder syntax** in agent cards (Mustache-/Jinja-like) replaces `str.format()` to avoid KeyError on literal JSON examples in prompt bodies.
+
+### Changed
+- **Default LLM models for multi-agent roles**: `model_orchestrator=gpt-5.4`, `model_researcher=gpt-5.4-mini`, `model_writer=gpt-5.4`, `model_reviewer=gpt-5.4-mini`. Configurable per role in `tutorial.config.yaml`.
+- **Schema bump cache v1 → v2 (forward-compat)** — added `run_id`, `final_state`, `concepts_finalized`, `total_cost_cents`, `tool_transcript_path`, `orchestrator_turns`, `researcher_count`, `writer_attempts` columns. NULL `run_id` treated as legacy.
+
+### Fixed
+- **Cost reporting hardcoded `0.0`** — `cli/main.py::_write_final_report` now reads from `SpendMeter.total_cost_usd`. CLI success banner shows `total_cost: $X.XX` line.
+- **Workspace `finished/` skipped fallback paths** — `run_lesson` L695-700 and `run_closing_lesson` L536-542 fallback `SkippedLesson` returns now persist to `finished/lesson-N/lesson.json` for resume support.
+- **Reviewer `KeyError('\n  "verdict"')`** — `compile_card` loader switched from `str.format()` to safe `{{name}}` regex substitution. Literal JSON examples in prompt bodies no longer cause KeyError.
+
+### Deprecated
+- **`LLMProvider.narrate()`** and **`LLMProvider.describe_symbol()`** — superseded by `run_agent()` on the multi-agent main path. Methods remain on the `LLMProvider` Protocol and on all three adapters (`AnthropicProvider`, `OpenAIProvider`, `FakeLLMProvider`) for back-compat with the legacy single-shot path; targeted for removal in v1.0.
+- **`use_cases/grounding_retry.py::narrate_with_grounding_retry()`** — kept for the legacy retry path; the Reviewer agent's 6-check rubric (incl. snippet validation) is the new primary grounding gate. Targeted for removal in v1.0.
+
+### Internal
+- Test count: 1169 → **1212** (+43 new tests across all 6 fixes).
+- New ADRs: [ADR-0016](docs/adr/0016-multi-agent-narration.md) (multi-agent narration pipeline), [ADR-0017](docs/adr/0017-cost-reporting-wire-through.md) (cost reporting wire-through), [ADR-0018](docs/adr/0018-jedi-heuristic-fallback.md) (Jedi heuristic call graph fallback).
+
+### Eval baseline (SummarifAI_API, 22 Python files, cold-start no `.venv/`)
+
+| Metric | v0.8.0 (Fix A+B only) | **v0.9.0 (all fixes)** | Δ |
+|--------|---:|---:|---:|
+| Wall time | 24:44 | **14:06** | -43% |
+| Lessons narrated | 12/16 | **21/25** | +75% |
+| `degraded_ratio` | 0.25 | **0.16** | -36% |
+| Hallucinated symbols | 0 | **0** | maintained |
+| `total_cost_usd` | $0.00 (BUG) | **$3.82** | reporting fixed |
+| Jedi `resolved_heuristic` | n/a | **27 edges** | Tier 2 active |
+| HTML size | 610 KB | 793 KB | +30% (more lessons) |
+
+### Known issues (deferred to v0.9.1)
+- **Workspace `mark_lesson_done` persistence inconsistency** — single eval run may persist only ~9/22 lesson.json files to `finished/` even though all 21 lessons appear in the HTML output. Multiple `run_id` directories created during one run (`generate_run_id()` uses `started_at` timestamp called more than once). Resume support is partial until fixed. The `SkippedLesson` fallback paths (Bug #2) DO persist correctly — issue is in the success path of `mark_lesson_done` dispatch tool.
+
 ## [0.8.0] - 2026-05-01 — Sprint 7 Release Gate Cleared
 
 ### Added
