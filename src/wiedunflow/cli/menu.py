@@ -1255,16 +1255,20 @@ def _subwizard_repo_output(io: MenuIO) -> dict[str, Any] | None:
             break
         print(f"  ! {error}")
 
+    repo_path = Path(repo_raw).expanduser()
+    default_label = f"<repo>/wiedunflow-{repo_path.name}.html"
     output_raw = io.text(
-        "Output path (Enter for ./tutorial.html):",
+        f"Output path (Enter for default: {default_label}):",
         default="",
     )
     if output_raw is None:
         return None
+    # Leave normalization (cwd resolution + missing-extension fix) to
+    # _resolve_output_path so CLI and menu paths share a single contract.
     output_path: Path | None = Path(output_raw).expanduser() if output_raw.strip() else None
 
     return {
-        "repo_path": Path(repo_raw).expanduser(),
+        "repo_path": repo_path,
         "output_path": output_path,
     }
 
@@ -1905,7 +1909,7 @@ def _launch_pipeline(payload: dict[str, Any]) -> None:
             no_cost_prompt=False,
             is_tty=True,
             json_mode=False,
-            output_path=_resolve_output_path(config.output_path),
+            output_path=_resolve_output_path(config.output_path, repo_path=payload["repo_path"]),
         )
     except Exception as exc:
         print(f"  ! pipeline crashed: {type(exc).__name__}: {exc}")

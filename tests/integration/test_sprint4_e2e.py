@@ -365,10 +365,13 @@ def test_closing_lesson_is_appended_to_generated_tutorial(
             standalone_mode=True,
         )
         assert result.exit_code == 0, f"CLI failed: {result.output}"
-        # Default output filename per ADR rebrand: wiedunflow-<repo>.html.
-        html = (Path(tmp_cwd) / f"wiedunflow-{tiny_repo_copy.name}.html").read_text(
-            encoding="utf-8"
-        )
+        # Default output location per v0.9.1+ UX: <repo>/wiedunflow-<repo-name>.html
+        # (was: <cwd>/wiedunflow-<repo>.html — moved next to the analyzed repo so
+        # the artifact lives with the source it documents).
+        del tmp_cwd  # cwd is no longer the default location
+        html = (
+            tiny_repo_copy / f"wiedunflow-{tiny_repo_copy.name}.html"
+        ).read_text(encoding="utf-8")
 
     report = _load_report(tiny_repo_copy)
     # total_planned_lessons excludes the closing lesson (spec decision).

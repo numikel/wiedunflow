@@ -6,6 +6,13 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **Closing lesson rendered raw JSON instead of markdown** — `run_closing_lesson` is given `tools=[]` (no `submit_lesson_draft` tool available) but the Writer card still forces `output_contract: format=json`, so gpt-5.4 emitted a JSON envelope as plain text. The HTML reader then displayed the literal `{"overview":"...","how_it_works":"..."}` blob instead of formatted markdown. New `_assemble_narrative_from_structured()` defensively parses such payloads (incl. ` ```json ` fenced wrapper) and stitches the four sections (`overview`, `how_it_works`, `key_details`, `what_to_watch_for`) into a single narrative; plain-markdown output passes through verbatim. Confirmed against the v0.9.0 manual-eval artefact `wiedunflow-project-generator.html`.
+
+### Changed
+- **`--output` default location is now `<repo>/wiedunflow-<repo-name>.html`** (was: `./wiedunflow-<repo>.html` in cwd). The artefact now lives next to the source it documents, so the tutorial moves with the repo and never gets orphaned in a stale shell cwd.
+- **`--output` auto-appends `.html`** when the supplied path has no extension (e.g. `--output my-tour` → `my-tour.html`). Existing extensions (`.html`, `.htm`, anything else) are preserved verbatim. Closes the "I forgot the extension and my OS would not open the file" feedback from the v0.9.0 manual eval. The same contract applies to the interactive menu's Generate sub-wizard (`§1 Repo & Output` now displays the repo-relative default).
+
 ## [0.9.0] - 2026-05-02 — Multi-Agent Narration Pipeline
 
 ### Added

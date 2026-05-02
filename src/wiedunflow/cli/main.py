@@ -313,9 +313,11 @@ def init_cmd(
     default=None,
     type=click.Path(dir_okay=False, path_type=Path),
     help=(
-        "Override the tutorial output path. Relative paths resolve against the "
-        "current directory; default is ./tutorial.html. Configurable in "
-        "tutorial.config.yaml as `output_path`."
+        "Override the tutorial output path. Default: <repo>/wiedunflow-<repo-name>.html "
+        "(written into the analyzed repository). Relative paths resolve against the current "
+        "directory; if the path has no extension, .html is appended automatically "
+        "(--output my-tour -> my-tour.html). Configurable in tutorial.config.yaml as "
+        "`output_path`."
     ),
 )
 @click.option(
@@ -479,7 +481,7 @@ def generate_cmd(
             no_cost_prompt=no_cost_prompt,
             is_tty=is_tty,
             json_mode=json_mode,
-            output_path=_resolve_output_path(config.output_path),
+            output_path=_resolve_output_path(config.output_path, repo_path=repo_path),
         )
     finally:
         sigint.restore()
@@ -573,17 +575,31 @@ def _build_llm_provider(
     return FakeLLMProvider()  # pragma: no cover — exhaustive config Literal above
 
 
-def _resolve_output_path(configured: Path | None) -> Path | None:
-    """Return an absolute :class:`Path` for the user-configured output, or ``None``.
+def _resolve_output_path(configured: Path | None, *, repo_path: Path) -> Path:
+    """Return an absolute :class:`Path` for the tutorial HTML output.
 
-    Sprint 8 / v0.2.0: relative paths in CLI / YAML resolve against ``cwd`` so
-    ``--output ./out/tutorial.html`` lands where the user expects regardless
-    of where the orchestrator's defaults point. ``None`` is propagated
-    unchanged so :func:`generate_tutorial` falls back to ``./tutorial.html``.
+    v0.9.1+ behaviour (responsive to user feedback after the v0.9.0 push):
+
+    1. **Default location is the analyzed repo, not cwd.** When ``configured``
+       is ``None``, return ``<repo>/wiedunflow-<repo-name>.html`` so the
+       generated tutorial lives next to the source it describes.
+    2. **Relative paths resolve against cwd** (preserved from Sprint 8 /
+       v0.2.0): ``--output ./out/tour.html`` lands where the shell points,
+       not where the orchestrator's defaults are computed.
+    3. **Auto-append ``.html`` extension** when the user-supplied path has no
+       suffix. ``--output my-tour`` becomes ``my-tour.html`` — closes the
+       common-case of "I forgot the extension and the file did not open in
+       the browser." If the user supplies ``.htm`` or any other suffix it is
+       preserved verbatim.
     """
     if configured is None:
-        return None
-    return configured if configured.is_absolute() else (Path.cwd() / configured).resolve()
+        return (repo_path.expanduser() / f"wiedunflow-{repo_path.name}.html").resolve()
+
+    expanded = configured.expanduser()
+    base = expanded if expanded.is_absolute() else (Path.cwd() / expanded)
+    if base.suffix == "":
+        base = base.with_suffix(".html")
+    return base.resolve()
 
 
 def _build_pricing_chain() -> object:

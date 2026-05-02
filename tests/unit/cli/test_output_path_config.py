@@ -90,17 +90,29 @@ def test_cli_none_does_not_shadow_yaml(tmp_path: Path, monkeypatch: pytest.Monke
 
 
 # ---------------------------------------------------------------------------
-# _resolve_output_path — relative vs absolute
+# _resolve_output_path — defaults, relative vs absolute, .html auto-append
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_output_path_returns_none_for_none() -> None:
-    assert _resolve_output_path(None) is None
+def test_resolve_output_path_defaults_to_repo_dir(tmp_path: Path) -> None:
+    """v0.9.1+: when no path is configured, the default lives next to the
+    analyzed repo (was: ``./tutorial.html`` in cwd) and uses the repo name as
+    the file stem so the artifact is self-describing."""
+    repo = tmp_path / "my-cool-project"
+    repo.mkdir()
+
+    resolved = _resolve_output_path(None, repo_path=repo)
+
+    assert resolved.is_absolute()
+    assert resolved == (repo / "wiedunflow-my-cool-project.html").resolve()
 
 
 def test_resolve_output_path_keeps_absolute_unchanged(tmp_path: Path) -> None:
     abs_path = tmp_path / "tutorial.html"
-    assert _resolve_output_path(abs_path) == abs_path
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    assert _resolve_output_path(abs_path, repo_path=repo) == abs_path
 
 
 def test_resolve_output_path_makes_relative_absolute(
@@ -108,11 +120,53 @@ def test_resolve_output_path_makes_relative_absolute(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     relative = Path("out/tutorial.html")
+    repo = tmp_path / "any-repo"
+    repo.mkdir()
 
-    resolved = _resolve_output_path(relative)
+    resolved = _resolve_output_path(relative, repo_path=repo)
 
-    assert resolved is not None
     assert resolved.is_absolute()
     # Resolved path may differ in case on Windows but the suffix matches.
     assert resolved.name == "tutorial.html"
     assert resolved.parent.name == "out"
+
+
+def test_resolve_output_path_appends_html_when_missing_extension(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v0.9.1+: ``--output my-tour`` (no extension) must become ``my-tour.html``
+    so the file opens in the browser when double-clicked. Closes the
+    "I forgot the extension" feedback from the v0.9.0 manual eval."""
+    monkeypatch.chdir(tmp_path)
+    repo = tmp_path / "any-repo"
+    repo.mkdir()
+
+    resolved = _resolve_output_path(Path("my-tour"), repo_path=repo)
+
+    assert resolved.name == "my-tour.html"
+
+
+def test_resolve_output_path_preserves_existing_extension(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the user already supplied an extension (``.html``, ``.htm``, or
+    anything else) we MUST NOT touch it — only the empty-suffix case gets the
+    auto-append."""
+    monkeypatch.chdir(tmp_path)
+    repo = tmp_path / "any-repo"
+    repo.mkdir()
+
+    assert _resolve_output_path(Path("tour.html"), repo_path=repo).name == "tour.html"
+    assert _resolve_output_path(Path("tour.htm"), repo_path=repo).name == "tour.htm"
+
+
+def test_resolve_output_path_default_uses_repo_name_with_spaces(tmp_path: Path) -> None:
+    """The repo dir's name flows into the default output filename verbatim —
+    spaces and unicode included. The resulting Path must still be valid."""
+    repo = tmp_path / "Codeguide v2 (legacy)"
+    repo.mkdir()
+
+    resolved = _resolve_output_path(None, repo_path=repo)
+
+    assert resolved.parent == repo.resolve()
+    assert resolved.name == "wiedunflow-Codeguide v2 (legacy).html"

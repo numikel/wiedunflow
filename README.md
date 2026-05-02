@@ -182,7 +182,9 @@ Options:
   --cache-path FILE            Override the cache database location (US-020).
   --max-cost USD               Abort if the projected LLM cost exceeds this value (US-019).
   --no-cost-prompt             Skip the interactive cost-gate prompt (Sprint 8 / v0.2.0).
-  -o, --output FILE            Override the output path (default: ./tutorial.html). Configurable
+  -o, --output FILE            Override the output path. Default: <repo>/wiedunflow-<repo-name>.html
+                               (next to the analyzed repo). Missing `.html` extension is appended
+                               automatically (--output my-tour -> my-tour.html). Configurable
                                in tutorial.config.yaml as `output_path:`.
   --dry-run                    Run Stages 0..4 and emit a preview HTML without paying for narration (US-015).
   --review-plan                Pause after Stage 4 and open the lesson manifest in $EDITOR (US-016).
