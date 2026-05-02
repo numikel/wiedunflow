@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Michał Kamiński
+"""Eval-suite-wide pytest fixtures (corpus repos, key/budget guards)."""
+
 from __future__ import annotations
 
 import logging

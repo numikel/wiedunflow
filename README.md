@@ -10,18 +10,9 @@
 
 ## Install
 
-> **Install from source for now.** PyPI publication is planned for a near-future release;
-> until then, clone the repo and use `uv` (see Development Setup in
-> [CONTRIBUTING.md](CONTRIBUTING.md)). The `uvx wiedun-flow` invocation below assumes that
-> PyPI release.
-
 ```bash
-# From source (current path — until PyPI release):
 git clone https://github.com/numikel/wiedunflow.git
 cd wiedunflow && uv sync && uv run wiedun-flow
-
-# After PyPI release:
-uvx wiedun-flow
 ```
 
 Set your OpenAI API key before the first run (BYOK — your key stays on your machine):
@@ -529,7 +520,3 @@ The following limitations are acknowledged in v0.1.0 and prioritized for v0.2.0+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
-
-## Roadmap
-
-Implementation plan (Sprint 0-7): [`.ai/implementation-plan.md`](.ai/implementation-plan.md)
