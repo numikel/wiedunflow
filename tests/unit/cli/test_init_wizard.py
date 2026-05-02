@@ -22,7 +22,7 @@ from wiedunflow.cli.main import cli
 
 def _patch_config_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Redirect user_config_path() to a temp directory and return the path."""
-    config_path = tmp_path / "wiedun-flow" / "config.yaml"
+    config_path = tmp_path / "wiedunflow" / "config.yaml"
     monkeypatch.setattr(
         "wiedunflow.cli.init_wizard.user_config_path",
         lambda: config_path,

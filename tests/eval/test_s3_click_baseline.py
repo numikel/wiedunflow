@@ -69,13 +69,13 @@ def test_s3_click_baseline(tmp_path: Path, click_repo_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "wiedun-flow",
+            "wiedunflow",
             "generate",
             str(click_repo_path),
             "--yes",
             "--no-consent-prompt",
         ],
-        cwd=tmp_path,  # wiedun-flow writes tutorial.html into cwd (no --output flag)
+        cwd=tmp_path,  # wiedunflow writes tutorial.html into cwd (no --output flag)
         env={**os.environ},
         capture_output=True,
         text=True,

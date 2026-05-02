@@ -8,8 +8,8 @@ rule: rich → output.py, questionary → menu.py, plain print → menu_banner.p
 prompts via the ``MenuIO`` Protocol injection — never import questionary
 directly.
 
-The menu activates only when ``wiedun-flow`` is invoked with no arguments in
-a TTY. ``wiedun-flow generate <repo>`` and ``wiedun-flow init`` keep their
+The menu activates only when ``wiedunflow`` is invoked with no arguments in
+a TTY. ``wiedunflow generate <repo>`` and ``wiedunflow init`` keep their
 existing one-shot CLI behavior bit-exact (Sprint 7 eval CI workflow contract).
 
 Step 3 (current): MenuIO Protocol + QuestionaryMenuIO + main_menu_loop with
@@ -206,7 +206,7 @@ def _redraw_chrome(breadcrumb: str | None = None) -> None:
 
 
 def _should_launch_menu() -> bool:
-    """Return ``True`` when ``wiedun-flow`` should launch the interactive menu.
+    """Return ``True`` when ``wiedunflow`` should launch the interactive menu.
 
     Activation conditions (all must be true):
     - ``sys.argv[1:]`` is empty (no subcommand or positional args).
@@ -214,7 +214,7 @@ def _should_launch_menu() -> bool:
       terminal — both directions must be a TTY so a CI job with stdout
       hooked to a log file does not accidentally launch the menu).
     - ``WIEDUNFLOW_NO_MENU`` env var is **not** set (emergency escape hatch
-      for scripts that want to invoke ``wiedun-flow`` with no args without
+      for scripts that want to invoke ``wiedunflow`` with no args without
       entering interactive mode).
 
     Returns:
@@ -401,7 +401,7 @@ def _run_init_from_menu(
     previous step with the prior value pre-filled. Esc on the first step
     aborts the wizard back to the menu (ADR-0013 D#6).
 
-    Mirrors ``init_wizard.run_init_wizard`` (which still backs ``wiedun-flow
+    Mirrors ``init_wizard.run_init_wizard`` (which still backs ``wiedunflow
     init`` via Click prompts) but uses the ``MenuIO`` Protocol so the menu's
     look and feel stays consistent. Writes the same nested YAML structure
     to ``user_config_path()``.
@@ -1088,7 +1088,7 @@ def _run_help_from_menu(io: MenuIO) -> None:
     ]
     render_info_panel(console, title="WIEDUNFLOW MENU · QUICK REFERENCE", lines=lines)
     print()
-    print("  Tip: invoke `wiedun-flow generate <repo>` for one-shot CLI mode (CI-friendly).")
+    print("  Tip: invoke `wiedunflow generate <repo>` for one-shot CLI mode (CI-friendly).")
     print("       Set WIEDUNFLOW_NO_MENU=1 to disable this menu globally.")
     print("       Set WIEDUNFLOW_NO_CLEAR=1 if your terminal mangles the screen-clear escapes.")
     _wait_for_return_to_menu(io)
@@ -1824,7 +1824,7 @@ def _launch_pipeline(payload: dict[str, Any]) -> None:
     """Build providers from ``payload`` and run the existing CLI pipeline.
 
     Reuses ``_build_llm_provider`` and ``_run_pipeline`` from ``cli.main`` so
-    the 7-stage Rich-Live experience is identical to ``wiedun-flow generate``.
+    the 7-stage Rich-Live experience is identical to ``wiedunflow generate``.
     questionary's prompt_toolkit application has already exited by the time
     this runs (modal pipeline guarantee — ADR-0013 D#4).
     """

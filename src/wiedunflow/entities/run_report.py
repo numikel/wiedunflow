@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""RunReport entity — structured record of a wiedun-flow run emitted as run-report.json.
+"""RunReport entity — structured record of a wiedunflow run emitted as run-report.json.
 
 Produced at the end of every invocation (successful, degraded, failed, or
 interrupted) and written atomically to ``.wiedunflow/run-report.json`` by
@@ -23,7 +23,7 @@ RunStatus = Literal["ok", "degraded", "failed", "interrupted"]
 
 
 class RunReport(BaseModel):
-    """Structured record of a single ``wiedun-flow`` invocation.
+    """Structured record of a single ``wiedunflow`` invocation.
 
     Serialised to ``.wiedunflow/run-report.json`` via the v1 schema.  The schema
     version is pinned so downstream tooling can evolve without breaking old

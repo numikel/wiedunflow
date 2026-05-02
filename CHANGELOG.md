@@ -6,12 +6,23 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-05-02 — Brand Unification
+
+### Changed (BREAKING — pre-1.0)
+- **CLI command renamed `wiedun-flow` → `wiedunflow`** (single canonical brand token, no hyphen). The single mixed-form convention from the v0.6.0 rebrand (`pkg: wiedunflow` / `CLI: wiedun-flow`) is collapsed to one form everywhere. Reinstall required: `uv sync --reinstall` (or `uv tool install --force wiedunflow`). The old `wiedun-flow` binary is no longer registered as a `[project.scripts]` entry point. See ADR-0019 for rationale (supersedes ADR-0013 §1).
+  - **Migration**: replace any shell aliases, CI smoke commands, and shell history references from `wiedun-flow ...` to `wiedunflow ...`. Behavior is bit-identical.
+  - **Why now**: pre-PyPI release window — zero installed users, zero migration cost. Post-PyPI this would be a MAJOR semver bump per change.
+
 ### Fixed
 - **Closing lesson rendered raw JSON instead of markdown** — `run_closing_lesson` is given `tools=[]` (no `submit_lesson_draft` tool available) but the Writer card still forces `output_contract: format=json`, so gpt-5.4 emitted a JSON envelope as plain text. The HTML reader then displayed the literal `{"overview":"...","how_it_works":"..."}` blob instead of formatted markdown. New `_assemble_narrative_from_structured()` defensively parses such payloads (incl. ` ```json ` fenced wrapper) and stitches the four sections (`overview`, `how_it_works`, `key_details`, `what_to_watch_for`) into a single narrative; plain-markdown output passes through verbatim. Confirmed against the v0.9.0 manual-eval artefact `wiedunflow-project-generator.html`.
+- **Test path drift bugs corrected mimochodem** — `tests/unit/cli/test_no_rich_outside_output.py`, `test_no_questionary_outside_menu.py`, and `test_no_httpx_outside_litellm_pricing.py` had `_SRC_ROOT = .../src/wiedun-flow` which never resolved to a real directory (the actual path is `src/wiedunflow`). The architectural lint tests had been silently passing on empty `rglob()` iterations since the v0.6.0 rebrand. Now correctly target `src/wiedunflow`. `tests/eval/test_s3_click_baseline.py` and `tests/integration/test_zero_telemetry.py` likewise fixed `python -m wiedun-flow` (invalid module name with hyphen) to `python -m wiedunflow`.
 
 ### Changed
 - **`--output` default location is now `<repo>/wiedunflow-<repo-name>.html`** (was: `./wiedunflow-<repo>.html` in cwd). The artefact now lives next to the source it documents, so the tutorial moves with the repo and never gets orphaned in a stale shell cwd.
 - **`--output` auto-appends `.html`** when the supplied path has no extension (e.g. `--output my-tour` → `my-tour.html`). Existing extensions (`.html`, `.htm`, anything else) are preserved verbatim. Closes the "I forgot the extension and my OS would not open the file" feedback from the v0.9.0 manual eval. The same contract applies to the interactive menu's Generate sub-wizard (`§1 Repo & Output` now displays the repo-relative default).
+
+### Internal
+- New ADR-0019: brand unification — drop `wiedun-flow`, single canonical `wiedunflow` (supersedes ADR-0013 §1).
 
 ## [0.9.0] - 2026-05-02 — Multi-Agent Narration Pipeline
 
@@ -27,7 +38,7 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`SpendMeter` cost reporting wire-through** — created in `_run_pipeline`, propagated to `generate_tutorial → _stage_generation → run_lesson → llm.run_agent`. Adapter providers (`anthropic_provider.py:280`, `openai_provider.py:312`) charge per-call. Final `RunReport.total_cost_usd` and CLI success banner show real cost (was hardcoded `0.0`).
 - **Workspace `finished/` consistency** — fallback `SkippedLesson` paths in `run_lesson` and `run_closing_lesson` now persist to `finished/lesson-N/lesson.json` via `_persist_skipped_lesson` helper. Resume scan now sees all lessons (was: only ~3/16 in cold-start scenario).
 - **Tier 1: Jedi venv auto-detection** — `_detect_python_path(repo_root, override)` in `jedi_resolver.py` searches `.venv/` → `venv/` → `env/` (cross-platform: `Scripts/python.exe` on Windows, `bin/python` on Unix). Falls back to user override via `--python-path PATH` flag. WARNING log when no venv found.
-- **Tier 1: `--python-path` flag** — explicit venv override for `wiedun-flow generate`.
+- **Tier 1: `--python-path` flag** — explicit venv override for `wiedunflow generate`.
 - **Tier 1: `--bootstrap-venv` flag (opt-in, default off)** — runs `uv sync --no-dev` in the analyzed repo before Stage 2 to bootstrap a missing venv. Graceful degradation on failure.
 - **Tier 2: Heuristic call graph fallback** — when Jedi `infer()` returns empty, `_heuristic_name_match()` does last-component name lookup in AST `symbol_by_name`. Single match → `RESOLVED_HEURISTIC` tag; ambiguous → `UNCERTAIN` with `candidates: list[str]`; zero → `UNRESOLVED` (status quo). Backward-compatible: `resolved_pct` still reflects strict Jedi resolution; new `resolved_heuristic_count` field in `ResolutionStats`, plus computed `resolved_pct_with_heuristic` property.
 - **`{{name}}` placeholder syntax** in agent cards (Mustache-/Jinja-like) replaces `str.format()` to avoid KeyError on literal JSON examples in prompt bodies.
@@ -97,7 +108,7 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.7.0] - 2026-04-26 — Default Provider Switch (BREAKING)
 
 ### Changed (BREAKING — pre-1.0)
-- **Default LLM provider**: `anthropic` → `openai`. Existing users with `OPENAI_API_KEY` set: zero action. Users relying on `ANTHROPIC_API_KEY`: re-run `wiedun-flow init` and select `anthropic`, or set `WIEDUNFLOW_LLM_PROVIDER=anthropic` in env, or edit `tutorial.config.yaml`. (ADR-0015)
+- **Default LLM provider**: `anthropic` → `openai`. Existing users with `OPENAI_API_KEY` set: zero action. Users relying on `ANTHROPIC_API_KEY`: re-run `wiedunflow init` and select `anthropic`, or set `WIEDUNFLOW_LLM_PROVIDER=anthropic` in env, or edit `tutorial.config.yaml`. (ADR-0015)
 - **Default models**: `claude-sonnet-4-6` (planning) + `claude-opus-4-7` (narration) + `claude-haiku-4-5` (per-symbol describe) → `gpt-5.4` (planning + narration) + `gpt-5.4-mini` (per-symbol describe).
 - **OpenAIProvider class defaults**: `gpt-4o` / `gpt-4o-mini` → `gpt-5.4` / `gpt-5.4-mini`. Affects only callers using `OpenAIProvider()` directly without explicit `model_*=` kwargs.
 
@@ -112,7 +123,7 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.6.0] - 2026-04-26 — Rebrand to WiedunFlow
 
 ### Changed (BREAKING — pre-1.0)
-- Package renamed `codeguide` → `wiedunflow`. CLI command `codeguide` → `wiedun-flow`.
+- Package renamed `codeguide` → `wiedunflow`. CLI command `codeguide` → `wiedun-flow` (further unified to `wiedunflow` in v0.9.1 — see ADR-0019).
 - ENV prefix `CODEGUIDE_*` → `WIEDUNFLOW_*`.
 - Cache namespace: `~/.cache/codeguide/` → `~/.cache/wiedunflow/`.
 - localStorage keys: `codeguide:*` → `wiedunflow:*`.

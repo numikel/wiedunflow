@@ -164,7 +164,7 @@ def test_cli_runs_under_network_namespace(tmp_path: Path) -> None:
         "--map-root-user",
         sys.executable,
         "-m",
-        "wiedun-flow",
+        "wiedunflow",
         "generate",
         str(repo_copy),
         "--yes",

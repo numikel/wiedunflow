@@ -7,7 +7,7 @@ would overwrite the ``wiedunflow.cli.main`` submodule attribute on the
 ``wiedunflow.cli`` package with the Click ``Command`` object, breaking
 :mod:`pytest.monkeypatch` paths like ``wiedunflow.cli.main._build_llm_provider``.
 
-The ``[project.scripts]`` entry point ``wiedun-flow = "wiedunflow.cli.main:main"``
+The ``[project.scripts]`` entry point ``wiedunflow = "wiedunflow.cli.main:main"``
 targets the submodule directly and does not rely on this package exposing the
 symbol.
 """

@@ -51,7 +51,7 @@ def _find_apache_deps() -> list[tuple[str, str]]:
     A distribution is considered Apache-2.0 when its ``Classifier`` field
     contains the string ``"Apache"`` or its ``License`` field does.
 
-    The ``wiedun-flow`` package itself is excluded — it is the project being
+    The ``wiedunflow`` package itself is excluded — it is the project being
     built, not a third-party runtime dependency.
     """
     apache_deps: list[tuple[str, str]] = []

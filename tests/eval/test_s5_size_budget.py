@@ -58,7 +58,7 @@ def test_s5_size_budget_and_schema(tmp_path: Path, repo_name: str) -> None:
         [
             "uv",
             "run",
-            "wiedun-flow",
+            "wiedunflow",
             str(working_repo),
             "--yes",
             "--no-consent-prompt",
@@ -72,7 +72,7 @@ def test_s5_size_budget_and_schema(tmp_path: Path, repo_name: str) -> None:
         check=False,
     )
     assert result.returncode in (0, 2), (
-        f"wiedun-flow exited with {result.returncode} on {repo_name}:\n"
+        f"wiedunflow exited with {result.returncode} on {repo_name}:\n"
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
 

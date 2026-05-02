@@ -148,7 +148,7 @@ def test_repo_generates_without_crash(
         check=False,
     )
     assert result.returncode == 0, (
-        f"wiedun-flow generate exited {result.returncode} for repo '{repo_name}'.\n"
+        f"wiedunflow generate exited {result.returncode} for repo '{repo_name}'.\n"
         f"stderr:\n{result.stderr[-4000:]}\n"
         f"stdout:\n{result.stdout[-2000:]}"
     )

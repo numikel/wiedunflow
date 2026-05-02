@@ -12,7 +12,7 @@
 
 ```bash
 git clone https://github.com/numikel/wiedunflow.git
-cd wiedunflow && uv sync && uv run wiedun-flow
+cd wiedunflow && uv sync && uv run wiedunflow
 ```
 
 Set your OpenAI API key before the first run (BYOK — your key stays on your machine):
@@ -22,7 +22,7 @@ export OPENAI_API_KEY=sk-...          # bash / zsh
 $env:OPENAI_API_KEY = "sk-..."        # PowerShell
 ```
 
-Alternatively, if you prefer Anthropic: set `ANTHROPIC_API_KEY` and run `wiedun-flow init --provider anthropic` to configure it as your default.
+Alternatively, if you prefer Anthropic: set `ANTHROPIC_API_KEY` and run `wiedunflow init --provider anthropic` to configure it as your default.
 
 Cost estimates auto-update from [LiteLLM's pricing catalog](https://github.com/BerriAI/litellm) (24h disk cache); when the network is unavailable WiedunFlow falls back to its bundled static pricing table.
 
@@ -30,20 +30,20 @@ Cost estimates auto-update from [LiteLLM's pricing catalog](https://github.com/B
 
 ```bash
 # 1. Easiest — launch the interactive menu (v0.4.0+)
-wiedun-flow                                # ASCII banner + 7-item picker
+wiedunflow                                # ASCII banner + 7-item picker
 
 # 2. Direct CLI (no menu) — best for CI and scripts
-wiedun-flow init                           # 5-step config wizard
-wiedun-flow generate .                     # generate from current repo
-wiedun-flow .                              # shorthand alias (backward compat)
+wiedunflow init                           # 5-step config wizard
+wiedunflow generate .                     # generate from current repo
+wiedunflow .                              # shorthand alias (backward compat)
 
 # 3. Fully non-interactive (CI, automation)
-ANTHROPIC_API_KEY=sk-ant-... wiedun-flow generate /path/to/repo --yes --no-consent-prompt
+ANTHROPIC_API_KEY=sk-ant-... wiedunflow generate /path/to/repo --yes --no-consent-prompt
 ```
 
 ## Interactive menu (v0.4.0)
 
-Running `wiedun-flow` with no arguments in a TTY launches a menu-driven TUI
+Running `wiedunflow` with no arguments in a TTY launches a menu-driven TUI
 ("centrum dowodzenia") inspired by GitHub Copilot CLI, OpenCode, and Claude
 Code's custom-agent picker. Arrow keys + Enter + Esc — no flags to remember.
 
@@ -84,10 +84,10 @@ menu redraws when the pipeline exits. `Esc` from the menu prompts a
 confirm-exit; `Esc` from any sub-wizard returns to the previous screen.
 
 **The menu does NOT activate when**:
-- you pass any subcommand (`wiedun-flow generate ...`, `wiedun-flow init`),
+- you pass any subcommand (`wiedunflow generate ...`, `wiedunflow init`),
 - stdin or stdout is non-TTY (CI, pipes, redirect),
 - you set `WIEDUNFLOW_NO_MENU=1` (emergency escape hatch for scripts that
-  want the bare `wiedun-flow` invocation to be a no-op).
+  want the bare `wiedunflow` invocation to be a no-op).
 
 ### Target audience — 5-level enum (BREAKING in v0.4.0)
 
@@ -100,14 +100,14 @@ The previous free-text default `"mid-level Python developer"` is fuzzy-mapped
 to `mid` automatically with a logged warning — no config changes required for
 existing setups. The shim is removed in v1.0; update your YAML when convenient.
 
-## First-run setup (`wiedun-flow init`)
+## First-run setup (`wiedunflow init`)
 
 Sprint 6 adds a subcommand that writes a nested-YAML user-level config without
 touching the project:
 
 ```
-$ wiedun-flow init --help
-Usage: wiedun-flow init [OPTIONS]
+$ wiedunflow init --help
+Usage: wiedunflow init [OPTIONS]
 
   Interactive wizard — write a user-level config.yaml (US-002).
 
@@ -135,11 +135,11 @@ produces a zero-prompt run (US-003).
 
 ## CLI Reference
 
-`wiedun-flow` is now a click group with two subcommands:
+`wiedunflow` is now a click group with two subcommands:
 
 ```
-$ wiedun-flow --help
-Usage: wiedun-flow [OPTIONS] COMMAND [ARGS]...
+$ wiedunflow --help
+Usage: wiedunflow [OPTIONS] COMMAND [ARGS]...
 
   WiedunFlow — generate interactive HTML tutorials from local Git repositories.
 
@@ -148,11 +148,11 @@ Commands:
   init      Interactive wizard — write a user-level config.yaml (US-002).
 ```
 
-### `wiedun-flow generate`
+### `wiedunflow generate`
 
 ```
-$ wiedun-flow generate --help
-Usage: wiedun-flow generate [OPTIONS] REPO_PATH
+$ wiedunflow generate --help
+Usage: wiedunflow generate [OPTIONS] REPO_PATH
 
   Generate an interactive HTML tutorial from a local Git repository.
 
@@ -187,15 +187,15 @@ Options:
   -h, --help                   Show this message and exit.
 ```
 
-The top-level `wiedun-flow --help` exposes `-V, --version` and the `generate` / `init`
+The top-level `wiedunflow --help` exposes `-V, --version` and the `generate` / `init`
 subcommands.
 
-**Backward compatibility**: `wiedun-flow <repo>` (without an explicit `generate`) still works — a custom
+**Backward compatibility**: `wiedunflow <repo>` (without an explicit `generate`) still works — a custom
 click group class rewrites an unknown first positional to `generate <positional>`.
 
 ### What you'll see (Sprint 8 / v0.2.0)
 
-Running `wiedun-flow ./my-repo` in a TTY produces:
+Running `wiedunflow ./my-repo` in a TTY produces:
 
 ```
 WiedunFlow v0.9.0
@@ -249,7 +249,7 @@ options are available:
 - `--no-cost-prompt` — skip only the cost prompt, keep the consent flow
   interactive.
 - Non-TTY / piped / redirected stdin — the prompt is automatically bypassed
-  so CI pipelines and `wiedun-flow … > out.txt` keep working unchanged.
+  so CI pipelines and `wiedunflow … > out.txt` keep working unchanged.
 
 In `--log-format=json` mode the banner and animated progress are suppressed so
 the stdout transcript stays parseable; structured stage events are still
@@ -293,17 +293,17 @@ The same `OpenAIProvider` adapter covers the hosted OpenAI API and any OpenAI-co
 ```bash
 # OpenAI (hosted)
 export OPENAI_API_KEY=sk-...
-wiedun-flow ./my-repo --provider openai --model-plan gpt-4.1 --model-narrate gpt-4.1
+wiedunflow ./my-repo --provider openai --model-plan gpt-4.1 --model-narrate gpt-4.1
 
 # Ollama — local inference, no API key, consent banner skipped
-wiedun-flow ./my-repo \
+wiedunflow ./my-repo \
   --provider custom \
   --base-url http://localhost:11434/v1 \
   --model-plan llama3.1:70b \
   --model-narrate llama3.1:70b
 
 # LM Studio / vLLM — same pattern, swap base-url to the server port
-wiedun-flow ./my-repo --provider custom --base-url http://localhost:8000/v1
+wiedunflow ./my-repo --provider custom --base-url http://localhost:8000/v1
 ```
 
 Ollama and other OSS endpoints ignore `api_key`; pass anything (the SDK requires a non-empty string).  Consent is **not** prompted when `--base-url` is set because nothing leaves the machine.
@@ -371,7 +371,7 @@ until you accept the consent banner on the first run for that provider on this m
 
 ### Consent banner (Sprint 6 / v0.0.6)
 
-The first time you run `wiedun-flow generate` against Anthropic or OpenAI (hosted), the CLI
+The first time you run `wiedunflow generate` against Anthropic or OpenAI (hosted), the CLI
 blocks and prints:
 
 > Your source code will be sent to `<provider>`. Continue? [y/N]
@@ -482,7 +482,7 @@ Source-excerpt injection (the underlying anti-hallucination mechanism for
 to `code_refs[*].source_excerpt` only for primary references shorter than
 30 lines, keeping the prompt input under the per-run budget.
 
-Full configuration reference and environment variables: run `wiedun-flow --help` and follow the resolution chain in `src/wiedunflow/cli/config.py`.
+Full configuration reference and environment variables: run `wiedunflow --help` and follow the resolution chain in `src/wiedunflow/cli/config.py`.
 (available from Sprint 1).
 
 ## Configuration precedence
@@ -495,7 +495,7 @@ WiedunFlow resolves every configurable value through a strict chain:
 | 2        | Environment variables (`WIEDUNFLOW_*`, `*_API_KEY`)                                                                  | `ANTHROPIC_API_KEY=...`                     |
 | 3        | `--config <path>` YAML                                                                                              | `--config ./custom.yaml`                    |
 | 4        | Project config `./tutorial.config.yaml`                                                                             | commit to repo                              |
-| 5        | User-level config (`~/.config/wiedunflow/config.yaml` on Linux/macOS, `%APPDATA%\wiedunflow\config.yaml` on Windows) | run `wiedun-flow init`                        |
+| 5        | User-level config (`~/.config/wiedunflow/config.yaml` on Linux/macOS, `%APPDATA%\wiedunflow\config.yaml` on Windows) | run `wiedunflow init`                        |
 | 6 (bottom)| Built-in defaults                                                                                                  | code constant                               |
 
 Run with `--log-format=json` and `DEBUG` level to see which source supplied each value:

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_SRC_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "wiedun-flow"
+_SRC_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "wiedunflow"
 _ALLOWLIST = {
     # Pricing catalog — the sole intentional live-fetch consumer of httpx for pricing.
     "src/wiedunflow/adapters/litellm_pricing_catalog.py",

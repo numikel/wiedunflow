@@ -202,7 +202,7 @@ The generator has 7 ordered stages; conventional-commit scopes mirror them 1:1:
 
 ## CLI_UX
 
-- **Entry point**: `[project.scripts]` in `pyproject.toml` exposes the CLI (e.g. `wiedun-flow = "wiedunflow.cli:main"`).
+- **Entry point**: `[project.scripts]` in `pyproject.toml` exposes the CLI (e.g. `wiedunflow = "wiedunflow.cli:main"`).
 - **Output filename**: default `wiedunflow-<repo>.html` in cwd. `<repo-name>-tutorial-<short-commit>.html` is an opt-in flag (better for sharing in Slack).
 - **Progress reporting**: stage-level progress bar (7 stages) + LLM call counter. Structured JSON logs behind `--log-format json`; never `print()` in the pipeline.
 - **Config resolution order**: CLI flags → `--config <path>` → `./tutorial.config.yaml` → defaults. User `exclude`/`include` patterns are additive over `.gitignore`.
@@ -225,7 +225,7 @@ The generator has 7 ordered stages; conventional-commit scopes mirror them 1:1:
 
 ## UX
 
-WiedunFlow ma dwie user-facing surfaces: CLI (`wiedun-flow init` terminal output) i generated `wiedunflow-<repo>.html` (offline reader). Pełna spec w `.ai/ux-spec.md`; binarne decyzje zakotwiczone w ADR-0011.
+WiedunFlow ma dwie user-facing surfaces: CLI (`wiedunflow init` terminal output) i generated `wiedunflow-<repo>.html` (offline reader). Pełna spec w `.ai/ux-spec.md`; binarne decyzje zakotwiczone w ADR-0011.
 
 **Triggery**:
 - Edytujesz `src/wiedunflow/renderer/templates/**` (Jinja2, CSS)
@@ -240,7 +240,7 @@ WiedunFlow ma dwie user-facing surfaces: CLI (`wiedun-flow init` terminal output
 - **Exact copy**: CLI stage output, cost gate text, error scenarios — literalnie per `.ai/ux-spec.md` §CLI (źródło: `.claude/skills/wiedunflow-ux-skill/reference/cli/design/cli-session-data.js`).
 - **localStorage keys**: `wiedunflow:<repo>:last-lesson`, `wiedunflow:tweak:theme:v2`, `wiedunflow:tweak:narr-frac:v2`. Namespace `wiedunflow:*` jest zarezerwowany.
 - **Three-sink rule (Sprint 5 #6 + ADR-0013)**: rich imports MUSZĄ być TYLKO w `cli/output.py`; questionary imports MUSZĄ być TYLKO w `cli/menu.py`; plain `print()` w `cli/menu_banner.py` (i wszędzie indziej dla diagnostyki). `stage_reporter.py` używa opaque `LiveStageHandle`; `cost_gate.py` przyjmuje `confirm_fn: Callable | None` zamiast `import questionary`; `cli/main.py` traktuje console jako `object`. Testy `test_no_rich_outside_output.py` + `test_no_questionary_outside_menu.py` enforce'ują to.
-- **Hybrid CLI / TUI (ADR-0013, v0.4.0+)**: bare `wiedun-flow` w TTY → menu (`menu.main_menu_loop`). `wiedun-flow generate <repo>` / `wiedun-flow init` / non-TTY / `WIEDUNFLOW_NO_MENU=1` → existing Click group bit-exact. Menu nie odpala się bez TTY na stdout AND stdin (Sprint 7 eval workflow polega na tym).
+- **Hybrid CLI / TUI (ADR-0013, v0.4.0+)**: bare `wiedunflow` w TTY → menu (`menu.main_menu_loop`). `wiedunflow generate <repo>` / `wiedunflow init` / non-TTY / `WIEDUNFLOW_NO_MENU=1` → existing Click group bit-exact. Menu nie odpala się bez TTY na stdout AND stdin (Sprint 7 eval workflow polega na tym).
 
 **Critical anti-patterns**:
 - ❌ Preact, React, Astro, bundler — vanilla JS binarnie (ADR-0005)
@@ -277,3 +277,4 @@ Aktualne architectural decision records (w `docs/adr/`):
 - **ADR-0016** — Multi-agent narration pipeline (Orchestrator → Researcher × N → Writer → Reviewer): replaces single-shot narrate() with per-lesson agentic loop, structured output via tool calls, filesystem-mediated workspace, sequential per-lesson invariant for concepts_introduced coherence (2026-05-02, v0.9.0 BREAKING).
 - **ADR-0017** — Cost reporting wire-through: SpendMeter created in _run_pipeline, propagated through generate_tutorial → run_lesson → llm.run_agent. Adapter providers charge per-call. RunReport.total_cost_usd and CLI banner now show real cost (2026-05-02, v0.9.0).
 - **ADR-0018** — Jedi heuristic call graph fallback: when infer() returns empty, last-component name match in AST symbol_by_name. Single match → resolved_heuristic; ambiguous → uncertain + candidates; zero → unresolved. Tier 1 venv detection layered above (`.venv/` > `venv/` > `env/`) (2026-05-02, v0.9.0).
+- **ADR-0019** — Brand unification: drop `wiedun-flow`, single canonical `wiedunflow` token everywhere (CLI command, docstrings, prose). `WiedunFlow` CamelCase preserved as proper-noun brand display in prose. Supersedes ADR-0013 §1 (CLI command name) (2026-05-02, v0.9.1 BREAKING — pre-PyPI window, zero user impact).

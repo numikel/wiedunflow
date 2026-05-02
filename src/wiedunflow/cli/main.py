@@ -2,14 +2,14 @@
 # Copyright 2026 Michał Kamiński
 """WiedunFlow CLI entrypoint.
 
-Sprint 6 restructure: the top-level ``wiedun-flow`` command is now a click
+Sprint 6 restructure: the top-level ``wiedunflow`` command is now a click
 group with two subcommands:
 
-* ``wiedun-flow init`` — interactive wizard (US-002 / Track A).
-* ``wiedun-flow generate <repo>`` — run the 7-stage tutorial pipeline.
+* ``wiedunflow init`` — interactive wizard (US-002 / Track A).
+* ``wiedunflow generate <repo>`` — run the 7-stage tutorial pipeline.
 
 The ``_DefaultToGenerate`` group subclass preserves backward compatibility:
-``wiedun-flow <repo>`` (pre-Sprint 6 UX) still works — the first positional
+``wiedunflow <repo>`` (pre-Sprint 6 UX) still works — the first positional
 that is not a known subcommand is interpreted as a repo path and routed
 through ``generate``.
 """
@@ -78,8 +78,8 @@ logger = logging.getLogger(__name__)
 class _DefaultToGenerate(click.Group):
     """Click group that treats an unknown first positional as a repo path.
 
-    This keeps the pre-Sprint-6 UX alive: ``wiedun-flow ./repo`` is rewritten
-    to ``wiedun-flow generate ./repo`` at parse time. Known subcommands
+    This keeps the pre-Sprint-6 UX alive: ``wiedunflow ./repo`` is rewritten
+    to ``wiedunflow generate ./repo`` at parse time. Known subcommands
     (``init``, ``generate``) still resolve normally.
     """
 
@@ -102,7 +102,7 @@ class _DefaultToGenerate(click.Group):
     cls=_DefaultToGenerate,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
-@click.version_option(__version__, prog_name="wiedun-flow")
+@click.version_option(__version__, prog_name="wiedunflow")
 def cli() -> None:
     """WiedunFlow — generate interactive HTML tutorials from local Git repositories."""
 
@@ -154,7 +154,7 @@ def init_cmd(
 ) -> None:
     """Interactive wizard — write a user-level ``config.yaml`` (US-002).
 
-    All prompts can be skipped via flags (US-003). Running ``wiedun-flow init``
+    All prompts can be skipped via flags (US-003). Running ``wiedunflow init``
     a second time refuses to overwrite the existing file unless ``--force``
     is passed.
     """
@@ -493,9 +493,9 @@ def generate_cmd(
 def main() -> None:
     """Process entrypoint — launches the interactive menu (no args + TTY) or the click group.
 
-    ADR-0013: when ``wiedun-flow`` is invoked with no arguments in an interactive
+    ADR-0013: when ``wiedunflow`` is invoked with no arguments in an interactive
     terminal, the menu-driven TUI launches. All other invocations
-    (``wiedun-flow generate <repo>``, ``wiedun-flow init``, ``wiedun-flow --version``,
+    (``wiedunflow generate <repo>``, ``wiedunflow init``, ``wiedunflow --version``,
     non-TTY, ``WIEDUNFLOW_NO_MENU=1``) flow through the existing click group
     bit-exact.
     """

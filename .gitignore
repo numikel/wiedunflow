@@ -33,7 +33,10 @@ tests/eval/results/
 # AI
 .ai/
 .claude/
-.
+
+# Docs
+docs/
+
 # CI
 .github/
 
