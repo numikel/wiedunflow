@@ -91,7 +91,7 @@ Before opening a PR, verify:
 - [ ] Docs updated — README if new CLI flag, CHANGELOG entry for every user-visible change
 - [ ] Commit(s) follow Conventional Commits format with correct scope
 - [ ] DCO sign-off present on every commit (`git commit -s`)
-- [ ] ADR created in `docs/adr/` if the PR introduces an architectural decision
+- [ ] Architectural decisions called out in the PR body (coordinate with maintainers when a formal ADR is required)
 - [ ] CHANGELOG entry added under `[Unreleased]`
 - [ ] Issue / US reference included (e.g. `Closes #42`, `Implements US-023`)
 - [ ] `@pytest.mark.eval` tests pass if changing generation logic (requires `ANTHROPIC_API_KEY`)

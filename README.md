@@ -482,7 +482,7 @@ Source-excerpt injection (the underlying anti-hallucination mechanism for
 to `code_refs[*].source_excerpt` only for primary references shorter than
 30 lines, keeping the prompt input under the per-run budget.
 
-Full configuration reference and environment variables: see [docs/config-reference.md](docs/config-reference.md)
+Full configuration reference and environment variables: run `wiedun-flow --help` and follow the resolution chain in `src/wiedunflow/cli/config.py`.
 (available from Sprint 1).
 
 ## Configuration precedence
@@ -505,7 +505,7 @@ ts=... level=debug msg="config resolved: llm_provider=openai from cli"
 ts=... level=debug msg="config resolved: llm_model_plan=gpt-5.4 from default"
 ```
 
-Full precedence specification: [docs/config-precedence.md](docs/config-precedence.md).
+The detailed resolution logic lives in `src/wiedunflow/cli/config.py` (the table above is the authoritative summary).
 
 ## Known limitations
 
