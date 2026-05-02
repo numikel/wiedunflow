@@ -2,9 +2,12 @@
 # Copyright 2026 Michał Kamiński
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
+
+from pydantic import BaseModel
 
 from wiedunflow.entities.call_graph import CallGraph
 from wiedunflow.entities.code_symbol import CodeSymbol
@@ -13,9 +16,69 @@ from wiedunflow.entities.lesson_manifest import LessonManifest
 from wiedunflow.entities.ranked_graph import RankedGraph
 
 
+class ToolSpec(BaseModel):
+    """Specification for a tool that an agent can call."""
+
+    name: str
+    description: str
+    input_schema: dict[str, Any]  # JSON Schema object (required/properties/type)
+
+
+class ToolCall(BaseModel):
+    """A tool invocation requested by the LLM."""
+
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+class ToolResult(BaseModel):
+    """Result of executing a :class:`ToolCall`."""
+
+    tool_call_id: str
+    content: str
+    is_error: bool = False
+
+
+class AgentTurn(BaseModel):
+    """A single turn in an agent conversation transcript."""
+
+    role: Literal["assistant", "tool"]
+    text: str | None = None
+    tool_calls: list[ToolCall] = []
+    tool_results: list[ToolResult] = []
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+class AgentResult(BaseModel):
+    """Result of a completed agent loop run."""
+
+    final_text: str | None
+    transcript: list[AgentTurn]
+    total_input_tokens: int
+    total_output_tokens: int
+    total_cost_usd: float
+    stop_reason: Literal["end_turn", "max_iterations", "max_cost", "error"]
+    iterations: int
+
+
+@runtime_checkable
+class SpendMeterProto(Protocol):
+    """Minimal port for SpendMeter — Phase B implements the concrete class."""
+
+    def charge(self, *, model: str, input_tokens: int, output_tokens: int) -> None:
+        """Record token usage for the given model."""
+        ...
+
+    def would_exceed(self) -> bool:
+        """Return True if the accumulated spend already exceeds the budget."""
+        ...
+
+
 @runtime_checkable
 class LLMProvider(Protocol):
-    """Port for LLM interactions: planning, per-symbol description, and per-lesson narration."""
+    """Port for LLM interactions: planning, per-symbol description, per-lesson narration, and agent loops."""
 
     def plan(self, outline: str) -> LessonManifest:
         """Produce a structured lesson manifest from a code-graph outline."""
@@ -50,6 +113,41 @@ class LLMProvider(Protocol):
             spec_json: JSON-serialised LessonSpec.
             concepts_introduced: Concepts already taught in prior lessons — must
                 not be re-taught, enforcing narrative coherence.
+        """
+        ...
+
+    def run_agent(
+        self,
+        *,
+        system: str,
+        user: str,
+        tools: list[ToolSpec],
+        tool_executor: Callable[[ToolCall], ToolResult],
+        model: str,
+        max_iterations: int = 15,
+        max_cost_usd: float = 1.0,
+        spend_meter: SpendMeterProto | None = None,
+    ) -> AgentResult:
+        """Run an agent loop: call LLM → execute tools → repeat until end_turn or limits.
+
+        Args:
+            system: System prompt for the agent.
+            user: Initial user message to start the conversation.
+            tools: Tool specifications available to the agent.
+            tool_executor: Callable that executes a :class:`ToolCall` and returns a
+                :class:`ToolResult`. Called synchronously within the loop.
+            model: Model identifier to use for the agent loop.
+            max_iterations: Hard cap on loop iterations; returns ``stop_reason="max_iterations"``
+                when reached.
+            max_cost_usd: Soft budget cap; the loop aborts with ``stop_reason="max_cost"``
+                when ``spend_meter.would_exceed()`` returns True.
+            spend_meter: Optional :class:`SpendMeterProto` that tracks cumulative spend.
+                When provided, :meth:`charge` is called after every LLM response and
+                :meth:`would_exceed` is checked before the next iteration.
+
+        Returns:
+            :class:`AgentResult` with the final text, full transcript, token counts,
+            cost estimate, stop reason, and iteration count.
         """
         ...
 
