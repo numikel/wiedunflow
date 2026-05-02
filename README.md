@@ -1,5 +1,8 @@
 # WiedunFlow — generate interactive HTML tutorials from local Git repos
 
+![Python version](https://img.shields.io/badge/python-3.13+-blue.svg)
+![License](https://img.shields.io/badge/license-Apache-2.0-green.svg)
+![Version](https://img.shields.io/badge/version-2.3.1-orange.svg)
 ![CI](https://github.com/numikel/wiedunflow/actions/workflows/ci.yml/badge.svg)
 
 ## What is WiedunFlow
@@ -29,7 +32,7 @@ Cost estimates auto-update from [LiteLLM's pricing catalog](https://github.com/B
 ## Quickstart
 
 ```bash
-# 1. Easiest — launch the interactive menu (v0.4.0+)
+# 1. Easiest — launch the interactive menu
 wiedunflow                                # ASCII banner + 7-item picker
 
 # 2. Direct CLI (no menu) — best for CI and scripts
@@ -41,7 +44,7 @@ wiedunflow .                              # shorthand alias (backward compat)
 ANTHROPIC_API_KEY=sk-ant-... wiedunflow generate /path/to/repo --yes --no-consent-prompt
 ```
 
-## Interactive menu (v0.4.0)
+## Interactive menu
 
 Running `wiedunflow` with no arguments in a TTY launches a menu-driven TUI
 ("centrum dowodzenia") inspired by GitHub Copilot CLI, OpenCode, and Claude
@@ -89,16 +92,12 @@ confirm-exit; `Esc` from any sub-wizard returns to the previous screen.
 - you set `WIEDUNFLOW_NO_MENU=1` (emergency escape hatch for scripts that
   want the bare `wiedunflow` invocation to be a no-op).
 
-### Target audience — 5-level enum (BREAKING in v0.4.0)
+### Target audience — 5-level enum
 
 `tutorial.config.yaml`:
 ```yaml
 target_audience: mid     # noob | junior | mid | senior | expert (default: mid)
 ```
-
-The previous free-text default `"mid-level Python developer"` is fuzzy-mapped
-to `mid` automatically with a logged warning — no config changes required for
-existing setups. The shim is removed in v1.0; update your YAML when convenient.
 
 ## First-run setup (`wiedunflow init`)
 
@@ -172,7 +171,7 @@ Options:
   --regenerate-plan            Discard the cached lesson manifest and re-run Stage 4 (US-018).
   --cache-path FILE            Override the cache database location (US-020).
   --max-cost USD               Abort if the projected LLM cost exceeds this value (US-019).
-  --no-cost-prompt             Skip the interactive cost-gate prompt (Sprint 8 / v0.2.0).
+  --no-cost-prompt             Skip the interactive cost-gate prompt.
   -o, --output FILE            Override the output path. Default: <repo>/wiedunflow-<repo-name>.html
                                (next to the analyzed repo). Missing `.html` extension is appended
                                automatically (--output my-tour -> my-tour.html). Configurable
@@ -181,9 +180,9 @@ Options:
   --review-plan                Pause after Stage 4 and open the lesson manifest in $EDITOR (US-016).
   --log-format [text|json]     Structured log output on stderr (US-022). Default: text.
   --python-path PATH           Python interpreter for Jedi to use when resolving the call graph
-                               (defaults to auto-detected `.venv/`/`venv/`/`env/` then system Python — ADR-0018).
+                               (defaults to auto-detected `.venv/`/`venv/`/`env/` then system Python.
   --bootstrap-venv             Run `uv sync --no-dev` in the target repo before Stage 2 to populate
-                               `.venv/` so Jedi can resolve cross-package symbols (opt-in — ADR-0018).
+                               `.venv/` so Jedi can resolve cross-package symbols.
   -h, --help                   Show this message and exit.
 ```
 
@@ -193,7 +192,7 @@ subcommands.
 **Backward compatibility**: `wiedunflow <repo>` (without an explicit `generate`) still works — a custom
 click group class rewrites an unknown first positional to `generate <positional>`.
 
-### What you'll see (Sprint 8 / v0.2.0)
+### What you'll see
 
 Running `wiedunflow ./my-repo` in a TTY produces:
 
@@ -244,8 +243,7 @@ open  tutorial.html
 The cost-gate prompt **defaults to ON** for interactive terminals. Three bypass
 options are available:
 
-- `--yes` — auto-confirm both the consent banner and the cost prompt (existing
-  v0.1.0 behaviour).
+- `--yes` — auto-confirm both the consent banner and the cost prompt.
 - `--no-cost-prompt` — skip only the cost prompt, keep the consent flow
   interactive.
 - Non-TTY / piped / redirected stdin — the prompt is automatically bypassed
@@ -255,13 +253,13 @@ In `--log-format=json` mode the banner and animated progress are suppressed so
 the stdout transcript stays parseable; structured stage events are still
 emitted to stderr.
 
-### Output HTML reader (Sprint 5 / v0.0.5)
+### Output HTML reader
 
 The generated `wiedunflow-<repo>.html` is a single self-contained file — open it with `file://` in any
 modern browser. No server, no CDN, no runtime network calls (US-040). Fonts (Inter + JetBrains
 Mono) are inlined as `data:` URIs, Pygments syntax classes are pre-rendered, and the three JSON
 payloads (`#tutorial-meta`, `#tutorial-clusters`, `#tutorial-lessons`) live inside `<script
-type="application/json">` blocks — contract locked in ADR-0009.
+type="application/json">` blocks.
 
 Keyboard navigation: **←/→** switches lessons, **click in the TOC** jumps to any lesson, and
 `wiedunflow-<repo>.html#/lesson/<id>` deep-links straight into a specific one. The splitter between the
@@ -273,7 +271,7 @@ A **degraded** run (> 30 % of lessons skipped) is marked with an amber banner at
 page, and each skipped lesson is replaced by a dashed placeholder listing the unresolved symbols
 so you can see exactly what was dropped and why.
 
-### Exit codes (Sprint 5 / v0.0.5)
+### Exit codes
 
 - `0` — tutorial written, `run-report.status == "ok"`.
 - `1` — fatal error (config, planning, unhandled exception).  `run-report.status == "failed"`, `stack_trace` recorded.
@@ -316,7 +314,7 @@ Ollama and other OSS endpoints ignore `api_key`; pass anything (the SDK requires
 WiedunFlow auto-detects the Python subtree (first `pyproject.toml` or `setup.py` below the repo
 root) — pass `--root` to override.
 
-### Parsing + RAG stack (Sprint 3 / v0.0.3)
+### Parsing + RAG stack
 
 - AST extraction: `tree-sitter` + `tree-sitter-python` (functions, classes, methods, async).
 - Call graph resolution: `jedi` with 3-tier coverage reporting (resolved / uncertain / unresolved).
@@ -324,9 +322,9 @@ root) — pass `--root` to override.
 - RAG: `rank_bm25.BM25Okapi` over docstrings, README, `docs/**/*.md`, CONTRIBUTING, and the last
   50 git-log messages.  Custom tokenizer splits `snake_case` and `camelCase` and strips a curated
   stopword list.
-- Planning (Stage 5): `gpt-5.4` (OpenAI default); narration (Stage 6, v0.9.0+): multi-agent pipeline.
+- Planning (Stage 5): `gpt-5.4` (OpenAI default); narration (Stage 6): multi-agent pipeline.
 
-### Stage 5/6: Multi-Agent Narration (v0.9.0+)
+### Stage 5: Multi-Agent Narration
 
 Each lesson is generated by a **per-lesson agent pipeline**:
 
@@ -334,8 +332,6 @@ Each lesson is generated by a **per-lesson agent pipeline**:
 - **Researcher** (tool-heavy, `gpt-5.4-mini`) explores the symbol with 8 read-only tools (`read_symbol_body`, `get_callers`/`get_callees` from Jedi, `search_docs` BM25, `read_tests`, `grep_usages`, `list_files_in_dir`, `read_lines`) and writes structured research notes.
 - **Writer** (`gpt-5.4`) submits the lesson via the `submit_lesson_draft` tool with forced 4-section schema (`overview` / `how_it_works` / `key_details` / `what_to_watch_for`) plus `cited_symbols` and `uncertain_regions`. JSON Schema enforced by provider.
 - **Reviewer** (`gpt-5.4-mini`) runs a 6-check rubric (grounding, snippet match, word count, no re-teaching, uncertainty flagging, audience fit) and submits verdict via `submit_verdict` tool. Two consecutive fatal verdicts → `skip_lesson`.
-
-This replaces the v0.7.0 single-shot `narrate()` model and reduces hallucinated symbols to zero in evaluation runs.
 
 #### Workspace and checkpointing
 
@@ -346,15 +342,15 @@ lessons via `os.replace`), `raw/` (provider-level transcripts), and `transcript/
 that already wrote `lesson.json`, so a crash mid-run only re-narrates the lesson that
 was in flight.
 
-#### Cost reporting (v0.9.0)
+#### Cost reporting
 
-A live `SpendMeter` (ADR-0017) is created in `_run_pipeline` and threaded through
+A live `SpendMeter` is created in `_run_pipeline` and threaded through
 `generate_tutorial → run_lesson → llm.run_agent`. Adapter providers call
 `SpendMeter.charge(model, in_tokens, out_tokens)` after every API response, and the
 per-lesson `max_cost_usd` cap aborts mid-loop via `would_exceed()`. The CLI success
-banner now shows the real `total_cost_usd` (was hardcoded `$0.00` before v0.9.0).
+banner now shows the real `total_cost_usd`.
 
-#### Call-graph resolution (Tier 1 venv detection + Tier 2 heuristic — ADR-0018)
+#### Call-graph resolution
 
 `jedi` resolves cross-module calls best when the repo's virtualenv is on its sys.path.
 WiedunFlow auto-detects `.venv/` → `venv/` → `env/` → system Python (override with
@@ -369,7 +365,7 @@ WiedunFlow transmits the source code it narrates (symbol bodies, docstrings, sel
 excerpts) to the configured LLM provider — Anthropic by default.  **No code leaves your machine
 until you accept the consent banner on the first run for that provider on this machine.**
 
-### Consent banner (Sprint 6 / v0.0.6)
+### Consent banner
 
 The first time you run `wiedunflow generate` against Anthropic or OpenAI (hosted), the CLI
 blocks and prints:
@@ -413,19 +409,16 @@ redaction for local debugging only (not documented in `--help`).
 There is **zero telemetry** and **zero usage analytics**.  Outbound traffic is limited to:
 
 1. The **LLM API call** to your configured provider (Anthropic / OpenAI / OSS endpoint).
-2. An optional **pricing-metadata refresh** from `raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json` — `LiteLLMPricingCatalog` (ADR-0014) fetches blended per-model prices for the cost gate, with a 24-hour disk cache. **No user data is transmitted** — the request body is empty and the response is parsed locally. Falls back to a built-in `StaticPricingCatalog` when offline. A unit test (`tests/unit/cli/test_no_httpx_outside_litellm_pricing.py`) enforces that no other module imports `httpx` for outbound calls.
+2. An optional **pricing-metadata refresh** from `raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json` — `LiteLLMPricingCatalog` fetches blended per-model prices for the cost gate, with a 24-hour disk cache. **No user data is transmitted** — the request body is empty and the response is parsed locally. Falls back to a built-in `StaticPricingCatalog` when offline. A unit test (`tests/unit/cli/test_no_httpx_outside_litellm_pricing.py`) enforces that no other module imports `httpx` for outbound calls.
 
 Integration test `tests/integration/test_zero_telemetry.py` asserts that no other outbound
 sockets open during the CLI invocation: `pytest-socket` disables outbound traffic
 cross-platform (the pricing fetch is patched out for the assertion), and on Linux a
 `@pytest.mark.netns` test runs the full pipeline inside an `unshare --user --net` namespace.
 
-For sensitive codebases use the **local-inference path** shipped in Sprint 4 / v0.0.4:
+For sensitive codebases use the **local-inference path**:
 `--provider custom --base-url http://localhost:11434/v1` (Ollama) or any OpenAI-compatible
 endpoint (LM Studio, vLLM).  See the *BYOK* section above for ready-to-paste examples.
-
-ADR-0010 captures the full secret-redaction + zero-telemetry contract
-(`docs/adr/0010-secret-redaction-zero-telemetry.md`).
 
 ## Configuration
 
@@ -442,7 +435,7 @@ Example `tutorial.config.yaml` (see `tutorial.config.yaml.example` in the repo r
 
 ```yaml
 llm:
-  provider: openai             # openai (default since v0.7.0) | anthropic | openai_compatible | custom
+  provider: openai             # openai | anthropic | openai_compatible | custom
   model_plan: gpt-5.4          # OpenAI default — Anthropic alt: claude-sonnet-4-6
   model_narrate: gpt-5.4       # OpenAI default — Anthropic alt: claude-opus-4-7
   concurrency: 10              # cap 20; used from Sprint 4
@@ -457,7 +450,7 @@ include_patterns: []
 max_lessons: 30
 target_audience: "mid-level Python developer"
 
-# Tutorial quality (v0.2.1) — opt-in controls; defaults preserve v0.2.0 behaviour
+# Tutorial quality — opt-in controls
 planning:
   entry_point_first: auto       # auto | always | never
   skip_trivial_helpers: false   # roll up sub-3-line non-primary helpers into a closing appendix
@@ -466,7 +459,7 @@ narration:
   snippet_validation: true      # validate ```python signatures against AST source_excerpt
 ```
 
-### Tutorial quality (v0.2.1)
+### Tutorial quality
 
 Four opt-in keys tune lesson selection, ordering, and narration length:
 
@@ -509,10 +502,8 @@ The detailed resolution logic lives in `src/wiedunflow/cli/config.py` (the table
 
 ## Known limitations
 
-The following limitations are acknowledged in v0.1.0 and prioritized for v0.2.0+:
-
-- **Language support**: Python only. TypeScript, JavaScript, Go, and other languages are planned for v0.2.0+.
-- **Narration language**: English only. Non-English language support and i18n infrastructure are deferred to v0.2.0+.
+- **Language support**: Python only. TypeScript, JavaScript, Go, and other languages are planned.
+- **Narration language**: English only. Non-English language support and i18n infrastructure are deferred..
 - **Dynamic constructs**: Dynamic imports, runtime polymorphism, reflection, and metaclass-based dispatch are detected and flagged as `uncertain` in the output HTML. Symbol resolution does not attempt to trace these patterns — see the code directly for runtime behavior.
 - **Lesson capacity**: Hard cap at 30 regular lessons per tutorial (configurable via `tutorial.max_lessons`). Very large repositories are aggressively pruned to maintain narrative coherence. A synthetic "Where to go next" lesson is always appended as lesson 31.
 - **Installation channel**: install from source until the PyPI release ships (planned for a near-future version). Clone the repo and run `uv sync` — see [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -520,3 +511,19 @@ The following limitations are acknowledged in v0.1.0 and prioritized for v0.2.0+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+## Author
+
+**[@numikel](https://github.com/numikel)**
+
+Developed with help from:
+
+![Cursor](https://img.shields.io/badge/Cursor-3.2+-black.svg)
+![Claude Code](https://img.shields.io/badge/Claude_Code-2.1.116+-orange.svg)
+
+And with models:
+
+![Claude Opus 4.6](https://img.shields.io/badge/Claude_Opus-4.7-orange.svg)
+![Claude Sonnet 4.5](https://img.shields.io/badge/Claude_Sonnet-4.6-orange.svg)
+![Claude Haiku 4.5](https://img.shields.io/badge/Claude_Haiku-4.5-orange.svg)
+
