@@ -1,0 +1,22 @@
+{
+  "name": "dispatch_reviewer",
+  "description": "Launch a Reviewer sub-agent to quality-check a Writer draft. The Reviewer verifies grounding, snippet accuracy, word count, coherence, and audience fit. Returns a JSON verdict (pass/warn/fatal). If verdict is fatal, you may re-dispatch the Writer once with the feedback; if still fatal after the second Writer attempt, call skip_lesson.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "draft_path": {
+        "type": "string",
+        "description": "File path to the Writer's draft markdown file (e.g. 'workspace/lesson-03/draft-001.md'). Must be an existing file produced by the most recent Writer call."
+      },
+      "research_refs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Same list of research note file paths that was given to the Writer. The Reviewer uses these to verify grounding claims in the draft.",
+        "minItems": 1
+      }
+    },
+    "required": ["draft_path", "research_refs"]
+  }
+}

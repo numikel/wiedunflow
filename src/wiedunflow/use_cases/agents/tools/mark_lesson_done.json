@@ -1,0 +1,18 @@
+{
+  "name": "mark_lesson_done",
+  "description": "Mark the current lesson as complete and record the final approved narrative. Call this only after the Reviewer returns a 'pass' or 'warn' verdict (warn is acceptable — only fatal blocks acceptance). This persists the lesson to the SQLite checkpoint and advances the orchestrator to the next lesson.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "lesson_id": {
+        "type": "string",
+        "description": "The lesson identifier from the planning stage (e.g. 'lesson-03'). Must exactly match the lesson_id in the current session context."
+      },
+      "final_narrative": {
+        "type": "string",
+        "description": "The complete approved markdown narrative for this lesson, as returned by the Writer and accepted by the Reviewer. This is the verbatim text that will be embedded in the final HTML tutorial. Do not summarize or truncate — include the full content."
+      }
+    },
+    "required": ["lesson_id", "final_narrative"]
+  }
+}

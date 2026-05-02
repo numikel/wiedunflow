@@ -1,0 +1,22 @@
+{
+  "name": "dispatch_writer",
+  "description": "Launch a Writer sub-agent to produce a complete tutorial lesson narrative from grounded research notes. The Writer has no tools — it writes solely from the research references you provide. Always call dispatch_researcher at least once before calling this.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "research_refs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of file paths to the research notes markdown files produced by Researcher calls for this lesson (e.g. ['workspace/lesson-03/research-001.md', 'workspace/lesson-03/research-002.md']). Must contain at least one entry. The Writer will receive all referenced files as context.",
+        "minItems": 1
+      },
+      "lesson_spec": {
+        "type": "string",
+        "description": "JSON string containing the lesson specification from the planning stage. Must include at minimum: lesson_id, lesson_title, lesson_teaches, primary_symbol, code_refs, and concepts_introduced. Example: '{\"lesson_id\": \"lesson-03\", \"lesson_title\": \"Retry Policy\", \"lesson_teaches\": \"How exponential backoff is applied to provider rate limits\", \"primary_symbol\": \"adapters.openai_provider.OpenAIProvider._call_with_retry\", \"code_refs\": [...], \"concepts_introduced\": [\"exponential-backoff\"]}'"
+      }
+    },
+    "required": ["research_refs", "lesson_spec"]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "submit_lesson_draft",
+  "description": "Submit the final lesson draft as structured content. Schema is enforced by the LLM provider — invalid arguments are rejected before the tool fires, so you cannot produce malformed output if you submit through this tool. The Orchestrator reads only the structured arguments; do not duplicate content as plain text after the tool call. Cited symbols are sanity-checked against research_notes — invent a class/function name and the Reviewer will fail you with grounding fatal.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "overview": {
+        "type": "string",
+        "description": "1-2 paragraph high-level introduction to what this lesson teaches. MUST mention the primary symbol by name and explain its role in the codebase. No code blocks here — pure prose."
+      },
+      "how_it_works": {
+        "type": "string",
+        "description": "Step-by-step explanation of the symbol's behavior, grounded in research_notes. May include code blocks with verbatim signatures (see Verbatim Citation Discipline). Use 1-3 paragraphs. If research_notes shows callees, explain the call sequence here."
+      },
+      "key_details": {
+        "type": "string",
+        "description": "Notable implementation details, edge cases in the body, parameter semantics, return type implications. Empty string \"\" if the symbol is trivial (single-line helper, plain getter) and there are no notable details."
+      },
+      "what_to_watch_for": {
+        "type": "string",
+        "description": "Edge cases, gotchas, dependencies the reader should pay attention to when reading or modifying this code. Include cross-references to other symbols by name when behavior depends on them. 1-2 paragraphs."
+      },
+      "cited_symbols": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Every class, function, method, or dataclass name referenced in code blocks across all sections. Each entry MUST appear verbatim in research_notes. Used by the Reviewer for fast grounding sanity check before deep rubric. Order does not matter."
+      },
+      "uncertain_regions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "symbol": {
+              "type": "string",
+              "description": "Symbol name flagged UNCERTAIN in research_notes"
+            },
+            "callout": {
+              "type": "string",
+              "description": "Brief explanation of why uncertain (dynamic dispatch, reflection, runtime polymorphism). Will be rendered as Obsidian > [!note] callout in the lesson."
+            }
+          },
+          "required": ["symbol", "callout"]
+        },
+        "description": "Symbols flagged as UNCERTAIN in research_notes that you reference in any section. May be empty array if no uncertain symbols are referenced. Each entry will be rendered as a > [!note] callout block in the final lesson markdown."
+      }
+    },
+    "required": ["overview", "how_it_works", "key_details", "what_to_watch_for", "cited_symbols", "uncertain_regions"]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "get_callees",
+  "description": "Return the list of symbols called by the given symbol, as resolved by the Jedi call graph. Use this to understand a symbol's dependencies and which sub-functions it delegates to.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "description": "Fully qualified symbol name to look up callees for (e.g. 'module.ClassName.method_name'). Returns an empty list if the symbol makes no resolvable calls or was not found."
+      }
+    },
+    "required": ["symbol"]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "read_symbol_body",
+  "description": "Return the full source body of a named Python symbol from the AST snapshot. Use this as your first tool call for any symbol you need to understand. Returns the exact source lines, docstring, and signature as recorded during ingestion.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "description": "Fully qualified symbol name (e.g. 'module.ClassName.method_name' or 'package.module.function_name'). Must match the AST snapshot exactly — do not guess or abbreviate."
+      }
+    },
+    "required": ["symbol"]
+  }
+}

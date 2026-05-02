@@ -70,6 +70,7 @@ from wiedunflow.use_cases.generate_tutorial import (
     generate_tutorial,
 )
 from wiedunflow.use_cases.plan_lesson_manifest import PlanningFatalError
+from wiedunflow.use_cases.spend_meter import SpendMeter
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,29 @@ def init_cmd(
     hidden=True,
     help="(dev-only) Disable SecretFilter in logs.",
 )
+@click.option(
+    "--python-path",
+    "python_path",
+    type=click.Path(exists=True, dir_okay=False, file_okay=True, path_type=Path),
+    default=None,
+    metavar="PATH",
+    help=(
+        "Override the Python interpreter used by Jedi for call-graph resolution "
+        "(e.g. --python-path /path/to/repo/.venv/bin/python). "
+        "Default: auto-detect from repo's .venv/, venv/, or env/."
+    ),
+)
+@click.option(
+    "--bootstrap-venv",
+    "bootstrap_venv",
+    is_flag=True,
+    default=False,
+    help=(
+        "Bootstrap a virtual environment in the analyzed repo via 'uv sync' before "
+        "analysis (opt-in, default off). Useful when the repo has pyproject.toml/uv.lock "
+        "but no .venv/. Requires 'uv' to be available on PATH."
+    ),
+)
 def generate_cmd(
     repo_path: Path,
     excludes: tuple[str, ...],
@@ -347,6 +371,8 @@ def generate_cmd(
     no_cost_prompt: bool,
     output_path: Path | None,
     no_log_redaction: bool,
+    python_path: Path | None,
+    bootstrap_venv: bool,
 ) -> None:
     """Generate an interactive HTML tutorial from a local Git repository."""
     json_mode = log_format == "json"
@@ -354,6 +380,15 @@ def generate_cmd(
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     console = init_console(json_mode=json_mode)
     structlog_logger = get_structlog(stage="cli")
+
+    # Tier 1: venv bootstrap (opt-in via --bootstrap-venv).
+    # Must run before JediResolver is instantiated so the detected .venv/ path
+    # is available when _detect_python_path() scans the repo root.
+    if bootstrap_venv:
+        bootstrapped = _bootstrap_venv(repo_path)
+        if bootstrapped is not None and python_path is None:
+            # Only override when the caller did not supply an explicit --python-path.
+            python_path = bootstrapped
 
     # Sprint 8: startup banner — TTY-only, suppressed for non-interactive output
     # (CI, pipe, redirect) and JSON log mode where the stdout is consumer-readable.
@@ -415,7 +450,7 @@ def generate_cmd(
     providers = Providers(
         llm=llm,
         parser=TreeSitterParser(),
-        resolver=JediResolver(),
+        resolver=JediResolver(python_path=python_path),
         ranker=NetworkxRanker(),
         vector_store=Bm25Store(),
         cache=cache,
@@ -576,6 +611,71 @@ def _build_pricing_chain() -> object:
     )
 
 
+def _bootstrap_venv(repo_path: Path) -> Path | None:
+    """Run ``uv sync --no-dev`` in the analyzed repo to bootstrap a ``.venv/`` for Jedi.
+
+    This is the implementation for the ``--bootstrap-venv`` flag (Tier 1 opt-in).
+    Only attempted when the repo contains a ``pyproject.toml``.  Failure is
+    non-fatal — the caller falls back to WiedunFlow's own interpreter.
+
+    Args:
+        repo_path: Root of the repository being analyzed.
+
+    Returns:
+        Path to the bootstrapped interpreter (from :func:`_detect_python_path`),
+        or ``None`` on any failure.
+    """
+    import subprocess
+
+    from wiedunflow.adapters.jedi_resolver import _detect_python_path
+
+    if not (repo_path / "pyproject.toml").exists():
+        logger.warning(
+            "bootstrap_venv_no_pyproject repo=%s — no pyproject.toml; skipping bootstrap.",
+            repo_path,
+        )
+        return None
+
+    logger.info("bootstrap_venv_start repo=%s", repo_path)
+    try:
+        result = subprocess.run(
+            ["uv", "sync", "--no-dev"],
+            cwd=repo_path,
+            timeout=600,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "bootstrap_venv_timeout repo=%s — 'uv sync' timed out after 600 s; skipping.",
+            repo_path,
+        )
+        return None
+    except FileNotFoundError:
+        logger.warning("bootstrap_venv_uv_not_found — 'uv' not found on PATH; skipping.")
+        return None
+
+    if result.returncode != 0:
+        logger.warning(
+            "bootstrap_venv_failed exit=%d stderr=%s",
+            result.returncode,
+            result.stderr[:500],
+        )
+        return None
+
+    detected = _detect_python_path(repo_path)
+    if detected is None:
+        logger.warning(
+            "bootstrap_venv_completed_but_no_interpreter repo=%s"
+            " — 'uv sync' succeeded but no interpreter found in .venv/",
+            repo_path,
+        )
+    else:
+        logger.info("bootstrap_venv_done python=%s", detected)
+    return detected
+
+
 def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with many exception paths
     *,
     repo_path: Path,
@@ -613,6 +713,16 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
     # so the cost-gate USD estimate matches the user's actual provider rates.
     pricing_chain = _build_pricing_chain()
 
+    # v0.9.0 cost reporting: create a SpendMeter so providers can charge()
+    # token usage and we can report total_cost_usd in the run report.
+    # Budget defaults to 100 USD (high soft cap — actual limit is the cost-gate
+    # pre-flight check before any API calls are made).
+    from wiedunflow.interfaces.pricing_catalog import PricingCatalog
+
+    _budget = max_cost_usd if max_cost_usd is not None else 100.0
+    _pricing: PricingCatalog | None = pricing_chain  # type: ignore[assignment]
+    spend_meter = SpendMeter(budget_usd=_budget, pricing=_pricing)
+
     def _cost_gate(estimate: CostEstimate) -> bool:
         """Closure passed to ``generate_tutorial`` — Sprint 8 / US-084 / Q4."""
         return prompt_cost_gate(
@@ -641,6 +751,7 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
             progress=progress,
             cost_gate_callback=_cost_gate,
             pricing_catalog=pricing_chain,
+            spend_meter=spend_meter,
         )
     except KeyboardInterrupt:
         _write_final_report(
@@ -758,6 +869,7 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
         retry_count=result.retry_count,
         degraded_ratio=result.degraded_ratio,
         hallucinated_symbols=result.hallucinated_symbols,
+        total_cost_usd=result.total_cost_usd,
     )
 
     if progress is not None:
@@ -776,6 +888,7 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
             ("retries", f"{result.retry_count} grounding retries"),
             ("elapsed", elapsed),
             ("output", str(result.output_path)),
+            ("total_cost", f"${result.total_cost_usd:.4f}"),
         ]
         render_run_report(console, status=rendered_status, lines=report_lines)  # type: ignore[arg-type]
         print_done_summary(console, path=result.output_path)  # type: ignore[arg-type]
@@ -816,6 +929,7 @@ def _write_final_report(
     stack_trace: str | None = None,
     failed_at_lesson: str | None = None,
     hallucinated_symbols: tuple[str, ...] = (),
+    total_cost_usd: float = 0.0,
 ) -> None:
     """Build a ``RunReport`` and write it under ``<repo>/.wiedunflow/``.
 
@@ -831,7 +945,7 @@ def _write_final_report(
             skipped_lessons_count=skipped_count,
             retry_count=retry_count,
             cache_hit_rate=cache_hit_rate,
-            total_cost_usd=0.0,
+            total_cost_usd=total_cost_usd,
             provider=provider_label,
             stack_trace=stack_trace,
             failed_at_lesson=failed_at_lesson,

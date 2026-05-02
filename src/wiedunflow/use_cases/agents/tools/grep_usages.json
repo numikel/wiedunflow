@@ -1,0 +1,14 @@
+{
+  "name": "grep_usages",
+  "description": "Search the repository source files for lines matching a literal string or regex pattern. Use this to verify that a symbol actually exists under a given name, to find all call sites, or to check how a constant or configuration key is used across the codebase.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "pattern": {
+        "type": "string",
+        "description": "Literal string or Python-compatible regex pattern to search for. Applied against all .py files in the repository (excluding .gitignore paths). Returns matching lines with their file path and line number."
+      }
+    },
+    "required": ["pattern"]
+  }
+}

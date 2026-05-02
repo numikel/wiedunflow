@@ -1,0 +1,14 @@
+{
+  "name": "get_callers",
+  "description": "Return the list of symbols that call the given symbol, as resolved by the Jedi call graph. Use this to understand how a symbol is used in context and what higher-level code depends on it.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "description": "Fully qualified symbol name to look up callers for (e.g. 'module.ClassName.method_name'). Returns an empty list if the symbol has no known callers or was not resolved."
+      }
+    },
+    "required": ["symbol"]
+  }
+}

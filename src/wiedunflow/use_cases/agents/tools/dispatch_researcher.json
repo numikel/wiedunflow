@@ -1,0 +1,24 @@
+{
+  "name": "dispatch_researcher",
+  "description": "Launch a Researcher sub-agent to investigate a single symbol and produce grounded markdown research notes. Call this at least once per lesson before dispatching the Writer. For complex symbols with many callees or callers, dispatch multiple researchers with different symbols and combine their notes.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "description": "Fully qualified symbol name the Researcher should focus on (e.g. 'module.ClassName.method_name'). This is the primary target — the Researcher will also explore callers, callees, tests, and docs around it."
+      },
+      "research_brief": {
+        "type": "string",
+        "description": "One to three sentences explaining what the Researcher should focus on and why this symbol matters for the lesson narrative. Be specific: e.g. 'Focus on the retry logic and how backoff interacts with the rate-limit budget. The Writer needs to explain the exponential delay policy to mid-level devs.'"
+      },
+      "budget_usd": {
+        "type": "number",
+        "description": "Maximum USD budget for this Researcher call. Each Researcher call costs approximately $0.05–$0.10. Must be a positive number. Do not exceed the remaining lesson budget.",
+        "minimum": 0.01,
+        "maximum": 0.30
+      }
+    },
+    "required": ["symbol", "research_brief", "budget_usd"]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "read_tests",
+  "description": "Return the test functions and fixtures that directly exercise the given symbol. Use this to understand expected behavior, edge cases, and contract invariants that may not be obvious from the implementation alone.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "description": "Fully qualified symbol name (e.g. 'module.function_name'). Returns all test functions in tests/ that reference this symbol by name. Returns an empty result if no tests are found — record that as UNCERTAIN in your notes."
+      }
+    },
+    "required": ["symbol"]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "list_files_in_dir",
+  "description": "List all files in a directory path within the repository, one level deep. Use this to orient yourself in an unfamiliar module structure before deciding which files to read.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative path from the repository root (e.g. 'src/wiedunflow/adapters' or 'tests/unit'). Returns file names and sizes. Returns an error if the path does not exist."
+      }
+    },
+    "required": ["path"]
+  }
+}

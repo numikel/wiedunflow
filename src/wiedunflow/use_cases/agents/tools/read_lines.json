@@ -1,0 +1,24 @@
+{
+  "name": "read_lines",
+  "description": "Read a specific line range from a source file in the repository. Use this when you know the exact file and line numbers from a previous tool result (e.g. a grep hit or a call-graph entry) and need the surrounding context.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "file_path": {
+        "type": "string",
+        "description": "Relative path from the repository root (e.g. 'src/wiedunflow/adapters/openai_provider.py'). Must be an existing file."
+      },
+      "start": {
+        "type": "integer",
+        "description": "1-based line number of the first line to read (inclusive).",
+        "minimum": 1
+      },
+      "end": {
+        "type": "integer",
+        "description": "1-based line number of the last line to read (inclusive). Maximum window is 200 lines to keep context manageable.",
+        "minimum": 1
+      }
+    },
+    "required": ["file_path", "start", "end"]
+  }
+}

@@ -26,9 +26,10 @@ from wiedunflow.entities.lesson_manifest import (
 )
 from wiedunflow.entities.lesson_plan import LessonPlan
 from wiedunflow.entities.skipped_lesson import SkippedLesson
+from wiedunflow.use_cases.agent_orchestrator import run_closing_lesson, run_lesson
+from wiedunflow.use_cases.agent_tools import build_tool_registry
 from wiedunflow.use_cases.doc_coverage import compute_doc_coverage
 from wiedunflow.use_cases.entry_point_detector import detect_entry_points
-from wiedunflow.use_cases.grounding_retry import narrate_with_grounding_retry
 from wiedunflow.use_cases.ingestion import ingest
 from wiedunflow.use_cases.inject_source_excerpts import inject_source_excerpts
 from wiedunflow.use_cases.offline_linter import validate_offline_invariant
@@ -37,6 +38,7 @@ from wiedunflow.use_cases.plan_lesson_manifest import PlanningFatalError, plan_w
 from wiedunflow.use_cases.rag_corpus import build_and_index
 from wiedunflow.use_cases.readme_excerpt import load_readme_excerpt
 from wiedunflow.use_cases.skip_trivial import filter_trivial_helpers
+from wiedunflow.use_cases.workspace import allocate_workspace, clean_old_runs, generate_run_id
 
 # v0.3.0 Fix (P0 from rubber-duck code review): markdown→HTML for the
 # standalone Project README lesson reuses jinja_renderer._markdown_to_html so
@@ -46,6 +48,7 @@ from wiedunflow.use_cases.skip_trivial import filter_trivial_helpers
 # any real repo with external links in the README).
 
 if TYPE_CHECKING:
+    from wiedunflow.entities.call_graph import CallGraph
     from wiedunflow.entities.code_symbol import CodeSymbol
     from wiedunflow.entities.doc_coverage import DocCoverage
     from wiedunflow.entities.ranked_graph import RankedGraph
@@ -56,6 +59,7 @@ if TYPE_CHECKING:
         Parser,
         Ranker,
         Resolver,
+        SpendMeterProto,
         VectorStore,
     )
 
@@ -138,6 +142,7 @@ class GenerationResult(BaseModel):
         degraded_ratio: Exact ratio for the DEGRADED banner text.
         total_planned: Number of regular (non-closing) lessons planned.
         retry_count: Number of lessons that required a grounding retry (AC2 US-030).
+        total_cost_usd: Cumulative LLM spend for the generation stage in USD.
     """
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
@@ -149,6 +154,7 @@ class GenerationResult(BaseModel):
     total_planned: int
     retry_count: int
     hallucinated_symbols: tuple[str, ...] = ()
+    total_cost_usd: float = 0.0
 
 
 @dataclass
@@ -160,6 +166,7 @@ class _StageGenerationOutput:
     retry_count: int = 0
     concepts_introduced: tuple[str, ...] = ()
     hallucinated_symbols: list[str] = field(default_factory=list)
+    total_cost_usd: float = 0.0
 
 
 def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is naturally long
@@ -183,6 +190,8 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     narration_snippet_validation: bool = True,
     # ADR-0013 follow-up: pricing catalog for cost gate accuracy.
     pricing_catalog: object | None = None,
+    # v0.9.0 cost reporting wire-through.
+    spend_meter: SpendMeterProto | None = None,
 ) -> GenerationResult:
     """Run the 7-stage pipeline and write the tutorial HTML.
 
@@ -459,10 +468,18 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     _check_abort()
 
     # v0.2.1 — load README excerpt for project-level context injection.
-    # Threaded into every narration prompt so the LLM anchors lessons in the
-    # project's actual purpose rather than generic Python prose. Skipped when
-    # no README exists (excerpt remains None).
+    # Kept for API back-compat; BM25 index already covers README content so
+    # the multi-agent pipeline's search_docs tool surfaces it implicitly.
     readme_excerpt = load_readme_excerpt(repo_path) if ingestion.has_readme else None
+
+    # Allocate a stable run_id for workspace / resume support.
+    _run_id = generate_run_id(
+        str(ingestion.repo_root),
+        ingestion.commit_hash or "unknown",
+        now.isoformat(),
+    )
+    # Clean up stale runs from previous invocations (lazy, one-shot).
+    clean_old_runs()
 
     # Stage 6 — Generation
     progress.stage_start(6)
@@ -474,11 +491,16 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
         ingestion=ingestion,
         repo_path=repo_path,
         ranked=ranked,
+        workspace_run_id=_run_id,
+        symbols=symbols,
+        graph=resolved_graph,
+        vector_store=providers.vector_store,
         should_abort=should_abort,
         progress=progress,
         narration_min_words_trivial=narration_min_words_trivial,
         narration_snippet_validation=narration_snippet_validation,
         project_context=readme_excerpt,
+        spend_meter=spend_meter,
     )
     all_lessons: list[Lesson] = generation_result.lessons
     skipped_lessons: list[SkippedLesson] = generation_result.skipped
@@ -605,6 +627,7 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
         total_planned=total_planned,
         retry_count=generation_result.retry_count,
         hallucinated_symbols=deduped_hallucinations,
+        total_cost_usd=generation_result.total_cost_usd,
     )
 
 
@@ -765,36 +788,50 @@ def _stage_generation(
     ingestion: object,
     repo_path: Path,
     ranked: RankedGraph,
+    workspace_run_id: str,
+    symbols: list[CodeSymbol],
+    graph: CallGraph,
+    vector_store: VectorStore,
     should_abort: Callable[[], bool] | None = None,
     progress: StageReporter | NoOpReporter | None = None,
     narration_min_words_trivial: int = 50,
     narration_snippet_validation: bool = True,
     project_context: str | None = None,
+    spend_meter: SpendMeterProto | None = None,
 ) -> _StageGenerationOutput:
-    """Stage 6: Narrate each lesson spec with grounding retry.
+    """Stage 6: Narrate each lesson via the multi-agent pipeline.
 
-    Accumulates ``concepts_introduced`` from successfully generated lessons only
-    (skipped lessons do not contribute to the concept set, preventing "phantom"
-    concept claims in later narrations).
-
-    Appends a closing lesson epilogue (US-049) after the regular lessons.
+    Each regular lesson runs Orchestrator -> Researcher x N -> Writer -> Reviewer.
+    The closing lesson uses a lightweight single-Writer pass.
+    ``concepts_introduced`` accumulates from successful lessons only.
 
     Args:
         manifest: Planning stage output with ordered ``LessonSpec`` items.
-        llm: Provider used to generate the narrative for each spec.
+        llm: LLM provider implementing ``run_agent``.
         allowed_symbols: Frozenset of groundable symbol names (Stage 3 output).
         ingestion: Ingestion result used to build the closing lesson spec.
         repo_path: Repo root path (passed through to closing spec builder).
         ranked: RankedGraph used to find uncovered high-rank symbols.
-        narration_min_words_trivial: Minimum word count for 1-line-body lessons
-            (from ``config.narration_min_words_trivial``; default 50).
-        narration_snippet_validation: When ``True`` (default), validate ``def``
-            signatures in fenced code blocks against ``source_excerpt``.
+        workspace_run_id: Unique run ID for the workspace (used to resume).
+        symbols: All symbols from Stage 2 — fed into tool_registry.
+        graph: Resolved call graph from Stage 2 — fed into tool_registry.
+        vector_store: Indexed vector store from Stage 4 — fed into tool_registry.
+        narration_min_words_trivial: Kept for API back-compat; not used in v0.9.0+.
+        narration_snippet_validation: Kept for API back-compat; not used in v0.9.0+.
+        project_context: Kept for API back-compat; not used in v0.9.0+.
 
     Returns:
         :class:`_StageGenerationOutput` with typed fields for lessons, skipped,
         retry_count, and cumulative concepts_introduced.
     """
+    workspace = allocate_workspace(workspace_run_id)
+    tool_registry = build_tool_registry(
+        symbols=symbols,
+        graph=graph,
+        vector_store=vector_store,
+        repo_root=repo_path,
+    )
+
     output = _StageGenerationOutput()
 
     if progress is None:
@@ -803,32 +840,24 @@ def _stage_generation(
     total_lessons = len(manifest.lessons)
     for idx, spec in enumerate(manifest.lessons, start=1):
         if should_abort is not None and should_abort():
-            # Graceful SIGINT between lessons (US-027).  Partially generated
-            # lessons remain in ``output`` so the caller can flush a checkpoint
-            # before re-raising KeyboardInterrupt.
             raise KeyboardInterrupt("SIGINT received during generation stage")
         progress.lesson_event(idx, total_lessons, spec.title)
-        result = narrate_with_grounding_retry(
+        result = run_lesson(
             spec,
-            allowed_symbols,
-            llm,
-            output.concepts_introduced,
-            hallucination_accumulator=output.hallucinated_symbols,
-            min_words_trivial=narration_min_words_trivial,
-            snippet_validation=narration_snippet_validation,
-            project_context=project_context,
+            workspace=workspace,
+            llm=llm,
+            tool_registry=tool_registry,
+            concepts_introduced=output.concepts_introduced,
+            spend_meter=spend_meter,
         )
 
         if isinstance(result, SkippedLesson):
-            # Lesson failed both attempts — produce a placeholder Lesson with
-            # status="skipped" for LessonPlan (which only accepts Lesson objects)
-            # and record the SkippedLesson for run-report stats.
             output.skipped.append(result)
             placeholder = Lesson(
                 id=result.lesson_id,
                 title=result.title,
                 narrative=(
-                    f"This lesson was skipped due to grounding failures — "
+                    f"This lesson was skipped — "
                     f"see symbol {result.missing_symbols[0] if result.missing_symbols else 'unknown'} "
                     f"in the code"
                 ),
@@ -836,27 +865,20 @@ def _stage_generation(
                 status="skipped",
             )
             output.lessons.append(placeholder)
-            # Do NOT update concepts_introduced from skipped lessons.
         else:
             output.lessons.append(result)
             output.concepts_introduced = (*output.concepts_introduced, spec.teaches)
 
     # --- Closing lesson (US-049) — always +1 beyond cap ---
     closing_spec = _build_closing_spec(manifest, ingestion, repo_path, ranked)
-    # Closing lesson: empty allowed_symbols -> grounding validation skipped.
-    # Still thread the accumulator so word-count retries are visible.
-    closing_result = narrate_with_grounding_retry(
+    closing_result = run_closing_lesson(
         closing_spec,
-        frozenset(),
-        llm,
-        output.concepts_introduced,
-        hallucination_accumulator=output.hallucinated_symbols,
-        min_words_trivial=narration_min_words_trivial,
-        snippet_validation=narration_snippet_validation,
-        project_context=project_context,
+        workspace=workspace,
+        llm=llm,
+        concepts_introduced=output.concepts_introduced,
+        spend_meter=spend_meter,
     )
     if isinstance(closing_result, SkippedLesson):
-        # Closing lesson failed — render placeholder (still append, no DEGRADED impact).
         closing_placeholder = Lesson(
             id=closing_result.lesson_id,
             title=closing_result.title,
@@ -870,6 +892,10 @@ def _stage_generation(
         output.lessons.append(closing_placeholder)
     else:
         output.lessons.append(closing_result)
+
+    # Wire cumulative spend from the meter (if present) into the stage output.
+    if spend_meter is not None:
+        output.total_cost_usd = getattr(spend_meter, "total_cost_usd", 0.0)
 
     return output
 

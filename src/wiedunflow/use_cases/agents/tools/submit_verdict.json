@@ -1,0 +1,48 @@
+{
+  "name": "submit_verdict",
+  "description": "Submit the final review verdict for the draft lesson. Call this exactly once at the end of your review, after running any verification tool calls. Both providers (OpenAI function calling, Anthropic tool use) enforce the JSON schema, so you cannot submit a malformed verdict — invalid arguments will be rejected before the tool fires. Do NOT also write the verdict in the assistant message; the schema below is the canonical output. The Orchestrator reads only the structured arguments you pass here.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": ["pass", "warn", "fatal"],
+        "description": "Overall verdict — must equal the worst result across all 6 rubric checks (fatal > warn > pass). 'pass' = all checks passed; 'warn' = at least one warn but no fatal; 'fatal' = at least one check (typically grounding or snippet_match) is fatal and the lesson cannot be approved without a Writer retry."
+      },
+      "checks": {
+        "type": "array",
+        "description": "One entry per rubric check (6 total). The Orchestrator uses these to decide retry vs. accept vs. skip.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "enum": ["grounding", "snippet_match", "word_count", "no_re_teach", "uncertainty_flag", "audience_fit"],
+              "description": "Which rubric check this entry refers to."
+            },
+            "result": {
+              "type": "string",
+              "enum": ["pass", "warn", "fatal"],
+              "description": "Result of this individual check."
+            },
+            "severity": {
+              "type": "string",
+              "enum": ["info", "warn", "fatal"],
+              "description": "Severity to log. Typically equals 'result', but 'info' is allowed for explanatory pass entries."
+            },
+            "message": {
+              "type": "string",
+              "description": "One-sentence explanation. For non-pass entries, MUST include the offending excerpt from the draft and the correct value (e.g. 'Draft has \"def foo(x)\" but actual signature is \"def foo(x: int, y: str = \\\"a\\\")\"'). For pass entries, a brief positive summary is sufficient."
+            }
+          },
+          "required": ["name", "result", "severity", "message"]
+        }
+      },
+      "feedback": {
+        "type": "string",
+        "description": "Aggregate human-readable feedback. For 'fatal' verdicts, summarise every fatal check and quote the exact offending and correct values so the Writer can fix the draft. For 'warn', list which checks warned and why. For 'pass', a brief positive summary."
+      }
+    },
+    "required": ["verdict", "checks", "feedback"]
+  }
+}

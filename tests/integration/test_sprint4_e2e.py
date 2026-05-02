@@ -26,6 +26,7 @@ SQLite cache, so an e2e assertion would be a no-op.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import threading
 from pathlib import Path
@@ -38,6 +39,7 @@ from wiedunflow.adapters.fake_llm_provider import FakeLLMProvider
 from wiedunflow.cli.main import cli as cli_main
 from wiedunflow.entities.lesson import Lesson
 from wiedunflow.entities.lesson_manifest import LessonManifest
+from wiedunflow.interfaces.ports import AgentResult, AgentTurn, ToolCall
 
 pytestmark = pytest.mark.integration
 
@@ -140,6 +142,47 @@ class _DegradedFakeLLM:
             status="generated",
         )
 
+    def run_agent(
+        self,
+        *,
+        system: str,
+        user: str,
+        tools: list[Any],
+        tool_executor: Any,
+        model: str,
+        **kwargs: Any,
+    ) -> AgentResult:
+        tool_names = {t.name for t in tools}
+        if "skip_lesson" in tool_names:
+            match = re.search(r"lesson `([^`]+)`", user)
+            lesson_id = match.group(1) if match else "lesson-unknown"
+            tool_executor(
+                ToolCall(
+                    id="degraded-skip-001",
+                    name="skip_lesson",
+                    arguments={"lesson_id": lesson_id, "reason": "degraded test fixture"},
+                )
+            )
+        stub = "Degraded stub."
+        return AgentResult(
+            final_text=stub,
+            transcript=[
+                AgentTurn(
+                    role="assistant",
+                    text=stub,
+                    tool_calls=[],
+                    tool_results=[],
+                    input_tokens=0,
+                    output_tokens=0,
+                )
+            ],
+            total_input_tokens=0,
+            total_output_tokens=0,
+            total_cost_usd=0.0,
+            stop_reason="end_turn",
+            iterations=1,
+        )
+
 
 class _ExplodingFakeLLM:
     """Raises :class:`RuntimeError` during the very first ``narrate`` call.
@@ -158,6 +201,18 @@ class _ExplodingFakeLLM:
         return self._delegate.describe_symbol(symbol, context)  # type: ignore[arg-type]
 
     def narrate(self, spec_json: str, concepts_introduced: tuple[str, ...]) -> Lesson:
+        raise RuntimeError("boom from _ExplodingFakeLLM test fixture")
+
+    def run_agent(
+        self,
+        *,
+        system: str,
+        user: str,
+        tools: list[Any],
+        tool_executor: Any,
+        model: str,
+        **kwargs: Any,
+    ) -> AgentResult:
         raise RuntimeError("boom from _ExplodingFakeLLM test fixture")
 
 

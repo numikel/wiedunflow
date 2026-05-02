@@ -1,0 +1,18 @@
+{
+  "name": "skip_lesson",
+  "description": "Skip the current lesson and record the reason. Use this only as a last resort: when the primary symbol cannot be found in the AST, when two consecutive Reviewer verdicts are fatal, or when the remaining budget is insufficient to complete the pipeline. Skipped lessons are omitted from the final HTML and logged for post-run review.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "lesson_id": {
+        "type": "string",
+        "description": "The lesson identifier from the planning stage (e.g. 'lesson-03'). Must exactly match the lesson_id in the current session context."
+      },
+      "reason": {
+        "type": "string",
+        "description": "Human-readable explanation of why this lesson was skipped. Be specific: e.g. 'Symbol adapters.openai_provider.OpenAIProvider._internal not found in AST snapshot after 2 grep_usages attempts' or 'Two consecutive fatal Reviewer verdicts: snippet mismatch on def _call_with_retry'. This is logged for post-run diagnosis."
+      }
+    },
+    "required": ["lesson_id", "reason"]
+  }
+}
