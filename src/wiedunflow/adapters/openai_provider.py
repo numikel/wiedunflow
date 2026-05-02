@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -32,6 +33,14 @@ from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
     LessonSpec,
     ManifestMetadata,
+)
+from wiedunflow.interfaces.ports import (
+    AgentResult,
+    AgentTurn,
+    SpendMeterProto,
+    ToolCall,
+    ToolResult,
+    ToolSpec,
 )
 
 logger = structlog.get_logger(__name__)
@@ -60,11 +69,16 @@ class OpenAIProvider:
         model_plan: str = "gpt-5.4",
         model_narrate: str = "gpt-5.4",
         model_describe: str = "gpt-5.4-mini",
+        model_orchestrator: str = "gpt-5.4",
+        model_researcher: str = "gpt-5.4-mini",
+        model_writer: str = "gpt-5.4",
+        model_reviewer: str = "gpt-5.4-mini",
         max_retries: int = 5,
         max_wait_s: int = 60,
         max_tokens_plan: int = 8000,
         max_tokens_narrate: int = 4000,
         max_tokens_describe: int = 300,
+        max_tokens_agent: int = 4000,
     ) -> None:
         resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not resolved_key:
@@ -88,17 +102,26 @@ class OpenAIProvider:
         self._model_plan = model_plan
         self._model_narrate = model_narrate
         self._model_describe = model_describe
+        self._model_orchestrator = model_orchestrator
+        self._model_researcher = model_researcher
+        self._model_writer = model_writer
+        self._model_reviewer = model_reviewer
         self._max_retries = max_retries
         self._max_wait_s = max_wait_s
         self._max_tokens_plan = max_tokens_plan
         self._max_tokens_narrate = max_tokens_narrate
         self._max_tokens_describe = max_tokens_describe
+        self._max_tokens_agent = max_tokens_agent
         logger.info(
             "openai_provider_init",
             base_url=base_url or "default(openai)",
             model_plan=model_plan,
             model_narrate=model_narrate,
             model_describe=model_describe,
+            model_orchestrator=model_orchestrator,
+            model_researcher=model_researcher,
+            model_writer=model_writer,
+            model_reviewer=model_reviewer,
             max_retries=max_retries,
         )
 
@@ -186,6 +209,167 @@ class OpenAIProvider:
             narrative=raw,
             code_refs=code_ref_symbols,
             status="generated",
+        )
+
+    def run_agent(
+        self,
+        *,
+        system: str,
+        user: str,
+        tools: list[ToolSpec],
+        tool_executor: Callable[[ToolCall], ToolResult],
+        model: str,
+        max_iterations: int = 15,
+        max_cost_usd: float = 1.0,
+        spend_meter: SpendMeterProto | None = None,
+    ) -> AgentResult:
+        """Run a tool-use agent loop against the OpenAI chat completions API.
+
+        Calls the model repeatedly until it signals ``stop`` (no pending tool calls),
+        ``max_iterations`` is reached, or the ``spend_meter`` signals budget exhaustion.
+        Tools are executed synchronously via ``tool_executor`` between turns.
+
+        Args:
+            system: System prompt for the agent.
+            user: Initial user message.
+            tools: Tool specifications to advertise to the model.
+            tool_executor: Synchronous callback that executes a :class:`ToolCall`.
+            model: OpenAI model identifier.
+            max_iterations: Hard upper bound on loop iterations.
+            max_cost_usd: Unused in this adapter (budget enforcement delegated to
+                ``spend_meter``); kept for Protocol conformance.
+            spend_meter: Optional spend tracker; loop aborts when
+                ``would_exceed()`` returns True.
+
+        Returns:
+            :class:`AgentResult` with the final text, transcript, token totals, and
+            a ``stop_reason`` of ``"end_turn"``, ``"max_iterations"``, or ``"max_cost"``.
+        """
+        openai_tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.input_schema,
+                },
+            }
+            for t in tools
+        ]
+        token_param = (
+            "max_completion_tokens" if _uses_max_completion_tokens(model) else "max_tokens"
+        )
+
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+        transcript: list[AgentTurn] = []
+        total_input = total_output = 0
+        total_cost = 0.0
+
+        for iteration in range(max_iterations):
+            kwargs: dict[str, Any] = {
+                "model": model,
+                token_param: self._max_tokens_agent,
+                "messages": messages,
+            }
+            if tools:
+                kwargs["tools"] = openai_tools
+                kwargs["tool_choice"] = "auto"
+
+            response = self._client.chat.completions.create(**kwargs)
+            msg = response.choices[0].message
+            usage = response.usage
+            in_tok = usage.prompt_tokens if usage else 0
+            out_tok = usage.completion_tokens if usage else 0
+            total_input += in_tok
+            total_output += out_tok
+
+            # Collect tool calls from this turn
+            turn_calls: list[ToolCall] = []
+            if msg.tool_calls:
+                for tc in msg.tool_calls:
+                    turn_calls.append(
+                        ToolCall(
+                            id=tc.id,
+                            name=tc.function.name,
+                            arguments=json.loads(tc.function.arguments or "{}"),
+                        )
+                    )
+
+            transcript.append(
+                AgentTurn(
+                    role="assistant",
+                    text=msg.content,
+                    tool_calls=turn_calls,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                )
+            )
+
+            if spend_meter is not None:
+                spend_meter.charge(model=model, input_tokens=in_tok, output_tokens=out_tok)
+                if spend_meter.would_exceed():
+                    return AgentResult(
+                        final_text=msg.content,
+                        transcript=transcript,
+                        total_input_tokens=total_input,
+                        total_output_tokens=total_output,
+                        total_cost_usd=total_cost,
+                        stop_reason="max_cost",
+                        iterations=iteration + 1,
+                    )
+
+            # Stop if the model issued no tool calls or signalled stop finish_reason
+            if not msg.tool_calls or response.choices[0].finish_reason == "stop":
+                return AgentResult(
+                    final_text=msg.content,
+                    transcript=transcript,
+                    total_input_tokens=total_input,
+                    total_output_tokens=total_output,
+                    total_cost_usd=total_cost,
+                    stop_reason="end_turn",
+                    iterations=iteration + 1,
+                )
+
+            # Append assistant turn with tool_calls to the running message list
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": msg.content,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in msg.tool_calls
+                    ],
+                }
+            )
+            # Execute each tool and append results as tool-role messages
+            for tc, call in zip(msg.tool_calls, turn_calls, strict=True):
+                result = tool_executor(call)
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result.content,
+                    }
+                )
+
+        return AgentResult(
+            final_text=None,
+            transcript=transcript,
+            total_input_tokens=total_input,
+            total_output_tokens=total_output,
+            total_cost_usd=total_cost,
+            stop_reason="max_iterations",
+            iterations=max_iterations,
         )
 
     def _create_with_retry(
