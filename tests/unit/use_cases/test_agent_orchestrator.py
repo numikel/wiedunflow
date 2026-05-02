@@ -698,6 +698,146 @@ class TestFallbackPersistsToFinished:
         )
         assert "max_iterations" in data["reason"]
 
+    def test_run_closing_lesson_assembles_structured_json_into_markdown(
+        self,
+        workspace: RunWorkspace,
+    ) -> None:
+        """The closing Writer is given ``tools=[]`` but may still emit a JSON
+        blob matching ``submit_lesson_draft`` schema. The orchestrator MUST
+        stitch the four sections into a single markdown narrative — not
+        persist the raw JSON string (which would render as visible
+        ``{"overview":...}`` in the HTML reader).
+        """
+        closing_spec = LessonSpec(
+            id="lesson-closing",
+            title="Where to go next",
+            teaches="Where to go next",
+            code_refs=(),
+        )
+        # Simulate the real-world bug: gpt-5.4 emits structured JSON as plain
+        # text because the writer card forces an output_contract: format=json.
+        structured_payload = json.dumps(
+            {
+                "overview": "Start with the README.",
+                "how_it_works": "Re-open entry points and trace imports.",
+                "key_details": "Helpers validate inputs and write templates.",
+                "what_to_watch_for": "Don't dive into untested helpers first.",
+            }
+        )
+        llm = _ScriptedLLM(
+            [
+                AgentResult(
+                    final_text=structured_payload,
+                    transcript=[],
+                    total_input_tokens=10,
+                    total_output_tokens=20,
+                    total_cost_usd=0.0,
+                    stop_reason="end_turn",
+                    iterations=1,
+                )
+            ]
+        )
+
+        lesson = run_closing_lesson(
+            closing_spec,
+            workspace=workspace,
+            llm=llm,  # type: ignore[arg-type]
+        )
+
+        assert isinstance(lesson, Lesson)
+        # Each section must appear in the assembled narrative...
+        for section_text in (
+            "Start with the README.",
+            "Re-open entry points and trace imports.",
+            "Helpers validate inputs and write templates.",
+            "Don't dive into untested helpers first.",
+        ):
+            assert section_text in lesson.narrative
+        # ...and the raw JSON envelope MUST NOT leak into the narrative.
+        assert not lesson.narrative.lstrip().startswith("{")
+        assert '"overview"' not in lesson.narrative
+
+    def test_run_closing_lesson_assembles_fenced_json(
+        self,
+        workspace: RunWorkspace,
+    ) -> None:
+        """Some models wrap their structured payload in a ```json fence even
+        when forced into plain text mode. The assembler must strip the fence
+        before parsing.
+        """
+        closing_spec = LessonSpec(
+            id="lesson-closing",
+            title="Where to go next",
+            teaches="Where to go next",
+            code_refs=(),
+        )
+        fenced = (
+            "```json\n"
+            + json.dumps({"overview": "Read on.", "how_it_works": "Step through."})
+            + "\n```"
+        )
+        llm = _ScriptedLLM(
+            [
+                AgentResult(
+                    final_text=fenced,
+                    transcript=[],
+                    total_input_tokens=5,
+                    total_output_tokens=8,
+                    total_cost_usd=0.0,
+                    stop_reason="end_turn",
+                    iterations=1,
+                )
+            ]
+        )
+
+        lesson = run_closing_lesson(
+            closing_spec,
+            workspace=workspace,
+            llm=llm,  # type: ignore[arg-type]
+        )
+
+        assert isinstance(lesson, Lesson)
+        assert "Read on." in lesson.narrative
+        assert "Step through." in lesson.narrative
+        assert "```" not in lesson.narrative
+
+    def test_run_closing_lesson_passes_through_plain_markdown(
+        self,
+        workspace: RunWorkspace,
+    ) -> None:
+        """When the Writer correctly emits plain markdown, the assembler is a
+        no-op — the narrative is preserved verbatim.
+        """
+        closing_spec = LessonSpec(
+            id="lesson-closing",
+            title="Where to go next",
+            teaches="Where to go next",
+            code_refs=(),
+        )
+        plain_markdown = "## Where to go next\n\nKeep reading the README."
+        llm = _ScriptedLLM(
+            [
+                AgentResult(
+                    final_text=plain_markdown,
+                    transcript=[],
+                    total_input_tokens=5,
+                    total_output_tokens=8,
+                    total_cost_usd=0.0,
+                    stop_reason="end_turn",
+                    iterations=1,
+                )
+            ]
+        )
+
+        lesson = run_closing_lesson(
+            closing_spec,
+            workspace=workspace,
+            llm=llm,  # type: ignore[arg-type]
+        )
+
+        assert isinstance(lesson, Lesson)
+        assert lesson.narrative == plain_markdown
+
     def test_run_closing_lesson_empty_output_writes_finished(
         self,
         workspace: RunWorkspace,

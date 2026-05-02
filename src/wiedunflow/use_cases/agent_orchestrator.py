@@ -598,6 +598,43 @@ def _persist_skipped_lesson(
     )
 
 
+_WRITER_SECTIONS: tuple[str, ...] = (
+    "overview",
+    "how_it_works",
+    "key_details",
+    "what_to_watch_for",
+)
+
+
+def _assemble_narrative_from_structured(text: str) -> str:
+    """Defensive fix: closing-lesson Writer is given ``tools=[]`` and may emit a
+    JSON blob (matching ``submit_lesson_draft`` schema) as plain text instead of
+    markdown. Parse it and stitch the four sections into a single narrative.
+
+    Returns ``text`` unchanged when it does not look like a structured payload.
+    """
+    stripped = text.strip()
+    # Strip code-fence wrapper (```json ... ```) that some models add when forced
+    # into plain text mode.
+    fence_match = re.match(r"^```(?:json)?\s*(.*?)\s*```$", stripped, re.DOTALL)
+    if fence_match:
+        stripped = fence_match.group(1).strip()
+    if not stripped.startswith("{"):
+        return text
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError:
+        return text
+    if not isinstance(data, dict):
+        return text
+    sections = [
+        str(data[key]).strip()
+        for key in _WRITER_SECTIONS
+        if isinstance(data.get(key), str) and str(data[key]).strip()
+    ]
+    return "\n\n".join(sections) if sections else text
+
+
 def run_closing_lesson(
     spec: LessonSpec,
     *,
@@ -677,7 +714,7 @@ def run_closing_lesson(
         spend_meter=spend_meter,
     )
 
-    narrative = result.final_text or ""
+    narrative = _assemble_narrative_from_structured(result.final_text or "")
     if not narrative.strip():
         skipped = SkippedLesson(
             lesson_id=lesson_id,
