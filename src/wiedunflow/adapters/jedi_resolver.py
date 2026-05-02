@@ -2,6 +2,7 @@
 # Copyright 2026 Michał Kamiński
 from __future__ import annotations
 
+import platform
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,63 @@ from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.resolution_stats import ResolutionStats
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+
+def _detect_python_path(repo_root: Path, override: Path | None = None) -> Path | None:
+    """Detect a Python interpreter from common venv locations in the analyzed repo.
+
+    Detection order:
+        1. ``override`` — explicit user-provided path (from ``--python-path`` flag).
+           If it does not exist, a WARNING is emitted and detection falls through
+           to the candidates below.
+        2. ``repo_root/.venv/{Scripts/python.exe | bin/python}``
+        3. ``repo_root/venv/...``
+        4. ``repo_root/env/...``
+
+    Args:
+        repo_root: Root of the repository being analyzed.
+        override: Optional explicit interpreter path supplied by the caller
+            (e.g. from the ``--python-path`` CLI flag).
+
+    Returns:
+        Absolute path to a Python interpreter, or ``None`` if nothing matched.
+        Callers should pass this as ``environment_path`` to ``jedi.Project()``.
+    """
+    if override is not None:
+        if override.exists():
+            return override.resolve()
+        logger.warning(
+            "python_path_override_not_found",
+            path=str(override),
+            msg="Override interpreter not found; falling back to auto-detection.",
+        )
+        # Fall through to default detection.
+
+    is_windows = platform.system() == "Windows"
+    interpreter_subpath = Path("Scripts") / "python.exe" if is_windows else Path("bin") / "python"
+
+    candidates = [".venv", "venv", "env"]
+    for candidate in candidates:
+        venv_python = repo_root / candidate / interpreter_subpath
+        if venv_python.exists():
+            logger.info(
+                "venv_detected",
+                path=str(venv_python),
+                candidate=candidate,
+            )
+            return venv_python.resolve()
+
+    logger.warning(
+        "no_venv_detected",
+        repo_root=str(repo_root),
+        msg=(
+            "Jedi will use WiedunFlow's own interpreter (may give low resolved_pct "
+            "for cold-start repos). Use --python-path PATH or --bootstrap-venv to "
+            "point Jedi at the analyzed repo's environment."
+        ),
+    )
+    return None
+
 
 # Minimum resolved_pct below which we emit a structured WARNING.
 _RESOLVED_WARN_THRESHOLD = 50.0
@@ -120,14 +178,42 @@ def _infer_resolved_target(
 
 
 class _EdgeCounts:
-    """Mutable accumulator for 3-tier resolution counts."""
+    """Mutable accumulator for 4-tier resolution counts (Tier 2: heuristic added v0.9.0)."""
 
-    __slots__ = ("resolved", "uncertain", "unresolved")
+    __slots__ = ("resolved", "resolved_heuristic", "uncertain", "unresolved")
 
     def __init__(self) -> None:
         self.resolved = 0
         self.uncertain = 0
         self.unresolved = 0
+        self.resolved_heuristic = 0
+
+
+def _heuristic_name_match(
+    callee_text: str,
+    symbol_by_name: dict[str, CodeSymbol],
+) -> list[str]:
+    """Tier 2 fallback: return all symbol full-names whose last component equals *callee_text*.
+
+    Used when Jedi ``infer()`` returns an empty list — i.e. no venv / cold-start scenario.
+    The caller decides the outcome:
+    - 1 match  → ``resolved_heuristic`` (unique, safe to use)
+    - >1 matches → ``uncertain``  (ambiguous — cannot pick one safely)
+    - 0 matches → ``unresolved``  (nothing in the AST snapshot matches)
+
+    Args:
+        callee_text: The raw callee token from the parser edge (e.g. ``"bar"``).
+        symbol_by_name: Mapping of fully-qualified name → CodeSymbol from the AST snapshot.
+
+    Returns:
+        List of full-name strings that match (may be empty).
+    """
+    suffix = "." + callee_text
+    matches: list[str] = []
+    for full_name in symbol_by_name:
+        if full_name == callee_text or full_name.endswith(suffix):
+            matches.append(full_name)
+    return matches
 
 
 def _classify_edge(
@@ -140,7 +226,20 @@ def _classify_edge(
     counts: _EdgeCounts,
     resolved_edges: list[tuple[str, str]],
 ) -> None:
-    """Classify one edge and mutate *counts* / *resolved_edges* in place."""
+    """Classify one edge and mutate *counts* / *resolved_edges* in place.
+
+    Resolution order:
+    1. Tier 1 (strict Jedi): ``infer()`` returns a ``Name`` with ``full_name``
+       matching a known symbol → ``resolved``.
+    2. Tier 1 uncertain: ``infer()`` returned results but no ``full_name`` matched
+       → ``uncertain``.
+    3. Tier 2 (heuristic fallback): Jedi returned empty AND caller_sym found AND
+       source readable.  Name-based lookup in ``symbol_by_name``:
+       - exactly 1 match → ``resolved_heuristic``
+       - >1 matches      → ``uncertain`` (ambiguous)
+       - 0 matches       → ``unresolved``
+    4. ``unresolved``: caller_sym missing / source unreadable / Jedi exception.
+    """
     result = _resolve_single_edge(
         caller_name, callee_text, symbol_by_name, source_cache, project, repo_root
     )
@@ -185,7 +284,30 @@ def _classify_edge(
             break
 
     if any_inferred:
+        # Tier 1 uncertain: Jedi found something but it didn't map to a known symbol.
         counts.uncertain += 1
+        return
+
+    # Tier 2: Jedi infer() returned [] — try name-based heuristic fallback.
+    candidates = _heuristic_name_match(callee_text, symbol_by_name)
+    if len(candidates) == 1:
+        resolved_edges.append((caller_name, candidates[0]))
+        counts.resolved_heuristic += 1
+        logger.debug(
+            "heuristic_resolved_edge",
+            caller=caller_name,
+            callee_text=callee_text,
+            resolved_to=candidates[0],
+        )
+    elif len(candidates) > 1:
+        # Ambiguous: multiple symbols share the same short name — cannot pick one safely.
+        counts.uncertain += 1
+        logger.debug(
+            "heuristic_ambiguous_edge",
+            caller=caller_name,
+            callee_text=callee_text,
+            candidates=candidates,
+        )
     else:
         counts.unresolved += 1
 
@@ -235,7 +357,17 @@ class JediResolver:
       ``None`` for all of them.
     * **unresolved** -- ``infer()`` returned an empty list, the caller symbol
       was not found, or Jedi raised an exception for this edge.
+
+    Args:
+        python_path: Optional explicit path to a Python interpreter in the
+            *analyzed* repo's virtual environment.  When ``None`` (default),
+            :func:`_detect_python_path` auto-discovers ``.venv/``, ``venv/``,
+            or ``env/`` in the repo root.  Corresponds to the
+            ``--python-path`` CLI flag.
     """
+
+    def __init__(self, *, python_path: Path | None = None) -> None:
+        self._python_path_override: Path | None = python_path
 
     def resolve(
         self,
@@ -272,7 +404,13 @@ class JediResolver:
         symbol_by_name: dict[str, CodeSymbol] = {s.name: s for s in symbols}
         # One Project per resolve() call -- heavy object, reused across all edges.
         # smart_sys_path=True (default) detects src-layout automatically.
-        project: Any = jedi.Project(path=str(repo_root))
+        # Tier 1: pass environment_path when a venv is detected so Jedi can
+        # resolve third-party symbols from the analyzed repo's site-packages.
+        detected_python = _detect_python_path(repo_root, override=self._python_path_override)
+        project_kwargs: dict[str, Any] = {"path": str(repo_root)}
+        if detected_python is not None:
+            project_kwargs["environment_path"] = str(detected_python)
+        project: Any = jedi.Project(**project_kwargs)
         source_cache: dict[Path, str] = {}
         resolved_edges: list[tuple[str, str]] = []
         counts = _EdgeCounts()
@@ -296,6 +434,7 @@ class JediResolver:
             resolved_pct=resolved_pct,
             uncertain_count=counts.uncertain,
             unresolved_count=counts.unresolved,
+            resolved_heuristic_count=counts.resolved_heuristic,
         )
 
         if resolved_pct < _RESOLVED_WARN_THRESHOLD:
@@ -304,6 +443,7 @@ class JediResolver:
                 resolved_pct=round(resolved_pct, 1),
                 uncertain=counts.uncertain,
                 unresolved=counts.unresolved,
+                resolved_heuristic=counts.resolved_heuristic,
             )
 
         updated_symbols = _propagate_dynamic_markers(symbols, source_cache, repo_root)
