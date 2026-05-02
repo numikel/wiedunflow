@@ -1,7 +1,7 @@
 # WiedunFlow — generate interactive HTML tutorials from local Git repos
 
 ![Python version](https://img.shields.io/badge/python-3.13+-blue.svg)
-![License](https://img.shields.io/badge/license-Apache-2.0-green.svg)
+![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)
 ![Version](https://img.shields.io/badge/version-2.3.1-orange.svg)
 ![CI](https://github.com/numikel/wiedunflow/actions/workflows/ci.yml/badge.svg)
 
