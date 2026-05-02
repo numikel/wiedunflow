@@ -369,9 +369,9 @@ def test_closing_lesson_is_appended_to_generated_tutorial(
         # (was: <cwd>/wiedunflow-<repo>.html — moved next to the analyzed repo so
         # the artifact lives with the source it documents).
         del tmp_cwd  # cwd is no longer the default location
-        html = (
-            tiny_repo_copy / f"wiedunflow-{tiny_repo_copy.name}.html"
-        ).read_text(encoding="utf-8")
+        html = (tiny_repo_copy / f"wiedunflow-{tiny_repo_copy.name}.html").read_text(
+            encoding="utf-8"
+        )
 
     report = _load_report(tiny_repo_copy)
     # total_planned_lessons excludes the closing lesson (spec decision).
