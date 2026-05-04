@@ -44,43 +44,43 @@ _REDACTED = "[REDACTED]"
         ("lesson-007 passed", "lesson-007 passed", ""),
         # NEGATIVE: short alphanumeric ok
         ("file_hash=abc123", "file_hash=abc123", ""),
-        # F-009: AWS Access Key ID (exactly AKIA + 16 uppercase alphanums = 20 total)
+        # AWS Access Key ID (exactly AKIA + 16 uppercase alphanums = 20 total)
         ("aws_access_key_id=AKIA1234567890ABCDEF", _REDACTED, "AKIA1234567890ABCDEF"),
-        # F-009: AWS Secret Access Key heuristic (aws prefix + 40-char base64 blob)
+        # AWS Secret Access Key heuristic (aws prefix + 40-char base64 blob)
         (
             "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
             _REDACTED,
             "wJalrXUtnFEMI",
         ),
-        # F-009: GitHub classic PAT — ghp_ prefix
+        # GitHub classic PAT — ghp_ prefix
         (
             "token=ghp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789",
             _REDACTED,
             "ghp_",
         ),
-        # F-009: GitHub fine-grained PAT — github_pat_ + exactly 82 chars
+        # GitHub fine-grained PAT — github_pat_ + exactly 82 chars
         ("token=github_pat_" + "A" * 82, _REDACTED, "github_pat_"),
-        # F-009: PEM RSA private key header
+        # PEM RSA private key header
         (
             "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAK...",
             _REDACTED,
             "-----BEGIN RSA PRIVATE KEY-----",
         ),
-        # F-009: PEM generic private key header (PKCS#8, no algorithm prefix)
+        # PEM generic private key header (PKCS#8, no algorithm prefix)
         ("-----BEGIN PRIVATE KEY-----", _REDACTED, "-----BEGIN PRIVATE KEY-----"),
-        # F-009: PEM OpenSSH private key header
+        # PEM OpenSSH private key header
         (
             "-----BEGIN OPENSSH PRIVATE KEY-----",
             _REDACTED,
             "-----BEGIN OPENSSH PRIVATE KEY-----",
         ),
-        # F-009 NEGATIVE: AKIA too short (only 5 trailing chars — must NOT redact)
+        # NEGATIVE: AKIA too short (only 5 trailing chars — must NOT redact)
         ("AKIA12345 (only 5 chars)", "AKIA12345 (only 5 chars)", ""),
-        # F-009 NEGATIVE: bare word "github" is not a token
+        # NEGATIVE: bare word "github" is not a token
         ("github status: pending", "github status: pending", ""),
-        # F-009 NEGATIVE: aws + short string is not a secret
+        # NEGATIVE: aws + short string is not a secret
         ("aws region us-east-1", "aws region us-east-1", ""),
-        # F-009 NEGATIVE: gh-pages is not a GitHub PAT
+        # NEGATIVE: gh-pages is not a GitHub PAT
         ("gh-pages deployment", "gh-pages deployment", ""),
     ],
 )

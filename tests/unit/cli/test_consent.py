@@ -179,12 +179,12 @@ def test_provider_policy_url_unknown():
 
 
 # ---------------------------------------------------------------------------
-# 7. F-010 — banner shown for all providers + base_url customisation
+# 7. Banner shown for all providers + base_url customisation
 # ---------------------------------------------------------------------------
 
 
 def test_banner_shown_for_custom_provider_with_base_url(monkeypatch):
-    """Banner IS shown for custom provider with base_url (was bypassed before F-010 fix)."""
+    """Banner IS shown for custom provider with base_url (was previously bypassed)."""
     echoed: list[str] = []
     confirm_calls: list[bool] = []
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Unit tests for DefaultFsBoundary (F-007: LLM path-traversal guard)."""
+"""Unit tests for DefaultFsBoundary (LLM path-traversal containment guard)."""
 
 from __future__ import annotations
 

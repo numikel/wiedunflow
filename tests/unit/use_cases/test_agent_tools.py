@@ -540,7 +540,7 @@ def test_build_tool_registry_tools_return_strings(
 
 
 # ---------------------------------------------------------------------------
-# Security: path-traversal negative cases (F-007)
+# Security: path-traversal negative cases
 # ---------------------------------------------------------------------------
 # For each of the 4 fs-touching tools, two attack vectors are tested:
 #   1. relative traversal: "../../etc/passwd"

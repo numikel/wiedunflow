@@ -10,14 +10,14 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
-This release closes four W3 security findings from the audit batch (F-007 through F-010).
+This release closes four W3 security hardening items.
 **BREAKING for misconfigured `base_url` setups**: `tutorial.config.yaml` with non-http(s)
 scheme or cloud-metadata host (`169.254.169.254`, `metadata.google.internal`, etc.) now
 exits with `ConfigError` instead of silently sending the API key + source code there.
 The consent banner is also now shown for **all** providers including `custom` /
 `openai_compatible`, where it was previously bypassed.
 
-- **F-007 — LLM-controlled path traversal in `agent_tools` blocked.** The four
+- **LLM-controlled path traversal in `agent_tools` blocked.** The four
   filesystem-touching agent tools (`make_list_files_in_dir`, `make_read_lines`,
   `make_read_tests`, `make_grep_usages`) previously took LLM-supplied paths and
   resolved them via `repo_root / rel_path` with only `exists()`/`is_dir()` checks.
@@ -32,7 +32,7 @@ The consent banner is also now shown for **all** providers including `custom` /
   `make_list_files_in_dir` was replaced with a `continue`. 8 negative parametric
   tests + 7-test `test_fs_boundary.py` (1 skipped on Windows for `os.symlink`).
 
-- **F-008 — XSS via `innerHTML` in offline HTML output blocked.** Three sites in
+- **XSS via `innerHTML` in offline HTML output blocked.** Three sites in
   `tutorial.js` (`seg.text` for `kind="html"`/`"p"` at lines 94/97 and
   `lesson.code_panel_html` at line 192) wrote attacker-controllable strings (Writer
   LLM output and the analyzed repo's `README.md`) into `innerHTML` without sanitization.
@@ -54,18 +54,17 @@ The consent banner is also now shown for **all** providers including `custom` /
   `<img src=x onerror=alert(1)>`, `<iframe>`, `</script>` breakout) are absent in the
   rendered HTML.
 
-- **F-009 — `SecretFilter` extended with 5 cloud-provider patterns (AWS / GitHub / GCP).**
+- **`SecretFilter` extended with 5 cloud-provider patterns (AWS / GitHub / GCP).**
   The structlog redaction processor was missing patterns for AWS Access Key IDs (`AKIA...`),
   AWS Secret Access Keys, GitHub classic PATs (`ghp_`/`ghu_`/`gho_`/`ghs_`/`ghr_`),
   GitHub fine-grained PATs (`github_pat_...`), and PEM private key headers. Logs at
   `DEBUG` could leak any of these if they appeared in user environment variables or
   config dumps. `_PATTERNS` extended from 7 to 12. Anthropic v3 keys (`sk-ant-api03-*`)
-  are already covered by the existing `sk-ant-[A-Za-z0-9_\-]{20,}` pattern (verified —
-  finding's claim of v3 gap was incorrect). Pattern catalog is now versioned in
-  ADR-0010 §D11 (amended 2026-05-05). 11 new parametric test cases (7 positives + 4
-  false-positive controls).
+  are already covered by the existing `sk-ant-[A-Za-z0-9_\-]{20,}` pattern. Pattern
+  catalog is now versioned in ADR-0010 §D11 (amended 2026-05-05). 11 new parametric
+  test cases (7 positives + 4 false-positive controls).
 
-- **F-010 — SSRF + consent-banner bypass via `base_url` blocked.**
+- **SSRF + consent-banner bypass via `base_url` blocked.**
   `_build_llm_provider` previously skipped the consent banner whenever
   `base_url` was non-`None` (intended for local Ollama, but allowed any remote
   endpoint to silently receive code). The `base_url` was passed to `OpenAI(base_url=...)`

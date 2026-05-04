@@ -38,7 +38,7 @@ _PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
     re.compile(r"(?i)authorization:\s*\S+(?:\s+\S+)*"),
     # Generic long hex blobs (SHA/HMAC/session tokens — ≥40 hex chars).
     re.compile(r"\b[A-Fa-f0-9]{40,}\b"),
-    # F-009 (2026-05-04, ADR-0010 D11): cloud provider patterns added in v0.9.6.
+    # ADR-0010 §D11 (v0.9.6): cloud-provider key patterns (AWS / GitHub / PEM).
     # AWS Access Key ID — exactly 20 chars starting with AKIA.
     re.compile(r"AKIA[A-Z0-9]{16}"),
     # AWS Secret Access Key heuristic — 40-char base64 blob preceded by "aws".

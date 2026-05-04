@@ -465,7 +465,7 @@ def test_wiedunflow_env_var_picked_up(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 12. validate_base_url — F-010 SSRF + scheme validation
+# 12. validate_base_url — SSRF + scheme validation
 # ---------------------------------------------------------------------------
 
 

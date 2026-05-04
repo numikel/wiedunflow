@@ -169,7 +169,7 @@ are cheap and independently auditable.
 versioned in this ADR. Adding a pattern requires an amendment commit;
 removing a pattern requires a new ADR.
 
-**Catalog** (12 patterns — 7 original + 5 added 2026-05-04 for F-009):
+**Catalog** (12 patterns — 7 original + 5 added 2026-05-04 in v0.9.6):
 
 | # | Pattern | Provider/use | Example | Source |
 |---|---------|--------------|---------|--------|
@@ -186,7 +186,7 @@ removing a pattern requires a new ADR.
 | **11** | **`github_pat_[A-Za-z0-9_]{82}`** | **GitHub fine-grained PAT** | `github_pat_11AAA...` | GitHub docs |
 | **12** | **`-----BEGIN (?:RSA \|OPENSSH \|DSA \|EC )?PRIVATE KEY-----`** | **PEM private key (any flavor)** | `-----BEGIN RSA PRIVATE KEY-----` | RFC 7468 |
 
-Bold rows added 2026-05-04 (F-009 fix in v0.9.6).
+Bold rows added 2026-05-04 (v0.9.6 redaction extension).
 
 **Note on D5 vs D11**: D5 ("hard-refuse list") governs which *files* the ingestion
 stage refuses to read (e.g. `.env`, `*.pem`, `id_rsa`). D11 governs which

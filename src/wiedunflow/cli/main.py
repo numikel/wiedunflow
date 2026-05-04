@@ -532,7 +532,7 @@ def _build_llm_provider(
     bypass_consent = no_consent_prompt or yes
     tty = sys.stdin.isatty()
 
-    # F-010: Validate base_url early — reject SSRF targets and bad schemes
+    # Validate base_url early — reject SSRF targets and bad schemes
     # before any SDK or consent path is reached.
     validate_base_url(config.llm_base_url, provider=config.llm_provider)
 
@@ -554,9 +554,9 @@ def _build_llm_provider(
         )
 
     if config.llm_provider in ("openai", "openai_compatible"):
-        # F-010 fix: always show banner regardless of base_url.
-        # Previously the banner was skipped when base_url was set —
-        # that allowed silent exfiltration to arbitrary endpoints.
+        # Always show banner regardless of base_url. Previously the banner was
+        # skipped when base_url was set — that allowed silent exfiltration to
+        # arbitrary endpoints.
         ensure_consent_granted(
             config.llm_provider,
             bypass=bypass_consent,
@@ -578,8 +578,8 @@ def _build_llm_provider(
             raise ConfigError(
                 "llm.base_url is required for --provider=custom (e.g. http://localhost:11434/v1)."
             )
-        # F-010 fix: show banner for custom endpoints — previously skipped under
-        # the (incorrect) assumption that custom == local inference, zero egress.
+        # Show banner for custom endpoints — previously skipped under the
+        # (incorrect) assumption that custom == local inference, zero egress.
         ensure_consent_granted(
             config.llm_provider,
             bypass=bypass_consent,

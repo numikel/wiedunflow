@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Integration tests for CLI gateway security: F-010 SSRF + consent banner bypass.
+"""Integration tests for CLI gateway security: SSRF + consent banner bypass.
 
 These tests use Click's CliRunner to invoke ``wiedunflow generate`` end-to-end
 with a manipulated ``tutorial.config.yaml`` and verify:

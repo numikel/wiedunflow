@@ -34,7 +34,7 @@ class ConfigError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# SSRF + scheme validation for base_url (F-010)
+# SSRF + scheme validation for base_url
 # ---------------------------------------------------------------------------
 
 _BLOCKED_HOSTS: frozenset[str] = frozenset(

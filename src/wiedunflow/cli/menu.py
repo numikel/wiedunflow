@@ -454,8 +454,8 @@ def _run_init_from_menu(
             cursor -= 1
             continue
 
-        # F-010: validate base_url immediately after user input so they can
-        # correct the value without losing other wizard state (re-prompt, not abort).
+        # Validate base_url immediately after user input so users can correct
+        # the value without losing other wizard state (re-prompt, not abort).
         if step == "base_url" and result.strip():
             try:
                 validate_base_url(result.strip(), provider=state["provider"])
@@ -466,8 +466,8 @@ def _run_init_from_menu(
         state[step] = result
         cursor += 1
 
-    # F-010: defense-in-depth — validate again before writing to disk even if
-    # the step machine somehow delivered an invalid value.
+    # Defense-in-depth — validate again before writing to disk even if the
+    # step machine somehow delivered an invalid value.
     raw_base_url = state["base_url"].strip() or None
     base_url = validate_base_url(raw_base_url, provider=state["provider"])
     llm_block: dict[str, Any] = {

@@ -140,7 +140,7 @@ def _safe_for_script_tag(json_str: str) -> str:
 
 
 # Path to the vendored DOMPurify bundle (downloaded at build time from
-# https://github.com/cure53/DOMPurify/releases — see security review F-008).
+# https://github.com/cure53/DOMPurify/releases).
 _DOMPURIFY_PATH = Path(__file__).parent.parent / "renderer" / "templates" / "_dompurify_vendor.js"
 
 if TYPE_CHECKING:
