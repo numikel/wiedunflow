@@ -2,7 +2,7 @@
 
 ![Python version](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)
-![Version](https://img.shields.io/badge/version-2.3.1-orange.svg)
+![Version](https://img.shields.io/badge/version-0.9.2-orange.svg)
 ![CI](https://github.com/numikel/wiedunflow/actions/workflows/ci.yml/badge.svg)
 
 ## What is WiedunFlow
@@ -58,7 +58,7 @@ Code's custom-agent picker. Arrow keys + Enter + Esc — no flags to remember.
  ╚███╔███╔╝██║███████╗██████╔╝╚██████╔╝██║ ╚████║███████╗███████╗╚██████╔╝╚███╔███╔╝
   ╚══╝╚══╝ ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚══════╝ ╚═════╝  ╚══╝╚══╝
 
-  v0.9.0 · multi-agent tutorial generator from your local Git repository
+  v0.9.2 · multi-agent tutorial generator from your local Git repository
 
 ? What would you like to do?
   ❯ Initialize config
@@ -197,7 +197,7 @@ click group class rewrites an unknown first positional to `generate <positional>
 Running `wiedunflow ./my-repo` in a TTY produces:
 
 ```
-WiedunFlow v0.9.0
+WiedunFlow v0.9.2
 offline-friendly tutorial generator from local Git repos
 
 [1/7] Ingestion
@@ -523,7 +523,7 @@ Developed with help from:
 
 And with models:
 
-![Claude Opus 4.6](https://img.shields.io/badge/Claude_Opus-4.7-orange.svg)
-![Claude Sonnet 4.5](https://img.shields.io/badge/Claude_Sonnet-4.6-orange.svg)
+![Claude Opus 4.7](https://img.shields.io/badge/Claude_Opus-4.7-orange.svg)
+![Claude Sonnet 4.6](https://img.shields.io/badge/Claude_Sonnet-4.6-orange.svg)
 ![Claude Haiku 4.5](https://img.shields.io/badge/Claude_Haiku-4.5-orange.svg)
 
