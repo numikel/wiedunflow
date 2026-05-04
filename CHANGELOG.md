@@ -6,6 +6,99 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-05-05 — Security: Path Traversal, XSS, SSRF, Redaction
+
+### Security
+
+This release closes four W3 security findings from the audit batch (F-007 through F-010).
+**BREAKING for misconfigured `base_url` setups**: `tutorial.config.yaml` with non-http(s)
+scheme or cloud-metadata host (`169.254.169.254`, `metadata.google.internal`, etc.) now
+exits with `ConfigError` instead of silently sending the API key + source code there.
+The consent banner is also now shown for **all** providers including `custom` /
+`openai_compatible`, where it was previously bypassed.
+
+- **F-007 — LLM-controlled path traversal in `agent_tools` blocked.** The four
+  filesystem-touching agent tools (`make_list_files_in_dir`, `make_read_lines`,
+  `make_read_tests`, `make_grep_usages`) previously took LLM-supplied paths and
+  resolved them via `repo_root / rel_path` with only `exists()`/`is_dir()` checks.
+  A crafted `../../etc/passwd` (deliverable via prompt-injection in a malicious
+  third-party repo's docstrings or README) escaped `repo_root` and read host files.
+  Introduced a new `FsBoundary` Protocol (`interfaces/ports.py`) + `DefaultFsBoundary`
+  adapter (`adapters/fs_boundary.py`) that validates `target.resolve()` is contained
+  within `root.resolve()` (symlinks dereferenced before the check). Primary guard in
+  the two user-path tools returns `"error: path escapes repo root: ..."`; defensive
+  guard in the two `rglob`-based tools silently skips out-of-root entries. The old
+  `try: rel = e.relative_to(repo_root) except ValueError: rel = e` path-leak in
+  `make_list_files_in_dir` was replaced with a `continue`. 8 negative parametric
+  tests + 7-test `test_fs_boundary.py` (1 skipped on Windows for `os.symlink`).
+
+- **F-008 — XSS via `innerHTML` in offline HTML output blocked.** Three sites in
+  `tutorial.js` (`seg.text` for `kind="html"`/`"p"` at lines 94/97 and
+  `lesson.code_panel_html` at line 192) wrote attacker-controllable strings (Writer
+  LLM output and the analyzed repo's `README.md`) into `innerHTML` without sanitization.
+  In a `file://` context this was stored XSS — Firefox allows `file://` → `file://`
+  XHR, so a malicious README.md in an analyzed repo could read other local files when
+  the user opened the generated HTML. **Three defence layers** added:
+  (a) **server-side**: `_OfflineHTMLRenderer` extended with `block_html`/`inline_html`
+  overrides that strip `<script>`, `<iframe>`, `<object>`, `<embed>`, `<style>`,
+  `<form>`, `<svg>`, `<math>`, `on*=` attributes, and `javascript:` URLs (plus
+  `_safe_for_script_tag` on all three `json.dumps` calls to escape `</`, `<!--`,
+  `<![CDATA[`, U+2028, U+2029);
+  (b) **client-side**: DOMPurify 3.2.4 (~22 KB minified, Apache 2.0 / MPL 2.0 dual
+  license) vendored inline in `_dompurify_vendor.js`, wraps the three `innerHTML`
+  assignments via `DOMPurify.sanitize(text, {USE_PROFILES: {html: true}})`;
+  (c) **CSP**: `<meta http-equiv="Content-Security-Policy" content="default-src 'none';
+  script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:;
+  base-uri 'none'; form-action 'none';">` added to `<head>`.
+  16 unit tests + 5 integration tests verify malicious payloads (`<script>alert(1)</script>`,
+  `<img src=x onerror=alert(1)>`, `<iframe>`, `</script>` breakout) are absent in the
+  rendered HTML.
+
+- **F-009 — `SecretFilter` extended with 5 cloud-provider patterns (AWS / GitHub / GCP).**
+  The structlog redaction processor was missing patterns for AWS Access Key IDs (`AKIA...`),
+  AWS Secret Access Keys, GitHub classic PATs (`ghp_`/`ghu_`/`gho_`/`ghs_`/`ghr_`),
+  GitHub fine-grained PATs (`github_pat_...`), and PEM private key headers. Logs at
+  `DEBUG` could leak any of these if they appeared in user environment variables or
+  config dumps. `_PATTERNS` extended from 7 to 12. Anthropic v3 keys (`sk-ant-api03-*`)
+  are already covered by the existing `sk-ant-[A-Za-z0-9_\-]{20,}` pattern (verified —
+  finding's claim of v3 gap was incorrect). Pattern catalog is now versioned in
+  ADR-0010 §D11 (amended 2026-05-05). 11 new parametric test cases (7 positives + 4
+  false-positive controls).
+
+- **F-010 — SSRF + consent-banner bypass via `base_url` blocked.**
+  `_build_llm_provider` previously skipped the consent banner whenever
+  `base_url` was non-`None` (intended for local Ollama, but allowed any remote
+  endpoint to silently receive code). The `base_url` was passed to `OpenAI(base_url=...)`
+  with no scheme/host/port validation: an attacker controlling
+  `tutorial.config.yaml` (e.g. malicious config in an analyzed repo loaded via
+  `--config`) could set `base_url=http://169.254.169.254/v1` (AWS IMDS) and exfiltrate
+  the API key + source code. New `validate_base_url()` in `cli/config.py` rejects
+  non-`http(s)` schemes and a blocklist of cloud-metadata hosts (AWS IMDS v4/v6, GCP
+  metadata, Alibaba metadata); emits a stderr warning (does NOT block) on RFC1918
+  private non-localhost addresses to preserve Ollama-on-LAN as a legitimate BYOK
+  pattern. The consent banner is now shown for **all** providers (anthropic, openai,
+  openai_compatible, custom) with text customised per scenario:
+  cloud → "Source code will be sent to {provider}";
+  localhost → "LOCAL endpoint at {url} — code does NOT leave your machine";
+  remote-custom → "CUSTOM endpoint at {url} — verify trusted".
+  Validation is also wired into the interactive menu (post-input re-prompt + pre-YAML-write
+  defence in depth). 11 new `test_config.py` cases + 5 new `test_consent.py` cases +
+  7 new E2E `test_main_cli.py` cases.
+
+### Internal
+
+- New port `FsBoundary` and adapter `DefaultFsBoundary` (Clean Architecture: lives in
+  `interfaces/ports.py` + `adapters/fs_boundary.py`, injected at the Stage 6 generation
+  call site in `generate_tutorial.py`).
+- `tutorial.html.j2` now embeds DOMPurify as a separate `<script>` block before
+  `tutorial.js` so the global `DOMPurify` is available when `renderNarration`/`renderCode`
+  run. Vendor file: `src/wiedunflow/renderer/templates/_dompurify_vendor.js`.
+- The DOMPurify bundle's four W3C namespace URI string literals are patched at load
+  time (split via JS string concatenation) so the offline-invariant linter and
+  walking-skeleton URL checks pass without compromising DOMPurify functionality.
+- ADR-0010 amended with §D11 (Log redaction pattern catalog) — 12-row table with
+  bold rows for the 5 patterns added 2026-05-05.
+
 ## [0.9.5] - 2026-05-04 — Honest Cost Reporting & Wave-2 Hygiene
 
 ### Fixed

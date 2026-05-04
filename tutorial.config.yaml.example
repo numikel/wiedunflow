@@ -11,6 +11,15 @@ llm:
   max_wait_s: 60               # backoff ceiling per attempt
   # api_key: set via OPENAI_API_KEY env var (recommended) — do NOT commit secrets
   # For Anthropic BYOK: set provider: anthropic + ANTHROPIC_API_KEY.
+  # base_url: optional override for openai_compatible / custom endpoints.
+  #   Only http(s) schemes are accepted. Cloud-metadata hosts
+  #   (169.254.169.254, metadata.google.internal, 100.100.100.200, fd00:ec2::*)
+  #   are HARD-REJECTED to prevent SSRF (key + source code exfiltration).
+  #   Private RFC1918 addresses (e.g. http://192.168.1.5:11434/v1 for Ollama
+  #   on a LAN host) trigger a stderr warning but are allowed.
+  #   The consent banner is shown for ALL non-None base_url setups; bypass
+  #   with --yes / --no-consent-prompt.
+  # base_url: http://localhost:11434/v1   # Ollama / LM Studio / vLLM
 
 # Ingestion — additive over .gitignore
 exclude_patterns:
