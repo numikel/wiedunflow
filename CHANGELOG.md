@@ -6,6 +6,18 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-05-04 — Production Wiring & Brand Fixes
+
+### Fixed
+- **Triple-brace rendering bug** in agent system prompts (`${{{var}}}` → `${{var}}`) — Orchestrator/Researcher/Writer cards no longer ship `$0.80} USD` to the LLM. The placeholder regex `\{\{(\w+)\}\}` matched the inner `{{var}}` and left the third `}` literal in every compiled prompt. Affected every real-LLM run since the multi-agent rollout. Regression test in `tests/unit/use_cases/test_agent_loader.py`.
+- **`generated_at` timestamps were stub dates in production**. `cli/main.py` and `cli/menu.py` were wiring `FakeClock()` (the test double with hardcoded `2026-01-01T12:00:00Z`) into `Providers`, so every HTML footer, `RunReport.started_at`, and `ManifestMetadata.generated_at` reported the stub date instead of the actual run. New `wiedunflow.adapters.system_clock.SystemClock` now wraps `datetime.now(UTC)` and is wired in both CLI surfaces.
+- **Brand square** in `tutorial.html.j2` shows `wf` instead of stale `C` — leftover from the CodeGuide era; first thing the user saw in the generated HTML.
+- **README accuracy** — version badge `0.9.2` (was the fabricated `2.3.1`), Python badge `3.11+` (was `3.13+` while `pyproject.toml` declares `>=3.11`), banner version unified to current, and Claude model badge labels match their SVG values (Opus 4.7, Sonnet 4.6).
+- **`FakeLLMProvider.plan()`** reports the live `wiedunflow.__version__` in manifest metadata instead of the hardcoded `"0.0.3"` (6 majors stale). Aligns with the existing pattern in `anthropic_provider.py` / `openai_provider.py`.
+
+### Changed
+- **`FakeClock` moved** from `src/wiedunflow/adapters/fake_clock.py` to `tests/fakes/clock.py`. The production-importable surface (`wiedunflow.adapters`) no longer leaks test doubles. Six test files updated to import `FakeClock` from `tests.fakes.clock`; production code paths unchanged. New `tests/unit/cli/test_clock_wiring.py` regression asserts `FakeClock` cannot leak back into `cli/main.py` or `cli/menu.py`.
+
 ## [0.9.1] - 2026-05-02 — Brand Unification
 
 ### Changed (BREAKING — pre-1.0)
