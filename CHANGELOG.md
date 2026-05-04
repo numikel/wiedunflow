@@ -6,6 +6,59 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-05-04 — Critical Correctness & Performance Fixes
+
+### Fixed
+- **`AgentResult.total_cost_usd` now reports real per-call spend.** Both
+  `AnthropicProvider.run_agent` and `OpenAIProvider.run_agent` previously
+  returned `total_cost_usd=0.0` on every exit path: a local `total_cost = 0.0`
+  was never mutated. `SpendMeter.charge()` did track cumulative spend on the
+  meter, but the field on the result that the third backstop (per-call cap)
+  and `RunReport` rely on was structurally disconnected. Downstream
+  `generate_tutorial.py` masked the bug with a
+  `getattr(spend_meter, "total_cost_usd", 0.0)` fallback that quietly
+  returned `0.0` for any mock that didn't expose the attribute. Adapters
+  now snapshot the meter at the start of `run_agent` and return the per-call
+  delta on every exit; `SpendMeterProto` gained an explicit
+  `total_cost_usd` property so mypy enforces the contract.
+- **`retry_count` reflects actual Writer retries.** `_StageGenerationOutput.retry_count`
+  had been stuck at `0` since the v0.9.0 multi-agent rewrite. The pre-v0.9.0
+  grounding-retry path used to populate it, but the new
+  Orchestrator → Writer → Reviewer loop tracked Writer dispatches in
+  `_OrchestratorState.writer_counter` without surfacing the count to the
+  caller. `run_lesson` / `run_closing_lesson` now return a `RunLessonOutcome`
+  dataclass carrying `(result, writer_retries)`; `_stage_generation` unpacks
+  the outcome and accumulates retries across all lessons.
+- **`CostGateAbortedError` consolidated to a single canonical class.** The
+  exception had been defined twice — once in `use_cases/generate_tutorial.py`
+  (the production raise site) and once in `cli/cost_gate.py` (an unused
+  stale copy). Different runtime types meant `except CostGateAbortedError`
+  from one site would silently miss instances from the other. Both
+  `CostGateAbortedError` and `MaxCostExceededError` now live in a new
+  `wiedunflow.use_cases.errors` module; CLI catches and use-case raises
+  both import from there. `cli/cost_gate.py` keeps a re-export for
+  backwards compatibility.
+
+### Performance
+- **`SQLiteCache.file_cache` is now wired through `TreeSitterParser`.** The
+  table DDL and `save_file_cache` / `get_file_cache` helpers (ADR-0008) had
+  been in place for two releases, but `Parser.parse` never accepted a cache
+  argument and never called either method. Every run re-parsed every file
+  regardless of content; the documented "<5 min incremental" performance
+  budget was unreachable on repos larger than ~100 files. `Parser.parse`
+  now takes `cache: Cache | None = None`; each file's SHA-256 is consulted
+  before parsing — hits skip the tree-sitter pass and reconstruct symbols/
+  edges from the JSON payload, misses parse normally and persist a fresh
+  `FileCacheEntry`. Scope is parser-only this release; `JediResolver` cache
+  is deferred (cross-file invariants need a separate ADR amendment).
+
+### Internal
+- `Cache` Protocol gained `get_file_cache` / `save_file_cache`. The
+  in-memory adapter (`InMemoryCache`) now exposes a dict-backed
+  implementation so unit tests can drop the same helper through both
+  adapters. `StubTreeSitterParser` accepts (and ignores) the new `cache`
+  argument to keep the fixture in sync with the protocol.
+
 ## [0.9.2] - 2026-05-04 — Production Wiring & Brand Fixes
 
 ### Fixed

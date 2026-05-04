@@ -188,6 +188,7 @@ The generator has 7 ordered stages; conventional-commit scopes mirror them 1:1:
 - **Storage**: SQLite in a platform-appropriate cache dir (via `platformdirs`), keyed by repo root + commit hash.
 - **Incremental guarantee**: second run with <20% of files changed must finish in <5 min. Regressions are bugs — the cache layer owns the fix.
 - **Schema evolution**: any cache schema change requires an ADR under `/docs/adr/` with a forward migration.
+- **Wiring status (as of v0.9.3)**: `file_cache` table is wired through `TreeSitterParser.parse(..., cache=)` — per-file SHA-256 lookup, hit/miss flow with JSON payload (`Cache.get_file_cache` / `save_file_cache` on the Protocol). `JediResolver` cache is **not yet wired** — cross-file resolved edges need a separate invariant story (planned ADR-0008 amendment, follow-up release). `Cache` Protocol now requires `get_file_cache` / `save_file_cache` methods; both `SQLiteCache` and `InMemoryCache` implement them.
 
 ## PERFORMANCE_BUDGETS
 
@@ -266,7 +267,7 @@ Aktualne architectural decision records (w `docs/adr/`):
 - **ADR-0005** — Frozen vanilla JS output: zero Preact/React/Astro/bundlera w HTML (2026-04-20).
 - **ADR-0006** — AST snapshot schema: `(IngestionResult, CallGraph, RankedGraph)` triple z invariantami Pydantic jako grounding contract dla Stage 1-3 (2026-04-20).
 - **ADR-0007** — Planning prompt contract (Stage 4): Sonnet 4.6 single call, grounding invariant, 1-retry, fatal fail (2026-04-20; revised 2026-04-25 for v0.2.1 — additive `source_excerpt` + happy-path heuristic).
-- **ADR-0008** — Cache schema v1: SQLite + WAL, `(repo_abs, commit, lesson_id)` key bez modelu, checkpoint row per lekcja, no-JSON1 design (2026-04-21).
+- **ADR-0008** — Cache schema v1: SQLite + WAL, `(repo_abs, commit, lesson_id)` key bez modelu, checkpoint row per lekcja, no-JSON1 design (2026-04-21; parser cache wired in v0.9.3, resolver cache pending v0.10 amendment).
 - **ADR-0009** — Output JSON envelope schema v1: `<script type="application/json" id="tutorial-lessons">` block embedded w HTML, contract dla offline reader + post-hoc tooling (commit hash, branch, generated_at, lessons array) (2026-04-21).
 - **ADR-0010** — Secret redaction policy + zero-telemetry contract: 7 binary decisions (pattern-only regex, structlog processor scope, separate `consent.yaml`, per-provider persistence, 9-pattern hard-refuse list, dual-layer zero-telemetry test, editor resolver shlex+which+metachar validation) (2026-04-22).
 - **ADR-0011** — UX design system: A1 Paper only, Inter only, Direction A only, Modern CLI only (2026-04-19; +decisions 8 (CLI animation strategy) and 9 (cost-gate default ON for TTY) added Sprint 8 / 2026-04-25).
