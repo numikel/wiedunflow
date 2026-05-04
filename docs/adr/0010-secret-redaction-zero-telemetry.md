@@ -1,7 +1,7 @@
 # ADR-0010 — Secret redaction policy + zero-telemetry contract
 
 - **Status**: Accepted
-- **Date**: 2026-04-22
+- **Date**: 2026-04-22 (amended 2026-05-04)
 - **Sprint**: 6 (Privacy + Config + Hardening)
 - **Related US**: US-005, US-006, US-007, US-008, US-011, US-068, US-069
 - **Supersedes**: —
@@ -162,6 +162,38 @@ otherwise.
 with user-supplied env vars. Malicious payloads in a CI runner's
 environment must not translate into shell execution. All three guards
 are cheap and independently auditable.
+
+### D11 — Log redaction pattern catalog (amended 2026-05-04, v0.9.6)
+
+**Decision**: Redaction patterns applied by `redact()` in `cli/secret_filter.py` are
+versioned in this ADR. Adding a pattern requires an amendment commit;
+removing a pattern requires a new ADR.
+
+**Catalog** (12 patterns — 7 original + 5 added 2026-05-04 for F-009):
+
+| # | Pattern | Provider/use | Example | Source |
+|---|---------|--------------|---------|--------|
+| 1 | `sk-ant-[A-Za-z0-9_\-]{20,}` | Anthropic (covers v1, v2, v3 `sk-ant-api03-*`) | `sk-ant-api03-AbCd...` | Anthropic API docs |
+| 2 | `sk-proj-[A-Za-z0-9_\-]{20,}` | OpenAI project keys | `sk-proj-...` | OpenAI API docs |
+| 3 | `sk-[A-Za-z0-9]{20,}` | OpenAI classic + compatible | `sk-AbC...` | OpenAI API docs |
+| 4 | `hf_[A-Za-z0-9]{20,}` | HuggingFace | `hf_AbC...` | HF docs |
+| 5 | `(?i)bearer\s+[A-Za-z0-9._\-]{16,}` | Generic Bearer | `Bearer eyJhbGc...` | OAuth |
+| 6 | `(?i)authorization:\s*\S+(?:\s+\S+)*` | Auth header | `authorization: Bearer ...` | RFC 7235 |
+| 7 | `\b[A-Fa-f0-9]{40,}\b` | Generic 40+ hex (SHA-1+) | `a1b2c3...` (40 chars) | Heuristic |
+| **8** | **`AKIA[A-Z0-9]{16}`** | **AWS Access Key ID** | `AKIAIOSFODNN7EXAMPLE` | AWS docs |
+| **9** | **`(?i)aws.{0,20}[0-9a-zA-Z/+]{40}\b`** | **AWS Secret heuristic** | `aws_secret_access_key=wJal...` | AWS docs |
+| **10** | **`gh[pousr]_[A-Za-z0-9]{36,255}`** | **GitHub classic PAT (ghp/ghu/gho/ghs/ghr)** | `ghp_AbC...` | GitHub docs |
+| **11** | **`github_pat_[A-Za-z0-9_]{82}`** | **GitHub fine-grained PAT** | `github_pat_11AAA...` | GitHub docs |
+| **12** | **`-----BEGIN (?:RSA \|OPENSSH \|DSA \|EC )?PRIVATE KEY-----`** | **PEM private key (any flavor)** | `-----BEGIN RSA PRIVATE KEY-----` | RFC 7468 |
+
+Bold rows added 2026-05-04 (F-009 fix in v0.9.6).
+
+**Note on D5 vs D11**: D5 ("hard-refuse list") governs which *files* the ingestion
+stage refuses to read (e.g. `.env`, `*.pem`, `id_rsa`). D11 governs which
+*substrings* the structlog processor redacts from log messages at runtime.
+Both layers are necessary; neither is sufficient alone — a `.pem` file that
+slips past D5 via `allow_secret_files` will still have its key header
+redacted by D11's PEM pattern.
 
 ## Consequences
 

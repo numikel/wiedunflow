@@ -38,6 +38,18 @@ _PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
     re.compile(r"(?i)authorization:\s*\S+(?:\s+\S+)*"),
     # Generic long hex blobs (SHA/HMAC/session tokens — ≥40 hex chars).
     re.compile(r"\b[A-Fa-f0-9]{40,}\b"),
+    # F-009 (2026-05-04, ADR-0010 D11): cloud provider patterns added in v0.9.6.
+    # AWS Access Key ID — exactly 20 chars starting with AKIA.
+    re.compile(r"AKIA[A-Z0-9]{16}"),
+    # AWS Secret Access Key heuristic — 40-char base64 blob preceded by "aws".
+    re.compile(r"(?i)aws.{0,20}[0-9a-zA-Z/+]{40}\b"),
+    # GitHub classic PATs: ghp_ (personal), ghu_ (user-to-server), gho_ (OAuth),
+    # ghs_ (server-to-server), ghr_ (refresh) — 36-255 alphanum chars.
+    re.compile(r"gh[pousr]_[A-Za-z0-9]{36,255}"),
+    # GitHub fine-grained PATs — exactly 82 alphanum/underscore chars after prefix.
+    re.compile(r"github_pat_[A-Za-z0-9_]{82}"),
+    # PEM private keys — any standard flavor (RSA, OPENSSH, DSA, EC, PKCS8).
+    re.compile(r"-----BEGIN (?:RSA |OPENSSH |DSA |EC )?PRIVATE KEY-----"),
 )
 
 _REDACTED: Final[str] = "[REDACTED]"
