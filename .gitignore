@@ -35,7 +35,12 @@ tests/eval/results/
 .claude/
 
 # Docs
-docs/
+# Top-level entries under `docs/` ignored by default (private notes, drafts,
+# validation transcripts). ADRs are whitelisted because CHANGELOG/CLAUDE.md
+# link to them by path. Use `docs/*` (not `docs/`) so Git descends and the
+# `!docs/adr/` negate pattern can take effect.
+docs/*
+!docs/adr/
 
 # CI
 .github/
