@@ -125,12 +125,10 @@ def _read_symbol_from_file(sym: CodeSymbol) -> str:
         return ""
 
 
-def make_get_callers(symbols: list[CodeSymbol], graph: CallGraph) -> ToolFn:
+def make_get_callers(graph: CallGraph) -> ToolFn:
     """Return the list of symbols that call the given symbol.
 
     Args:
-        symbols: All symbols from the ingestion snapshot (used only for
-            name validation in error messages).
         graph: The resolved call graph; edges are ``(caller, callee)`` tuples.
 
     Returns:
@@ -149,11 +147,10 @@ def make_get_callers(symbols: list[CodeSymbol], graph: CallGraph) -> ToolFn:
     return _call
 
 
-def make_get_callees(symbols: list[CodeSymbol], graph: CallGraph) -> ToolFn:
+def make_get_callees(graph: CallGraph) -> ToolFn:
     """Return the list of symbols called by the given symbol.
 
     Args:
-        symbols: All symbols from the ingestion snapshot.
         graph: The resolved call graph.
 
     Returns:
@@ -408,8 +405,8 @@ def build_tool_registry(
     """
     return {
         "read_symbol_body": make_read_symbol_body(symbols),
-        "get_callers": make_get_callers(symbols, graph),
-        "get_callees": make_get_callees(symbols, graph),
+        "get_callers": make_get_callers(graph),
+        "get_callees": make_get_callees(graph),
         "search_docs": make_search_docs(vector_store),
         "read_tests": make_read_tests(repo_root, symbols),
         "grep_usages": make_grep_usages(repo_root),

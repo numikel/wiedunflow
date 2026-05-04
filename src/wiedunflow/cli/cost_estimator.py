@@ -7,16 +7,21 @@ Heuristic per PRD AC US-012: ``(symbols * 500 * plan_price) + (lessons * 8000
 are intentionally conservative — the gate exists to catch runaway costs, not
 to predict them to the cent.
 
-ADR-0013 follow-up: ``MODEL_PRICES`` maps each known model id to a
-*blended* USD price per million tokens (60% input + 40% output, the typical
-ratio for a planning / narration workload). The cost gate UI now picks the
-right rate per the user's actual configured models so the OpenAI run shows
-GPT-4.1 / GPT-5.4 pricing instead of the legacy Anthropic Haiku/Opus rates.
+ADR-0020 (v0.9.5): ``MODEL_PRICES`` maps each known model id to an
+``(input, output)`` tuple in USD per 1M tokens. Live cost accounting
+(``SpendMeter``) applies the two rates separately to the actually-billed
+input and output token counts. The preflight estimator below still wants a
+single blended figure (we don't yet know the input/output split until the
+LLM responds), so it composes ``0.6 * input + 0.4 * output`` — the typical
+planning + narration workload split — via :func:`blended_from_prices`.
 
-Future enhancement (v0.5+): fetch the LiteLLM
-``model_prices_and_context_window.json`` (https://github.com/BerriAI/litellm)
-and cache it for 24h so newly-released models pick up correct pricing
-without a WiedunFlow release.
+Sourced from the providers' published pricing pages on 2026-04-25 / 2026-04-26.
+Update this map whenever a new model lands; falls back to the legacy
+Haiku / Opus rates when an unknown id is queried (small over-estimate is
+safer than a silent under-estimate at the cost gate).
+
+LiteLLM dynamic catalog (`LiteLLMPricingCatalog`) was added in v0.5.0 and
+overrides this static map for any model the community catalog ships.
 """
 
 from __future__ import annotations
@@ -27,58 +32,70 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from wiedunflow.interfaces.pricing_catalog import PricingCatalog
 
-# Blended USD per 1M tokens, computed as 0.6 * input + 0.4 * output for each
-# model. Sourced from the providers' published pricing pages on 2026-04-25.
-# Update this map whenever a new model lands; falls back to the legacy Haiku
-# / Opus rates when an unknown id is queried (small over-estimate is safer
-# than a silent under-estimate at the cost gate).
-MODEL_PRICES: dict[str, float] = {
+# Blended weights used by :func:`blended_from_prices` when callers want a single
+# rate for preflight estimates (input + output token counts not yet known).
+_BLENDED_INPUT_WEIGHT = 0.60
+_BLENDED_OUTPUT_WEIGHT = 0.40
+
+# (input USD/MTok, output USD/MTok) per model id.
+MODEL_PRICES: dict[str, tuple[float, float]] = {
     # ─── Anthropic Claude 4.x ──────────────────────────────────────────────
-    "claude-haiku-4-5": 2.08,  # $0.80/$4.00 → blended 2.08
-    "claude-haiku-4-5-20251001": 2.08,
-    "claude-sonnet-4-6": 6.60,  # $3.00/$12.00 → 6.60
-    "claude-sonnet-4-5-20250929": 6.60,
-    "claude-sonnet-4-20250514": 6.60,
-    "claude-opus-4-7": 33.00,  # $15.00/$60.00 → 33.00
-    "claude-opus-4-6": 33.00,
-    "claude-opus-4-5-20251101": 33.00,
-    "claude-opus-4-1-20250805": 33.00,
-    "claude-opus-4-20250514": 33.00,
+    "claude-haiku-4-5": (0.80, 4.00),
+    "claude-haiku-4-5-20251001": (0.80, 4.00),
+    "claude-sonnet-4-6": (3.00, 12.00),
+    "claude-sonnet-4-5-20250929": (3.00, 12.00),
+    "claude-sonnet-4-20250514": (3.00, 12.00),
+    "claude-opus-4-7": (15.00, 60.00),
+    "claude-opus-4-6": (15.00, 60.00),
+    "claude-opus-4-5-20251101": (15.00, 60.00),
+    "claude-opus-4-1-20250805": (15.00, 60.00),
+    "claude-opus-4-20250514": (15.00, 60.00),
     # ─── OpenAI GPT 4.x ────────────────────────────────────────────────────
-    "gpt-4.1": 4.40,  # $2.00/$8.00 → 4.40
-    "gpt-4.1-mini": 0.88,  # $0.40/$1.60 → 0.88
-    "gpt-4.1-nano": 0.22,  # $0.10/$0.40 → 0.22
-    "gpt-4o": 6.00,  # $2.50/$10.00 → 6.00
-    "gpt-4o-mini": 0.33,  # $0.15/$0.60 → 0.33
-    "gpt-4-turbo": 22.00,
-    "gpt-4": 36.00,
-    "gpt-3.5-turbo": 0.90,
+    "gpt-4.1": (2.00, 8.00),
+    "gpt-4.1-mini": (0.40, 1.60),
+    "gpt-4.1-nano": (0.10, 0.40),
+    "gpt-4o": (2.50, 10.00),
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-4-turbo": (10.00, 30.00),
+    "gpt-4": (30.00, 60.00),
+    "gpt-3.5-turbo": (0.50, 1.50),
     # ─── OpenAI o-series reasoning ─────────────────────────────────────────
-    "o1": 33.00,  # $15.00/$60.00 → 33.00
-    "o1-pro": 90.00,
-    "o3": 9.20,  # $2.00/$8.00 input + reasoning premium
-    "o3-mini": 2.42,  # $1.10/$4.40 → 2.42
-    "o4-mini": 2.42,
+    "o1": (15.00, 60.00),
+    "o1-pro": (150.00, 600.00),
+    "o3": (2.00, 8.00),
+    "o3-mini": (1.10, 4.40),
+    "o4-mini": (1.10, 4.40),
     # ─── OpenAI GPT 5.x (released 2026; pricing verified 2026-04-26) ────────
-    # Format: (0.6 * input + 0.4 * output) USD per 1M tokens.
-    "gpt-5": 6.60,  # legacy estimate; verify when needed
-    "gpt-5-mini": 0.88,
-    "gpt-5-nano": 0.22,
-    "gpt-5.4": 7.50,  # $2.50/$15.00 → 7.50 (default in v0.7.0+ per ADR-0015)
-    "gpt-5.4-mini": 2.25,  # $0.75/$4.50 → 2.25 (default per-symbol/describe tier)
-    "gpt-5.4-nano": 0.22,
-    "gpt-5.4-pro": 90.00,  # $30.00/$180.00 → 90.00
-    "gpt-5-pro": 33.00,
-    "gpt-5.2": 6.60,
-    "gpt-5.2-pro": 33.00,
-    "gpt-5.1": 6.60,
+    "gpt-5": (3.00, 12.00),
+    "gpt-5-mini": (0.40, 1.60),
+    "gpt-5-nano": (0.10, 0.40),
+    "gpt-5.4": (2.50, 15.00),  # default in v0.7.0+ per ADR-0015
+    "gpt-5.4-mini": (0.75, 4.50),  # default per-symbol/describe tier
+    "gpt-5.4-nano": (0.10, 0.40),
+    "gpt-5.4-pro": (30.00, 180.00),
+    "gpt-5-pro": (15.00, 60.00),
+    "gpt-5.2": (3.00, 12.00),
+    "gpt-5.2-pro": (15.00, 60.00),
+    "gpt-5.1": (3.00, 12.00),
     # ─── Local / OSS endpoints ────────────────────────────────────────────
-    "not-needed": 0.0,
+    "not-needed": (0.0, 0.0),
 }
 
-_HAIKU_USD_PER_MTOK = MODEL_PRICES["claude-haiku-4-5"]
-_SONNET_USD_PER_MTOK = MODEL_PRICES["claude-sonnet-4-6"]
-_OPUS_USD_PER_MTOK = MODEL_PRICES["claude-opus-4-7"]
+
+def blended_from_prices(prices: tuple[float, float]) -> float:
+    """Return the conventional ``0.6 * input + 0.4 * output`` blended USD/MTok.
+
+    Used for preflight estimates where the actual input/output token split
+    is not yet known. Live spend tracking applies the two rates separately
+    via :class:`SpendMeter`.
+    """
+    in_price, out_price = prices
+    return _BLENDED_INPUT_WEIGHT * in_price + _BLENDED_OUTPUT_WEIGHT * out_price
+
+
+_HAIKU_USD_PER_MTOK = blended_from_prices(MODEL_PRICES["claude-haiku-4-5"])
+_SONNET_USD_PER_MTOK = blended_from_prices(MODEL_PRICES["claude-sonnet-4-6"])
+_OPUS_USD_PER_MTOK = blended_from_prices(MODEL_PRICES["claude-opus-4-7"])
 _SAFETY_FACTOR = 1.3
 _TOKENS_PER_SYMBOL_HAIKU = 500
 _TOKENS_PER_LESSON_SONNET = 8000
@@ -95,19 +112,23 @@ def lookup_model_price(
     """Return the blended USD/MTok price for ``model_id``, or ``fallback``.
 
     Resolution order:
-    1. ``pricing_catalog.blended_price_per_mtok(model_id)`` (typically a
-       chain of ``CachedPricingCatalog(LiteLLM)`` → ``StaticPricingCatalog``).
+    1. ``pricing_catalog.prices_per_mtok(model_id)`` (typically a
+       chain of ``CachedPricingCatalog(LiteLLM)`` → ``StaticPricingCatalog``)
+       blended via :func:`blended_from_prices`.
     2. ``MODEL_PRICES`` direct hit (legacy path; preserves backwards compat
-       when callers don't inject a catalog).
+       when callers don't inject a catalog) blended likewise.
     3. ``fallback`` — the caller's safe over-estimate for the tier.
     """
     if not model_id:
         return fallback
     if pricing_catalog is not None:
-        price = pricing_catalog.blended_price_per_mtok(model_id)
-        if price is not None:
-            return price
-    return MODEL_PRICES.get(model_id, fallback)
+        prices = pricing_catalog.prices_per_mtok(model_id)
+        if prices is not None:
+            return blended_from_prices(prices)
+    direct = MODEL_PRICES.get(model_id)
+    if direct is not None:
+        return blended_from_prices(direct)
+    return fallback
 
 
 @dataclass(frozen=True)

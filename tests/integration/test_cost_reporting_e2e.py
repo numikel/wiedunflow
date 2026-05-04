@@ -99,9 +99,9 @@ def test_cost_reporting_run_report_has_nonzero_cost(tiny_repo_copy: Path, tmp_pa
     """Full pipeline run with FakeLLMProvider charging 150 tokens/call → total_cost > 0.
 
     FakeLLMProvider.run_agent() calls spend_meter.charge(model, 100, 50) whenever
-    a spend_meter is passed.  The SpendMeter uses the fallback blended rate
-    (_FALLBACK_BLENDED_PRICE_PER_MTOK=15.0 USD/MTok) when no pricing catalog can
-    look up the fake model id.
+    a spend_meter is passed.  The SpendMeter uses the conservative per-token-class
+    fallbacks ($5/MTok input, $25/MTok output — ADR-0020) when no pricing catalog
+    can look up the fake model id.
 
     Assertions:
     - exit 0 (pipeline succeeded)
@@ -142,8 +142,8 @@ def test_cost_reporting_spend_meter_propagated_to_generation_result(
 
     report = _load_report(tiny_repo_copy)
     # The tiny_repo has 3 regular lessons + 1 closing = 4 agent calls minimum
-    # (each Orchestrator call charges 150 tokens at 15 USD/MTok = $0.00000225/call).
-    # Even 1 call must produce cost > 0.
+    # (each Orchestrator call charges 100 input + 50 output tokens at fallback
+    # rates $5/MTok in and $25/MTok out → ~$0.00000175/call). Even 1 call > 0.
     assert report["total_cost_usd"] > 0.0, (
         "total_cost_usd must be > 0 — SpendMeter not propagated to run-report"
     )

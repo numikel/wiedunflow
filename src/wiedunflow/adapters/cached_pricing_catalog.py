@@ -10,6 +10,9 @@ Typical wiring used by the menu / cost gate::
 
     primary = CachedPricingCatalog(LiteLLMPricingCatalog(), provider_name="litellm")
     chain = ChainedPricingCatalog([primary, StaticPricingCatalog()])
+
+ADR-0020 (v0.9.5): values are ``(input, output)`` tuples; serialised on
+disk as JSON 2-element arrays, deserialised back to tuples on read.
 """
 
 from __future__ import annotations
@@ -37,8 +40,8 @@ def _cache_dir() -> Path:
 class CachedPricingCatalog:
     """Decorator: serves a cached price map when fresh, refetches when stale.
 
-    The wrapped catalog must expose ``export_dump() -> dict[str, float]`` and
-    ``hydrate(prices)`` (LiteLLM adapter does). Other adapters that don't
+    The wrapped catalog must expose ``export_dump() -> dict[str, tuple[float, float]]``
+    and ``hydrate(prices)`` (LiteLLM adapter does). Other adapters that don't
     support bulk dump can still be wrapped — fall back to per-id pass-through.
     """
 
@@ -66,7 +69,7 @@ class CachedPricingCatalog:
         age_s = time.time() - path.stat().st_mtime
         return age_s < self._ttl_seconds
 
-    def _read_cache(self, path: Path) -> dict[str, float] | None:
+    def _read_cache(self, path: Path) -> dict[str, tuple[float, float]] | None:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -78,16 +81,23 @@ class CachedPricingCatalog:
             return None
         if not isinstance(data, dict):
             return None
-        out: dict[str, float] = {}
+        out: dict[str, tuple[float, float]] = {}
         for k, v in data.items():
-            if isinstance(k, str) and isinstance(v, int | float):
-                out[k] = float(v)
+            if not isinstance(k, str):
+                continue
+            # New tuple-encoded format: 2-element list of numbers.
+            if isinstance(v, list) and len(v) == 2:  # noqa: PLR2004 — tuple shape
+                in_p, out_p = v
+                if isinstance(in_p, int | float) and isinstance(out_p, int | float):
+                    out[k] = (float(in_p), float(out_p))
         return out
 
-    def _write_cache(self, path: Path, prices: dict[str, float]) -> None:
+    def _write_cache(self, path: Path, prices: dict[str, tuple[float, float]]) -> None:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(prices), encoding="utf-8")
+            # Tuples become JSON arrays; we restore them on read.
+            serialisable = {k: [v[0], v[1]] for k, v in prices.items()}
+            path.write_text(json.dumps(serialisable), encoding="utf-8")
         except OSError as exc:
             logger.warning(
                 "pricing_cache_write_failed",
@@ -115,9 +125,9 @@ class CachedPricingCatalog:
             self._write_cache(path, fresh)
         self._loaded = True
 
-    def blended_price_per_mtok(self, model_id: str) -> float | None:
+    def prices_per_mtok(self, model_id: str) -> tuple[float, float] | None:
         self._load_into_upstream()
-        return self._upstream.blended_price_per_mtok(model_id)
+        return self._upstream.prices_per_mtok(model_id)
 
     def refresh(self) -> None:
         """Force the upstream to re-fetch and rewrite the cache."""
@@ -141,9 +151,9 @@ class ChainedPricingCatalog:
     def __init__(self, catalogs: list[PricingCatalog]) -> None:
         self._catalogs = list(catalogs)
 
-    def blended_price_per_mtok(self, model_id: str) -> float | None:
+    def prices_per_mtok(self, model_id: str) -> tuple[float, float] | None:
         for cat in self._catalogs:
-            price = cat.blended_price_per_mtok(model_id)
-            if price is not None:
-                return price
+            prices = cat.prices_per_mtok(model_id)
+            if prices is not None:
+                return prices
         return None

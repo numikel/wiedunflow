@@ -6,6 +6,81 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-05-04 — Honest Cost Reporting & Wave-2 Hygiene
+
+### Fixed
+
+**Cost accounting**
+
+- Cost reporting was systematically under-reporting actual spend by ~30-60%
+  on generation-heavy runs. `SpendMeter` blended a single rate across input
+  and output tokens, but output tokens are 3-5× more expensive at every
+  supported provider (Anthropic 5×, OpenAI 4-6×). The internal
+  `PricingCatalog` Protocol now returns `(input_per_mtok, output_per_mtok)`
+  tuples; `SpendMeter.charge()` applies the two rates separately. The cost
+  banner at run end and the `--budget` cost gate both now reflect provider
+  invoices within ~5%. See ADR-0020 for the full rationale.
+
+- `SpendMeter.total_cost_cents` truncated fractional cents toward zero.
+  `int(0.0095 * 100)` returned `0` instead of `1`. Now uses `round()`
+  (banker's rounding) so sub-cent precision survives the integer cast.
+  Display formatting (`${value:.2f}`) is unchanged.
+
+**Operator visibility**
+
+- Pipeline crashes were silent in JSON log streams. The outer `except` in
+  `_run_pipeline` wrote the exception to `run-report.json` but never
+  emitted a structured log event, so operators tailing `--log-format=json`
+  saw no failure marker until polling the report file. A
+  `logger.error("unhandled_exception", exc_info=True, ...)` now fires
+  before the report is written.
+
+- `bootstrap_venv` stderr was not flowing through the unified logging
+  pipeline. Private PyPI URLs containing tokens (e.g.
+  `UV_INDEX_URL=https://user:secret@…`) could leak into install logs
+  unredacted. The bootstrap path is now wired through `structlog`, so the
+  existing `SecretFilter` processor covers it.
+
+### Changed (internal)
+
+- Deduplicated three LLM system prompts (planner, narrator, describer) —
+  they previously lived as 200+ lines of copy-paste in both the Anthropic
+  and OpenAI adapters with subtle trailing-whitespace drift. Single source
+  of truth: `wiedunflow.adapters.llm_prompts`.
+
+- Removed the dead `symbols` parameter from `make_get_callers` and
+  `make_get_callees` (never read inside the factory). `build_tool_registry`
+  no longer forwards `symbols` to those two factories.
+
+- Removed three documented-as-unused parameters from `generate_tutorial()`
+  and `_stage_generation()`: `narration_min_words_trivial`,
+  `narration_snippet_validation`, `project_context`. They had been no-ops
+  since the v0.9.0 multi-agent rewrite (ADR-0016).
+
+- Tightened `AgentTurn.tool_calls` and `AgentTurn.tool_results` to use
+  `Field(default_factory=list)` instead of bare `[]` defaults.
+
+- Unified logging on `structlog.get_logger` across `use_cases/spend_meter.py`,
+  `use_cases/generate_tutorial.py`, and `cli/main.py`. Removed the leftover
+  stdlib-logging dual-logger pattern.
+
+- `NoOpReporter` methods now return `None` explicitly with `# noqa: ARG002`
+  on each unused argument instead of using `del param` (non-idiomatic).
+
+- `_build_closing_spec` lesson-spec assembly now uses
+  `' '.join([...])` to eliminate trailing-whitespace and double-period
+  edge cases.
+
+### Internal Protocol BREAKING
+
+- `PricingCatalog.blended_price_per_mtok(model_id) -> float | None` is
+  replaced by `prices_per_mtok(model_id) -> tuple[float, float] | None`
+  (input price, output price per 1M tokens). `cost_estimator.MODEL_PRICES`
+  values changed from `float` (blended) to `tuple[float, float]` for the
+  same reason. If you implemented a custom `PricingCatalog` adapter (no
+  documented external use), update the signature — see
+  [ADR-0020](docs/adr/0020-per-token-pricing.md).
+
 ## [0.9.4] - 2026-05-04 — Multi-agent Pipeline Correctness & Code Quality
 
 ### Fixed

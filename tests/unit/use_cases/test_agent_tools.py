@@ -160,14 +160,14 @@ def test_read_symbol_body_missing_symbol_lists_available(symbols: list[CodeSymbo
 
 def test_get_callers_no_callers(symbols: list[CodeSymbol], graph: CallGraph) -> None:
     # top_fn is a caller; it has no callers itself.
-    tool = make_get_callers(symbols, graph)
+    tool = make_get_callers(graph)
     result = tool({"symbol": "mymodule.top_fn"})
     assert "[get_callers]" in result
     assert "No callers" in result
 
 
 def test_get_callers_known_callers(symbols: list[CodeSymbol], graph: CallGraph) -> None:
-    tool = make_get_callers(symbols, graph)
+    tool = make_get_callers(graph)
     result = tool({"symbol": "mymodule.helper"})
     assert "mymodule.top_fn" in result
 
@@ -180,14 +180,14 @@ def test_get_callers_multiple_callers(symbols: list[CodeSymbol]) -> None:
             ("mymodule.MyClass", "mymodule.helper"),
         ),
     )
-    tool = make_get_callers(symbols, graph)
+    tool = make_get_callers(graph)
     result = tool({"symbol": "mymodule.helper"})
     assert "mymodule.top_fn" in result
     assert "mymodule.MyClass" in result
 
 
 def test_get_callers_nonexistent_symbol(symbols: list[CodeSymbol], graph: CallGraph) -> None:
-    tool = make_get_callers(symbols, graph)
+    tool = make_get_callers(graph)
     result = tool({"symbol": "ghost.fn"})
     assert "No callers" in result
 
@@ -198,21 +198,21 @@ def test_get_callers_nonexistent_symbol(symbols: list[CodeSymbol], graph: CallGr
 
 
 def test_get_callees_known_callees(symbols: list[CodeSymbol], graph: CallGraph) -> None:
-    tool = make_get_callees(symbols, graph)
+    tool = make_get_callees(graph)
     result = tool({"symbol": "mymodule.top_fn"})
     assert "mymodule.helper" in result
     assert "mymodule.MyClass" in result
 
 
 def test_get_callees_no_callees(symbols: list[CodeSymbol], graph: CallGraph) -> None:
-    tool = make_get_callees(symbols, graph)
+    tool = make_get_callees(graph)
     result = tool({"symbol": "mymodule.helper"})
     assert "[get_callees]" in result
     assert "No callees" in result
 
 
 def test_get_callees_nonexistent_symbol(symbols: list[CodeSymbol], graph: CallGraph) -> None:
-    tool = make_get_callees(symbols, graph)
+    tool = make_get_callees(graph)
     result = tool({"symbol": "unknown"})
     assert "No callees" in result
 

@@ -16,7 +16,6 @@ through ``generate``.
 
 from __future__ import annotations
 
-import logging
 import sys
 import traceback
 from collections.abc import Callable
@@ -25,6 +24,7 @@ from pathlib import Path
 from typing import Literal
 
 import click
+import structlog
 
 from wiedunflow import __version__
 from wiedunflow.adapters import (
@@ -71,7 +71,7 @@ from wiedunflow.use_cases.generate_tutorial import (
 from wiedunflow.use_cases.plan_lesson_manifest import PlanningFatalError
 from wiedunflow.use_cases.spend_meter import SpendMeter
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class _DefaultToGenerate(click.Group):
@@ -378,7 +378,6 @@ def generate_cmd(
     """Generate an interactive HTML tutorial from a local Git repository."""
     json_mode = log_format == "json"
     configure_logging(json_mode=json_mode, redact_secrets=not no_log_redaction)
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
     console = init_console(json_mode=json_mode)
     structlog_logger = get_structlog(stage="cli")
 
@@ -646,12 +645,13 @@ def _bootstrap_venv(repo_path: Path) -> Path | None:
 
     if not (repo_path / "pyproject.toml").exists():
         logger.warning(
-            "bootstrap_venv_no_pyproject repo=%s — no pyproject.toml; skipping bootstrap.",
-            repo_path,
+            "bootstrap_venv_no_pyproject",
+            repo=str(repo_path),
+            msg="no pyproject.toml; skipping bootstrap.",
         )
         return None
 
-    logger.info("bootstrap_venv_start repo=%s", repo_path)
+    logger.info("bootstrap_venv_start", repo=str(repo_path))
     try:
         result = subprocess.run(
             ["uv", "sync", "--no-dev"],
@@ -663,31 +663,35 @@ def _bootstrap_venv(repo_path: Path) -> Path | None:
         )
     except subprocess.TimeoutExpired:
         logger.warning(
-            "bootstrap_venv_timeout repo=%s — 'uv sync' timed out after 600 s; skipping.",
-            repo_path,
+            "bootstrap_venv_timeout",
+            repo=str(repo_path),
+            msg="'uv sync' timed out after 600 s; skipping.",
         )
         return None
     except FileNotFoundError:
-        logger.warning("bootstrap_venv_uv_not_found — 'uv' not found on PATH; skipping.")
+        logger.warning(
+            "bootstrap_venv_uv_not_found",
+            msg="'uv' not found on PATH; skipping.",
+        )
         return None
 
     if result.returncode != 0:
         logger.warning(
-            "bootstrap_venv_failed exit=%d stderr=%s",
-            result.returncode,
-            result.stderr[:500],
+            "bootstrap_venv_failed",
+            exit_code=result.returncode,
+            stderr=result.stderr[:500],
         )
         return None
 
     detected = _detect_python_path(repo_path)
     if detected is None:
         logger.warning(
-            "bootstrap_venv_completed_but_no_interpreter repo=%s"
-            " — 'uv sync' succeeded but no interpreter found in .venv/",
-            repo_path,
+            "bootstrap_venv_completed_but_no_interpreter",
+            repo=str(repo_path),
+            msg="'uv sync' succeeded but no interpreter found in .venv/",
         )
     else:
-        logger.info("bootstrap_venv_done python=%s", detected)
+        logger.info("bootstrap_venv_done", python=str(detected))
     return detected
 
 
@@ -850,6 +854,16 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
             click.echo(f"error: planning stage failed — {exc}", err=True)
         return 1
     except Exception:
+        # Emit a structured event before writing the report so operators
+        # tailing JSON log streams see the failure without polling the
+        # report file. F-064: previous code only wrote run-report.json,
+        # leaving the live log silent.
+        logger.error(
+            "unhandled_exception",
+            exc_info=True,
+            stage="<unknown>",
+            provider=provider_label,
+        )
         _write_final_report(
             repo_path=repo_path,
             provider_label=provider_label,

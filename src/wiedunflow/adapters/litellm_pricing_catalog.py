@@ -4,8 +4,9 @@
 
 The community-maintained ``model_prices_and_context_window.json`` lists
 ~3500 models with ``input_cost_per_token`` / ``output_cost_per_token``
-fields. We blend at 60% input + 40% output (typical planning + narration
-workload split) and convert from per-token to per-million-tokens.
+fields. We expose the two figures separately (per-million-tokens) so live
+spend tracking can apply each rate to the correct token class -- output
+tokens are 3-5x more expensive at every supported provider.
 
 Provider prefix handling:
 LiteLLM frequently ships dual entries — a bare ``gpt-4.1`` and a fully
@@ -26,11 +27,6 @@ LITELLM_PRICING_URL = (
     "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
 )
 
-# Blended weight: 60% input + 40% output. Empirical split for the planning
-# (high input, low output) and narration (moderate both) stages combined.
-_INPUT_WEIGHT = 0.60
-_OUTPUT_WEIGHT = 0.40
-
 
 def _provider_strip(model_id: str) -> str:
     """Strip a leading ``provider/`` prefix (``openai/gpt-4.1`` → ``gpt-4.1``)."""
@@ -39,24 +35,23 @@ def _provider_strip(model_id: str) -> str:
     return model_id.rsplit("/", 1)[-1]
 
 
-def _entry_to_blended_price(entry: dict[str, Any]) -> float | None:
-    """Convert one LiteLLM JSON entry to blended USD/MTok, or None on bad data."""
+def _entry_to_prices_per_mtok(entry: dict[str, Any]) -> tuple[float, float] | None:
+    """Convert one LiteLLM JSON entry to ``(input, output)`` USD/MTok, or ``None``."""
     in_per_tok = entry.get("input_cost_per_token")
     out_per_tok = entry.get("output_cost_per_token")
     if not isinstance(in_per_tok, int | float) or not isinstance(out_per_tok, int | float):
         return None
-    blended_per_tok = (_INPUT_WEIGHT * float(in_per_tok)) + (_OUTPUT_WEIGHT * float(out_per_tok))
-    return blended_per_tok * 1_000_000.0
+    return float(in_per_tok) * 1_000_000.0, float(out_per_tok) * 1_000_000.0
 
 
-def _parse_pricing_payload(payload: dict[str, Any]) -> dict[str, float]:
-    """Build ``{model_id: blended_usd_per_mtok}`` from a parsed LiteLLM JSON.
+def _parse_pricing_payload(payload: dict[str, Any]) -> dict[str, tuple[float, float]]:
+    """Build ``{model_id: (input_per_mtok, output_per_mtok)}`` from parsed LiteLLM JSON.
 
     Both bare (``gpt-4.1``) and prefixed (``openai/gpt-4.1``) keys map to
-    the same blended price; bare wins on collision so the most common form
+    the same prices; bare wins on collision so the most common form
     matches first.
     """
-    by_model: dict[str, float] = {}
+    by_model: dict[str, tuple[float, float]] = {}
     for raw_key, raw_entry in payload.items():
         if not isinstance(raw_entry, dict):
             continue
@@ -66,13 +61,13 @@ def _parse_pricing_payload(payload: dict[str, Any]) -> dict[str, float]:
         mode = raw_entry.get("mode")
         if mode and mode not in {"chat", "responses", "completion"}:
             continue
-        price = _entry_to_blended_price(raw_entry)
-        if price is None:
+        prices = _entry_to_prices_per_mtok(raw_entry)
+        if prices is None:
             continue
         bare = _provider_strip(str(raw_key))
-        by_model.setdefault(bare, price)
+        by_model.setdefault(bare, prices)
         # Also index the original (prefixed) form for explicit hits.
-        by_model[str(raw_key)] = price
+        by_model[str(raw_key)] = prices
     return by_model
 
 
@@ -87,9 +82,9 @@ class LiteLLMPricingCatalog:
     ) -> None:
         self._url = url
         self._timeout_s = timeout_s
-        self._cache: dict[str, float] | None = None
+        self._cache: dict[str, tuple[float, float]] | None = None
 
-    def _ensure_loaded(self) -> dict[str, float]:
+    def _ensure_loaded(self) -> dict[str, tuple[float, float]]:
         """Lazily fetch + parse the JSON. Empty on any failure (never raises)."""
         if self._cache is not None:
             return self._cache
@@ -115,8 +110,8 @@ class LiteLLMPricingCatalog:
         self._cache = _parse_pricing_payload(payload)
         return self._cache
 
-    def blended_price_per_mtok(self, model_id: str) -> float | None:
-        """Return blended USD/MTok for ``model_id``, or ``None`` if unknown.
+    def prices_per_mtok(self, model_id: str) -> tuple[float, float] | None:
+        """Return ``(input, output)`` USD/MTok for ``model_id``, or ``None`` if unknown.
 
         Tries the literal id first, then the bare (provider-stripped) form
         so ``openai/gpt-4.1`` matches the same entry as ``gpt-4.1``.
@@ -127,10 +122,10 @@ class LiteLLMPricingCatalog:
             return direct
         return prices.get(_provider_strip(model_id))
 
-    def export_dump(self) -> dict[str, float]:
+    def export_dump(self) -> dict[str, tuple[float, float]]:
         """Return the full parsed mapping (used by ``CachedPricingCatalog``)."""
         return dict(self._ensure_loaded())
 
-    def hydrate(self, prices: dict[str, float]) -> None:
+    def hydrate(self, prices: dict[str, tuple[float, float]]) -> None:
         """Inject a pre-fetched price map (used by ``CachedPricingCatalog``)."""
         self._cache = dict(prices)

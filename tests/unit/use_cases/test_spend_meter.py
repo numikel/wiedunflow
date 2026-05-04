@@ -5,7 +5,8 @@ from __future__ import annotations
 import pytest
 
 from wiedunflow.use_cases.spend_meter import (
-    _FALLBACK_BLENDED_PRICE_PER_MTOK,
+    _FALLBACK_INPUT_PRICE_PER_MTOK,
+    _FALLBACK_OUTPUT_PRICE_PER_MTOK,
     SpendMeter,
 )
 
@@ -15,19 +16,20 @@ from wiedunflow.use_cases.spend_meter import (
 
 
 class _FixedPricing:
-    """Stub PricingCatalog that always returns a fixed blended rate."""
+    """Stub PricingCatalog that always returns fixed (input, output) rates."""
 
-    def __init__(self, rate: float) -> None:
-        self._rate = rate
+    def __init__(self, *, input_rate: float, output_rate: float) -> None:
+        self._input = input_rate
+        self._output = output_rate
 
-    def blended_price_per_mtok(self, model_id: str) -> float | None:
-        return self._rate
+    def prices_per_mtok(self, model_id: str) -> tuple[float, float] | None:
+        return self._input, self._output
 
 
 class _NullPricing:
     """Stub PricingCatalog that always returns None (unknown model)."""
 
-    def blended_price_per_mtok(self, model_id: str) -> float | None:
+    def prices_per_mtok(self, model_id: str) -> tuple[float, float] | None:
         return None
 
 
@@ -83,18 +85,17 @@ def test_charge_increments_call_counter() -> None:
 
 
 def test_charge_uses_fallback_when_no_pricing() -> None:
-    # 1M tokens x fallback rate / 1M = fallback_rate USD
+    # 1M input tokens at fallback input rate.
     meter = SpendMeter(budget_usd=100.0)
     meter.charge(model="unknown-model", input_tokens=1_000_000, output_tokens=0)
-    expected = _FALLBACK_BLENDED_PRICE_PER_MTOK
-    assert abs(meter.total_cost_usd - expected) < 0.01
+    assert abs(meter.total_cost_usd - _FALLBACK_INPUT_PRICE_PER_MTOK) < 0.01
 
 
 def test_charge_uses_fallback_when_pricing_returns_none() -> None:
     pricing = _NullPricing()
     meter = SpendMeter(budget_usd=100.0, pricing=pricing)
-    meter.charge(model="mystery-model", input_tokens=1_000_000, output_tokens=0)
-    assert abs(meter.total_cost_usd - _FALLBACK_BLENDED_PRICE_PER_MTOK) < 0.01
+    meter.charge(model="mystery-model", input_tokens=0, output_tokens=1_000_000)
+    assert abs(meter.total_cost_usd - _FALLBACK_OUTPUT_PRICE_PER_MTOK) < 0.01
 
 
 def test_charge_zero_tokens_adds_zero_cost() -> None:
@@ -102,6 +103,24 @@ def test_charge_zero_tokens_adds_zero_cost() -> None:
     meter.charge(model="gpt-5.4", input_tokens=0, output_tokens=0)
     assert meter.total_cost_usd == 0.0
     assert meter.calls == 1
+
+
+def test_charge_applies_input_and_output_rates_separately() -> None:
+    """Output tokens are 5x more expensive than input -- meter must reflect it."""
+    pricing = _FixedPricing(input_rate=2.0, output_rate=10.0)  # 1:5 spread
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    # 1M input @ $2 = $2; 1M output @ $10 = $10; total $12.
+    meter.charge(model="any", input_tokens=1_000_000, output_tokens=1_000_000)
+    assert meter.total_cost_usd == pytest.approx(12.0)
+
+
+def test_charge_output_dominates_typical_workload() -> None:
+    """Generation-heavy workload (1:5 in:out tokens) is dominated by output cost."""
+    pricing = _FixedPricing(input_rate=2.0, output_rate=10.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    # 100k input @ $2/MTok = $0.20; 500k output @ $10/MTok = $5.00. Total $5.20.
+    meter.charge(model="any", input_tokens=100_000, output_tokens=500_000)
+    assert meter.total_cost_usd == pytest.approx(5.20)
 
 
 # ---------------------------------------------------------------------------
@@ -124,8 +143,8 @@ def test_would_exceed_true_above_abort_factor() -> None:
 
 def test_would_exceed_false_exactly_at_threshold() -> None:
     # actual == budget * factor should NOT trigger (strict greater-than).
-    pricing = _FixedPricing(10.0)  # $10 / MTok
-    # 1 MTok x $10 = $10 exactly. budget=$10, factor=1.0 -> threshold $10.
+    pricing = _FixedPricing(input_rate=10.0, output_rate=10.0)  # uniform $10 / MTok
+    # 1 MTok input @ $10 = $10 exactly. budget=$10, factor=1.0 -> threshold $10.
     # would_exceed is actual > threshold — so exactly equal → False.
     meter = SpendMeter(budget_usd=10.0, abort_factor=1.0, pricing=pricing)
     meter.charge(model="any", input_tokens=1_000_000, output_tokens=0)
@@ -133,7 +152,7 @@ def test_would_exceed_false_exactly_at_threshold() -> None:
 
 
 def test_would_exceed_true_just_over_threshold() -> None:
-    pricing = _FixedPricing(10.0)
+    pricing = _FixedPricing(input_rate=10.0, output_rate=10.0)
     # Budget $10, factor 1.0 → threshold $10.  Charge 1_000_001 tokens ≈ $10.00001
     meter = SpendMeter(budget_usd=10.0, abort_factor=1.0, pricing=pricing)
     meter.charge(model="any", input_tokens=1_000_001, output_tokens=0)
@@ -175,13 +194,24 @@ def test_total_cost_cents_zero_when_no_charge() -> None:
     assert meter.total_cost_cents == 0
 
 
-def test_total_cost_cents_rounds_down() -> None:
-    # 0.009 USD → 0 cents (int truncation, not rounding)
-    pricing = _FixedPricing(9.0)  # $9 / MTok
-    # 1000 tokens -> $9 x (1000/1_000_000) = $0.009 -> 0 cents
+def test_total_cost_cents_rounds_to_nearest() -> None:
+    """Sub-cent fractions round half-to-even (banker's), not toward zero.
+
+    $0.0095 -> 0.95 cents -> 1 cent (nearest).
+    """
+    pricing = _FixedPricing(input_rate=9.5, output_rate=9.5)  # $9.5 / MTok
+    # 1000 tokens -> $9.5 x (1000/1_000_000) = $0.0095 -> 1 cent
     meter = SpendMeter(budget_usd=10.0, pricing=pricing)
     meter.charge(model="any", input_tokens=1_000, output_tokens=0)
-    assert meter.total_cost_cents == 0  # int(0.009 * 100) = int(0.9) = 0
+    assert meter.total_cost_cents == 1
+
+
+def test_total_cost_cents_rounds_below_half_to_zero() -> None:
+    pricing = _FixedPricing(input_rate=4.0, output_rate=4.0)
+    # 1000 tokens -> $4 x (1000/1_000_000) = $0.004 -> 0.4 cents -> 0
+    meter = SpendMeter(budget_usd=10.0, pricing=pricing)
+    meter.charge(model="any", input_tokens=1_000, output_tokens=0)
+    assert meter.total_cost_cents == 0
 
 
 # ---------------------------------------------------------------------------
@@ -190,18 +220,18 @@ def test_total_cost_cents_rounds_down() -> None:
 
 
 def test_with_mock_pricing_catalog() -> None:
-    """PricingCatalog mock returns 10.0 USD/MTok blended."""
-    pricing = _FixedPricing(10.0)
+    """PricingCatalog mock returns explicit input/output rates."""
+    pricing = _FixedPricing(input_rate=10.0, output_rate=10.0)
     meter = SpendMeter(budget_usd=100.0, pricing=pricing)
-    # 500k tokens x $10/MTok = $5.0
+    # 250k input + 250k output @ $10 each = $5.0
     meter.charge(model="custom-model", input_tokens=250_000, output_tokens=250_000)
     assert abs(meter.total_cost_usd - 5.0) < 1e-6
 
 
 def test_with_mock_pricing_cost_exceeds_budget() -> None:
-    pricing = _FixedPricing(20.0)  # expensive
+    pricing = _FixedPricing(input_rate=20.0, output_rate=20.0)  # expensive
     meter = SpendMeter(budget_usd=1.0, abort_factor=1.0, pricing=pricing)
-    # 200k tokens x $20/MTok = $4.0 > $1.0 budget
+    # 100k + 100k tokens x $20/MTok = $4.0 > $1.0 budget
     meter.charge(model="expensive", input_tokens=100_000, output_tokens=100_000)
     assert meter.would_exceed()
     with pytest.raises(RuntimeError):

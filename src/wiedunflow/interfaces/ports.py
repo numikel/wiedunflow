@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol, runtime_checkable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from wiedunflow.entities.cache_entry import FileCacheEntry
 from wiedunflow.entities.call_graph import CallGraph
@@ -46,8 +46,8 @@ class AgentTurn(BaseModel):
 
     role: Literal["assistant", "tool"]
     text: str | None = None
-    tool_calls: list[ToolCall] = []
-    tool_results: list[ToolResult] = []
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    tool_results: list[ToolResult] = Field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
 

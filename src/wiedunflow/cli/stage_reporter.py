@@ -192,19 +192,19 @@ class NoOpReporter:
     """
 
     def stage_start(self, index: int) -> None:
-        del index
+        return None
 
     def detail(self, text: str) -> None:
-        del text
+        return None
 
     def stage_done(self, summary: str) -> None:
-        del summary
+        return None
 
     def progress_line(self, text: str) -> None:
-        del text
+        return None
 
     def lesson_event(self, idx: int, total: int, title: str) -> None:
-        del idx, total, title
+        return None
 
     def tick_counters(
         self,
@@ -214,4 +214,4 @@ class NoOpReporter:
         cost_usd: float,
         elapsed_s: float,
     ) -> None:
-        del tokens_in, tokens_out, cost_usd, elapsed_s
+        return None

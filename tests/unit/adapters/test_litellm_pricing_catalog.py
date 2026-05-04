@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michał Kamiński
-"""Tests for ``LiteLLMPricingCatalog`` (ADR-0013 follow-up — pricing port)."""
+"""Tests for ``LiteLLMPricingCatalog`` (ADR-0014 / ADR-0020 — pricing port)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import pytest
 
 from wiedunflow.adapters.litellm_pricing_catalog import (
     LiteLLMPricingCatalog,
-    _entry_to_blended_price,
+    _entry_to_prices_per_mtok,
     _parse_pricing_payload,
     _provider_strip,
 )
@@ -32,18 +32,17 @@ def test_provider_strip_removes_prefix() -> None:
     assert _provider_strip("gpt-4.1") == "gpt-4.1"  # bare ID untouched
 
 
-def test_blended_price_60_40_split() -> None:
-    """0.6 * input + 0.4 * output, then * 1_000_000."""
+def test_entry_returns_input_output_per_mtok() -> None:
+    """Per-token costs scaled to per-million-tokens, preserved as a tuple."""
     entry = {"input_cost_per_token": 0.000002, "output_cost_per_token": 0.000008}
-    # 0.6 * 2 + 0.4 * 8 = 1.2 + 3.2 = 4.4 USD/MTok
-    assert _entry_to_blended_price(entry) == pytest.approx(4.4, rel=1e-9)
+    assert _entry_to_prices_per_mtok(entry) == pytest.approx((2.0, 8.0))
 
 
-def test_blended_price_returns_none_when_fields_missing() -> None:
-    assert _entry_to_blended_price({"input_cost_per_token": 0.000002}) is None
-    assert _entry_to_blended_price({"output_cost_per_token": 0.000008}) is None
+def test_entry_returns_none_when_fields_missing() -> None:
+    assert _entry_to_prices_per_mtok({"input_cost_per_token": 0.000002}) is None
+    assert _entry_to_prices_per_mtok({"output_cost_per_token": 0.000008}) is None
     assert (
-        _entry_to_blended_price({"input_cost_per_token": "x", "output_cost_per_token": 1}) is None
+        _entry_to_prices_per_mtok({"input_cost_per_token": "x", "output_cost_per_token": 1}) is None
     )
 
 
@@ -66,9 +65,11 @@ def test_parse_pricing_payload_indexes_bare_and_prefixed() -> None:
         },
     }
     parsed = _parse_pricing_payload(payload)
-    assert parsed["openai/gpt-4.1"] == pytest.approx(4.4)
-    assert parsed["gpt-4.1"] == pytest.approx(4.4)  # bare form indexed too
-    assert parsed["claude-opus-4-7"] == pytest.approx(33.0)
+    assert parsed["openai/gpt-4.1"][0] == pytest.approx(2.0)
+    assert parsed["openai/gpt-4.1"][1] == pytest.approx(8.0)
+    assert parsed["gpt-4.1"][0] == pytest.approx(2.0)  # bare form indexed too
+    assert parsed["gpt-4.1"][1] == pytest.approx(8.0)
+    assert parsed["claude-opus-4-7"] == pytest.approx((15.0, 60.0))
 
 
 def test_parse_skips_sample_spec_and_non_chat_modes() -> None:
@@ -127,7 +128,7 @@ def _patch_httpx(monkeypatch: pytest.MonkeyPatch, payload: Any) -> None:
     )
 
 
-def test_returns_blended_price_after_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_returns_prices_after_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_httpx(
         monkeypatch,
         {
@@ -139,7 +140,7 @@ def test_returns_blended_price_after_fetch(monkeypatch: pytest.MonkeyPatch) -> N
         },
     )
     cat = LiteLLMPricingCatalog()
-    assert cat.blended_price_per_mtok("gpt-4.1") == pytest.approx(4.4)
+    assert cat.prices_per_mtok("gpt-4.1") == pytest.approx((2.0, 8.0))
 
 
 def test_provider_prefix_falls_back_to_bare(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -155,13 +156,13 @@ def test_provider_prefix_falls_back_to_bare(monkeypatch: pytest.MonkeyPatch) -> 
         },
     )
     cat = LiteLLMPricingCatalog()
-    assert cat.blended_price_per_mtok("openai/gpt-4.1") == pytest.approx(4.4)
+    assert cat.prices_per_mtok("openai/gpt-4.1") == pytest.approx((2.0, 8.0))
 
 
 def test_unknown_model_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_httpx(monkeypatch, {})
     cat = LiteLLMPricingCatalog()
-    assert cat.blended_price_per_mtok("nope") is None
+    assert cat.prices_per_mtok("nope") is None
 
 
 def test_http_error_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -170,16 +171,16 @@ def test_http_error_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("wiedunflow.adapters.litellm_pricing_catalog.httpx.get", _raise)
     cat = LiteLLMPricingCatalog()
-    assert cat.blended_price_per_mtok("gpt-4.1") is None
+    assert cat.prices_per_mtok("gpt-4.1") is None
 
 
 def test_unexpected_payload_shape_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_httpx(monkeypatch, ["not", "a", "dict"])
     cat = LiteLLMPricingCatalog()
-    assert cat.blended_price_per_mtok("gpt-4.1") is None
+    assert cat.prices_per_mtok("gpt-4.1") is None
 
 
-def test_export_dump_matches_blended_prices(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_export_dump_matches_prices(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_httpx(
         monkeypatch,
         {
@@ -192,7 +193,7 @@ def test_export_dump_matches_blended_prices(monkeypatch: pytest.MonkeyPatch) -> 
     )
     cat = LiteLLMPricingCatalog()
     dump = cat.export_dump()
-    assert dump["gpt-4.1"] == pytest.approx(4.4)
+    assert dump["gpt-4.1"] == pytest.approx((2.0, 8.0))
 
 
 def test_hydrate_bypasses_http(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -205,8 +206,8 @@ def test_hydrate_bypasses_http(monkeypatch: pytest.MonkeyPatch) -> None:
         "wiedunflow.adapters.litellm_pricing_catalog.httpx.get", _should_not_be_called
     )
     cat = LiteLLMPricingCatalog()
-    cat.hydrate({"my-llama": 0.10})
-    assert cat.blended_price_per_mtok("my-llama") == 0.10
+    cat.hydrate({"my-llama": (0.10, 0.30)})
+    assert cat.prices_per_mtok("my-llama") == (0.10, 0.30)
 
 
 def test_satisfies_pricing_catalog_protocol() -> None:
@@ -243,7 +244,7 @@ def test_fixture_sample_skips_non_chat_and_sample_spec(
 
 def test_fixture_prefixed_and_bare_gpt41(sample_payload: dict[str, Any]) -> None:
     """The fixture contains both ``gpt-4.1`` and ``openai/gpt-4.1`` — bare wins on
-    collision so the two entries share the same blended price."""
+    collision so the two entries share the same prices."""
     parsed = _parse_pricing_payload(sample_payload)
     assert parsed["gpt-4.1"] == pytest.approx(parsed["openai/gpt-4.1"])
 

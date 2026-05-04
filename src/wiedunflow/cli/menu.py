@@ -833,13 +833,19 @@ def _run_estimate_from_menu(io: MenuIO) -> None:
         pricing_catalog=pricing,
     )
 
-    plan_price = pricing.blended_price_per_mtok(plan_model) if plan_model else None
-    narrate_price = pricing.blended_price_per_mtok(narrate_model) if narrate_model else None
+    from wiedunflow.cli.cost_estimator import blended_from_prices
+
+    plan_prices = pricing.prices_per_mtok(plan_model) if plan_model else None
+    narrate_prices = pricing.prices_per_mtok(narrate_model) if narrate_model else None
+    plan_blended = blended_from_prices(plan_prices) if plan_prices is not None else None
+    narrate_blended = blended_from_prices(narrate_prices) if narrate_prices is not None else None
     plan_label = plan_model or "(default)"
     narrate_label = narrate_model or "(default)"
-    plan_price_str = f"${plan_price:.2f}/MTok" if plan_price is not None else "(unknown — fallback)"
+    plan_price_str = (
+        f"${plan_blended:.2f}/MTok" if plan_blended is not None else "(unknown — fallback)"
+    )
     narrate_price_str = (
-        f"${narrate_price:.2f}/MTok" if narrate_price is not None else "(unknown — fallback)"
+        f"${narrate_blended:.2f}/MTok" if narrate_blended is not None else "(unknown — fallback)"
     )
 
     console = init_console()

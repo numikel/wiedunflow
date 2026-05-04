@@ -2,7 +2,6 @@
 # Copyright 2026 Michał Kamiński
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -65,7 +64,6 @@ if TYPE_CHECKING:
     )
 
 logger = structlog.get_logger(__name__)
-_std_logger = logging.getLogger(__name__)
 
 # Default lesson cap (US-035).  Track C (config.py) owns the configurable field;
 # we fall back to this constant when ``config`` is not available or doesn't have
@@ -153,8 +151,6 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     # v0.2.1 quality controls (passed through from WiedunflowConfig):
     planning_entry_point_first: str = "auto",
     planning_skip_trivial_helpers: bool = False,
-    narration_min_words_trivial: int = 50,
-    narration_snippet_validation: bool = True,
     # ADR-0013 follow-up: pricing catalog for cost gate accuracy.
     pricing_catalog: object | None = None,
     # v0.9.0 cost reporting wire-through.
@@ -390,7 +386,7 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
         if preview_output.name == "tutorial.html":
             preview_output = preview_output.with_name("tutorial-preview.html")
         _write_html_output(preview_output, html)
-        _std_logger.info("[dry-run] Preview written to %s", preview_output)
+        logger.info("dry_run_preview_written", path=str(preview_output))
         return GenerationResult(
             output_path=preview_output,
             skipped_lessons=(),
@@ -405,10 +401,11 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     # Here we surface a warning but do not hard-fail — partial tutorials are
     # preferable to a crash (DEGRADED handles the quality signal instead).
     if len(manifest.lessons) > max_lessons:
-        _std_logger.warning(
-            "[6/7] Generation — manifest has %d lessons, cap is %d; truncating",
-            len(manifest.lessons),
-            max_lessons,
+        logger.warning(
+            "generation_lesson_cap_exceeded_truncating",
+            stage=6,
+            manifest_lessons=len(manifest.lessons),
+            cap=max_lessons,
         )
         # Truncate: keep the first max_lessons specs (planner should have ordered
         # by importance / topological order already).
@@ -466,9 +463,6 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
         vector_store=providers.vector_store,
         should_abort=should_abort,
         progress=progress,
-        narration_min_words_trivial=narration_min_words_trivial,
-        narration_snippet_validation=narration_snippet_validation,
-        project_context=readme_excerpt,
         spend_meter=spend_meter,
     )
     all_lessons: list[Lesson] = generation_result.lessons
@@ -549,11 +543,11 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     degraded = degraded_ratio > _DEGRADED_THRESHOLD
 
     if degraded:
-        _std_logger.warning(
-            "Tutorial DEGRADED: %d of %d lessons skipped (ratio=%.2f)",
-            skipped_count,
-            total_planned,
-            degraded_ratio,
+        logger.warning(
+            "tutorial_degraded",
+            skipped=skipped_count,
+            total_planned=total_planned,
+            ratio=round(degraded_ratio, 2),
         )
 
     progress.stage_done(
@@ -585,7 +579,7 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     )
     _write_html_output(output_path, html)
     progress.stage_done(f"tutorial.html written · {output_path.stat().st_size // 1024} KB")
-    _std_logger.info("Tutorial written to %s", output_path)
+    logger.info("tutorial_written", path=str(output_path))
     # Deduplicate and sort hallucinated symbols for deterministic output.
     deduped_hallucinations = tuple(sorted(set(generation_result.hallucinated_symbols)))
     return GenerationResult(
@@ -733,11 +727,14 @@ def _build_closing_spec(
             break
 
     has_readme = getattr(ingestion, "has_readme", False)
-    readme_hint = " Consult the README for project-level documentation." if has_readme else ""
-    omitted_hint = f" Notable uncovered symbols: {', '.join(omitted)}." if omitted else ""
-
-    teaches = "Where to go next: external resources, uncovered symbols, and contribution hints."
-    full_teaches = f"{teaches}{readme_hint}{omitted_hint}"
+    parts: list[str] = [
+        "Where to go next: external resources, uncovered symbols, and contribution hints."
+    ]
+    if has_readme:
+        parts.append("Consult the README for project-level documentation.")
+    if omitted:
+        parts.append(f"Notable uncovered symbols: {', '.join(omitted)}.")
+    full_teaches = " ".join(parts)
 
     return LessonSpec(
         id="lesson-closing",
@@ -763,9 +760,6 @@ def _stage_generation(
     vector_store: VectorStore,
     should_abort: Callable[[], bool] | None = None,
     progress: StageReporter | NoOpReporter | None = None,
-    narration_min_words_trivial: int = 50,
-    narration_snippet_validation: bool = True,
-    project_context: str | None = None,
     spend_meter: SpendMeterProto | None = None,
 ) -> _StageGenerationOutput:
     """Stage 6: Narrate each lesson via the multi-agent pipeline.
@@ -785,9 +779,6 @@ def _stage_generation(
         symbols: All symbols from Stage 2 — fed into tool_registry.
         graph: Resolved call graph from Stage 2 — fed into tool_registry.
         vector_store: Indexed vector store from Stage 4 — fed into tool_registry.
-        narration_min_words_trivial: Kept for API back-compat; not used in v0.9.0+.
-        narration_snippet_validation: Kept for API back-compat; not used in v0.9.0+.
-        project_context: Kept for API back-compat; not used in v0.9.0+.
 
     Returns:
         :class:`_StageGenerationOutput` with typed fields for lessons, skipped,

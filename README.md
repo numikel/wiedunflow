@@ -2,7 +2,7 @@
 
 ![Python version](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)
-![Version](https://img.shields.io/badge/version-0.9.3-orange.svg)
+![Version](https://img.shields.io/badge/version-0.9.5-orange.svg)
 ![CI](https://github.com/numikel/wiedunflow/actions/workflows/ci.yml/badge.svg)
 
 ## What is WiedunFlow
@@ -58,7 +58,7 @@ Code's custom-agent picker. Arrow keys + Enter + Esc — no flags to remember.
  ╚███╔███╔╝██║███████╗██████╔╝╚██████╔╝██║ ╚████║███████╗███████╗╚██████╔╝╚███╔███╔╝
   ╚══╝╚══╝ ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚══════╝ ╚═════╝  ╚══╝╚══╝
 
-  v0.9.3 · multi-agent tutorial generator from your local Git repository
+  v0.9.5 · multi-agent tutorial generator from your local Git repository
 
 ? What would you like to do?
   ❯ Initialize config
@@ -197,7 +197,7 @@ click group class rewrites an unknown first positional to `generate <positional>
 Running `wiedunflow ./my-repo` in a TTY produces:
 
 ```
-WiedunFlow v0.9.3
+WiedunFlow v0.9.5
 offline-friendly tutorial generator from local Git repos
 
 [1/7] Ingestion
