@@ -9,6 +9,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
+from wiedunflow.entities.cache_entry import FileCacheEntry
 from wiedunflow.entities.call_graph import CallGraph
 from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.lesson import Lesson
@@ -177,6 +178,7 @@ class Parser(Protocol):
         self,
         files: list[Path],
         repo_root: Path,
+        cache: Cache | None = None,
     ) -> tuple[list[CodeSymbol], CallGraph]:
         """Parse a batch of source files and return their symbols + raw call graph.
 
@@ -185,6 +187,10 @@ class Parser(Protocol):
                 but absolute paths are accepted).
             repo_root: Anchor for qualified-name construction (e.g.
                 ``package.module.function``).
+            cache: Optional content-addressed file cache (ADR-0008). When
+                supplied, each file's SHA-256 is looked up; cache hits skip
+                re-parsing, misses save the parsed slice for the next run.
+                ``None`` disables caching (used by tests and stub adapters).
 
         Returns:
             Tuple of ``(symbols, raw_graph)``. ``raw_graph.resolution_stats`` is
@@ -253,6 +259,18 @@ class Cache(Protocol):
 
     def set(self, key: str, value: object) -> None:
         """Store value under key."""
+        ...
+
+    def get_file_cache(self, sha256: str) -> FileCacheEntry | None:
+        """Return cached AST/call-graph payload for a file content SHA-256.
+
+        Content-addressed lookup (ADR-0008): identical bytes in different
+        repos or paths share a single cache row. Returns ``None`` on miss.
+        """
+        ...
+
+    def save_file_cache(self, entry: FileCacheEntry) -> None:
+        """Persist file-level analysis payload keyed by its content SHA-256."""
         ...
 
 

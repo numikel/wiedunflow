@@ -229,7 +229,9 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     progress.stage_start(2)
     logger.info("stage_start", stage=2, name="Analysis")
     progress.detail(f"parsing AST + resolving call graph for {len(ingestion.files)} files")
-    symbols, raw_graph = providers.parser.parse(list(ingestion.files), ingestion.repo_root)
+    symbols, raw_graph = providers.parser.parse(
+        list(ingestion.files), ingestion.repo_root, cache=providers.cache
+    )
     resolved_graph = providers.resolver.resolve(symbols, raw_graph, ingestion.repo_root)
     progress.stage_done(f"{len(symbols)} symbols · {len(raw_graph.edges)} call edges")
 

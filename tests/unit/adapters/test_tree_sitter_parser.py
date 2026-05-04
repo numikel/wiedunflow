@@ -9,6 +9,7 @@ from textwrap import dedent
 
 import pytest
 
+from wiedunflow.adapters.in_memory_cache import InMemoryCache
 from wiedunflow.adapters.tree_sitter_parser import TreeSitterParser
 from wiedunflow.entities.code_symbol import CodeSymbol
 
@@ -328,3 +329,120 @@ def test_empty_file_produces_no_symbols(parser: TreeSitterParser, tmp_path: Path
     symbols, graph = parser.parse([f], tmp_path)
     assert symbols == []
     assert graph.edges == ()
+
+
+# ---------------------------------------------------------------------------
+# File cache wiring (ADR-0008)
+# ---------------------------------------------------------------------------
+
+
+def _basic_module_source() -> str:
+    return """\
+        def alpha():
+            beta()
+
+        def beta():
+            pass
+        """
+
+
+def test_parse_with_cache_miss_then_hit_returns_equivalent_output(
+    parser: TreeSitterParser, tmp_path: Path
+) -> None:
+    """Second parse with the same file bytes hits the cache and yields equal output."""
+    f = _write(tmp_path, "mod.py", _basic_module_source())
+    cache = InMemoryCache()
+
+    symbols_first, graph_first = parser.parse([f], tmp_path, cache=cache)
+    symbols_second, graph_second = parser.parse([f], tmp_path, cache=cache)
+
+    assert symbols_first == symbols_second
+    assert graph_first.edges == graph_second.edges
+    # Cache must have been populated (one entry per unique file content).
+    assert len(cache._file_cache) == 1
+
+
+def test_parse_skips_tree_sitter_on_cache_hit(
+    parser: TreeSitterParser, tmp_path: Path
+) -> None:
+    """A cached file is reconstructed from the payload without re-saving the entry.
+
+    The hit branch in :func:`TreeSitterParser.parse` skips the tree-sitter
+    pass *and* the ``cache.save_file_cache`` call. We assert this by counting
+    saves through a wrapper cache.
+    """
+    f = _write(tmp_path, "mod.py", _basic_module_source())
+
+    class _CountingCache(InMemoryCache):
+        def __init__(self) -> None:
+            super().__init__()
+            self.saves = 0
+            self.hits = 0
+            self.misses = 0
+
+        def get_file_cache(self, sha256: str):  # type: ignore[no-untyped-def]
+            entry = super().get_file_cache(sha256)
+            if entry is None:
+                self.misses += 1
+            else:
+                self.hits += 1
+            return entry
+
+        def save_file_cache(self, entry):  # type: ignore[no-untyped-def]
+            self.saves += 1
+            super().save_file_cache(entry)
+
+    cache = _CountingCache()
+
+    # First run — miss + save.
+    parser.parse([f], tmp_path, cache=cache)
+    assert cache.misses == 1
+    assert cache.saves == 1
+    assert cache.hits == 0
+
+    # Second run — hit, no extra save.
+    symbols, graph = parser.parse([f], tmp_path, cache=cache)
+    assert cache.hits == 1
+    assert cache.saves == 1, "saving on a cache hit defeats the purpose of caching"
+
+    # Reconstruction proves the payload survived the round-trip.
+    names = {s.name for s in symbols}
+    assert "mod.alpha" in names
+    assert "mod.beta" in names
+    assert ("mod.alpha", "beta") in graph.edges
+
+
+def test_parse_without_cache_remains_backwards_compatible(
+    parser: TreeSitterParser, tmp_path: Path
+) -> None:
+    """Calling ``parse(files, repo_root)`` without ``cache=`` keeps working."""
+    f = _write(tmp_path, "mod.py", _basic_module_source())
+    symbols, graph = parser.parse([f], tmp_path)
+    names = {s.name for s in symbols}
+    assert names == {"mod.alpha", "mod.beta"}
+    assert ("mod.alpha", "beta") in graph.edges
+
+
+def test_parse_cache_invalidated_when_file_bytes_change(
+    parser: TreeSitterParser, tmp_path: Path
+) -> None:
+    """Editing the file changes its SHA-256 → second run parses fresh AST."""
+    f = _write(tmp_path, "mod.py", _basic_module_source())
+    cache = InMemoryCache()
+
+    symbols_v1, _ = parser.parse([f], tmp_path, cache=cache)
+    assert {s.name for s in symbols_v1} == {"mod.alpha", "mod.beta"}
+
+    # Rewrite with a different symbol — sha256 differs, must miss the cache.
+    _write(
+        tmp_path,
+        "mod.py",
+        """\
+        def gamma():
+            pass
+        """,
+    )
+    symbols_v2, _ = parser.parse([f], tmp_path, cache=cache)
+    assert {s.name for s in symbols_v2} == {"mod.gamma"}
+    # Two distinct content hashes → two cache entries.
+    assert len(cache._file_cache) == 2

@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from wiedunflow.entities.call_graph import CallGraph
 from wiedunflow.entities.code_symbol import CodeSymbol
+
+if TYPE_CHECKING:
+    from wiedunflow.interfaces.ports import Cache
 
 
 class StubTreeSitterParser:
@@ -20,18 +24,20 @@ class StubTreeSitterParser:
         self,
         files: list[Path],
         repo_root: Path,
+        cache: Cache | None = None,
     ) -> tuple[list[CodeSymbol], CallGraph]:
         """Return fixed symbols and call graph regardless of input.
 
         Args:
             files: Source files (ignored — stub returns fixture data).
             repo_root: Repository root (ignored — stub returns fixture data).
+            cache: Ignored — the stub never reads or writes the file cache.
 
         Returns:
             A 2-tuple of ``(symbols, raw_graph)`` covering the tiny_repo fixture.
             ``raw_graph.resolution_stats`` is ``None`` — the Resolver fills it.
         """
-        _ = files, repo_root
+        _ = files, repo_root, cache
         symbols: list[CodeSymbol] = [
             CodeSymbol(
                 name="calculator.add",
