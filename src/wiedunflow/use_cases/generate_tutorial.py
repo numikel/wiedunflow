@@ -809,7 +809,7 @@ def _stage_generation(
         if should_abort is not None and should_abort():
             raise KeyboardInterrupt("SIGINT received during generation stage")
         progress.lesson_event(idx, total_lessons, spec.title)
-        result = run_lesson(
+        outcome = run_lesson(
             spec,
             workspace=workspace,
             llm=llm,
@@ -817,6 +817,8 @@ def _stage_generation(
             concepts_introduced=output.concepts_introduced,
             spend_meter=spend_meter,
         )
+        result = outcome.result
+        output.retry_count += outcome.writer_retries
 
         if isinstance(result, SkippedLesson):
             output.skipped.append(result)
@@ -838,13 +840,15 @@ def _stage_generation(
 
     # --- Closing lesson (US-049) — always +1 beyond cap ---
     closing_spec = _build_closing_spec(manifest, ingestion, repo_path, ranked)
-    closing_result = run_closing_lesson(
+    closing_outcome = run_closing_lesson(
         closing_spec,
         workspace=workspace,
         llm=llm,
         concepts_introduced=output.concepts_introduced,
         spend_meter=spend_meter,
     )
+    closing_result = closing_outcome.result
+    output.retry_count += closing_outcome.writer_retries
     if isinstance(closing_result, SkippedLesson):
         closing_placeholder = Lesson(
             id=closing_result.lesson_id,

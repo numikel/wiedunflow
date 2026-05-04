@@ -55,8 +55,27 @@ class _OrchestratorState:
     result: Lesson | SkippedLesson | None = None
     research_counter: int = 0
     writer_counter: int = 0
+    writer_retries: int = 0
+    """Number of additional Writer dispatches beyond the first (= retries).
+
+    A Writer rerun signals the Reviewer rejected the previous draft. The
+    pipeline surfaces this through ``RunLessonOutcome`` so ``RunReport`` can
+    report meaningful retry totals to the user.
+    """
     research_paths: list[str] = dataclasses.field(default_factory=list)
     last_draft_path: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class RunLessonOutcome:
+    """Return value of :func:`run_lesson` and :func:`run_closing_lesson`.
+
+    Wraps the lesson result with pipeline metrics that are not part of the
+    domain entity ``Lesson`` (which only describes what the reader will learn).
+    """
+
+    result: Lesson | SkippedLesson
+    writer_retries: int = 0
 
 
 def _make_tool_executor(tool_registry: dict[str, ToolFn]) -> Callable[[ToolCall], ToolResult]:
@@ -229,6 +248,8 @@ def _run_writer(
     final markdown here in Python — no regex parsing of free-form prose.
     """
     state.writer_counter += 1
+    if state.writer_counter > 1:
+        state.writer_retries += 1
     draft_num = f"{state.writer_counter:03d}"
     draft_path = workspace.lesson_dir(lesson_id, "processing") / f"draft-{draft_num}.md"
 
@@ -646,7 +667,7 @@ def run_closing_lesson(
     spend_meter: SpendMeterProto | None = None,
     agents_dir: Path | None = None,
     target_audience: str = _DEFAULT_TARGET_AUDIENCE,
-) -> Lesson | SkippedLesson:
+) -> RunLessonOutcome:
     """Lightweight single-writer pass for the synthetic closing lesson.
 
     The closing lesson has ``code_refs=()`` — there is no symbol to research.
@@ -665,7 +686,9 @@ def run_closing_lesson(
         target_audience: Audience label forwarded to the Writer prompt.
 
     Returns:
-        :class:`Lesson` or :class:`SkippedLesson`.
+        :class:`RunLessonOutcome` carrying either :class:`Lesson` or
+        :class:`SkippedLesson` plus pipeline metrics (always
+        ``writer_retries=0`` here — closing lesson never retries).
     """
     resolved_models = {**_DEFAULT_MODELS, **(models or {})}
     lesson_id = spec.id
@@ -675,7 +698,7 @@ def run_closing_lesson(
         try:
             data = workspace.read_json(finished_path)
             if isinstance(data, dict) and not data.get("skipped"):
-                return Lesson.model_validate(data)
+                return RunLessonOutcome(result=Lesson.model_validate(data))
         except Exception:
             pass
 
@@ -723,7 +746,7 @@ def run_closing_lesson(
             reason="Closing lesson Writer produced no output",
         )
         _persist_skipped_lesson(workspace, lesson_id, skipped)
-        return skipped
+        return RunLessonOutcome(result=skipped)
 
     lesson = Lesson(
         id=lesson_id,
@@ -736,7 +759,7 @@ def run_closing_lesson(
         workspace.lesson_dir(lesson_id, "finished") / "lesson.json",
         lesson.model_dump(),
     )
-    return lesson
+    return RunLessonOutcome(result=lesson)
 
 
 def run_lesson(
@@ -751,7 +774,7 @@ def run_lesson(
     spend_meter: SpendMeterProto | None = None,
     agents_dir: Path | None = None,
     target_audience: str = _DEFAULT_TARGET_AUDIENCE,
-) -> Lesson | SkippedLesson:
+) -> RunLessonOutcome:
     """Run the full per-lesson multi-agent pipeline.
 
     Orchestrates Researcher x N -> Writer -> Reviewer agents for a single lesson.
@@ -776,10 +799,12 @@ def run_lesson(
         target_audience: Audience label forwarded to the Writer prompt.
 
     Returns:
-        :class:`~wiedunflow.entities.lesson.Lesson` when the Orchestrator calls
-        ``mark_lesson_done``, or
-        :class:`~wiedunflow.entities.skipped_lesson.SkippedLesson` when it calls
-        ``skip_lesson`` or exhausts its iteration/cost budget.
+        :class:`RunLessonOutcome` wrapping either a
+        :class:`~wiedunflow.entities.lesson.Lesson` (Orchestrator called
+        ``mark_lesson_done``) or
+        :class:`~wiedunflow.entities.skipped_lesson.SkippedLesson` (skip /
+        budget exhaustion / fallback), plus the count of additional Writer
+        dispatches beyond the first (= retries).
     """
     resolved_models = {**_DEFAULT_MODELS, **(models or {})}
     lesson_id = spec.id
@@ -791,13 +816,15 @@ def run_lesson(
         try:
             data = workspace.read_json(finished_path)
             if isinstance(data, dict) and data.get("skipped"):
-                return SkippedLesson(
-                    lesson_id=lesson_id,
-                    title=spec.title,
-                    missing_symbols=(primary_symbol,),
-                    reason=str(data.get("reason", "skipped in prior run")),
+                return RunLessonOutcome(
+                    result=SkippedLesson(
+                        lesson_id=lesson_id,
+                        title=spec.title,
+                        missing_symbols=(primary_symbol,),
+                        reason=str(data.get("reason", "skipped in prior run")),
+                    )
                 )
-            return Lesson.model_validate(data)
+            return RunLessonOutcome(result=Lesson.model_validate(data))
         except Exception as exc:
             logger.warning("resume_parse_error lesson=%s exc=%r — re-running", lesson_id, exc)
 
@@ -849,7 +876,7 @@ def run_lesson(
     )
 
     if state.result is not None:
-        return state.result
+        return RunLessonOutcome(result=state.result, writer_retries=state.writer_retries)
 
     # Orchestrator exited without calling mark_lesson_done or skip_lesson.
     # Fall back: use the last draft if available, otherwise skip.
@@ -874,7 +901,7 @@ def run_lesson(
                     workspace.lesson_dir(lesson_id, "finished") / "lesson.json",
                     lesson.model_dump(),
                 )
-                return lesson
+                return RunLessonOutcome(result=lesson, writer_retries=state.writer_retries)
 
     skipped = SkippedLesson(
         lesson_id=lesson_id,
@@ -883,4 +910,4 @@ def run_lesson(
         reason=(f"Orchestrator finished without decision (stop_reason={orch_result.stop_reason})"),
     )
     _persist_skipped_lesson(workspace, lesson_id, skipped)
-    return skipped
+    return RunLessonOutcome(result=skipped, writer_retries=state.writer_retries)

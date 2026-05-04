@@ -313,12 +313,13 @@ class TestHappyPath:
             ]
         )
 
-        result = run_lesson(
+        outcome = run_lesson(
             simple_spec,
             workspace=workspace,
             llm=llm,  # type: ignore[arg-type]
             tool_registry=tool_registry,
         )
+        result = outcome.result
 
         assert isinstance(result, Lesson)
         assert result.id == "lesson-001"
@@ -355,6 +356,277 @@ class TestHappyPath:
 
 
 # ---------------------------------------------------------------------------
+# Tests — Writer retries surface via RunLessonOutcome.writer_retries
+# ---------------------------------------------------------------------------
+
+
+class TestWriterRetries:
+    """A second Writer dispatch (Reviewer rejected the first) bumps writer_retries by 1.
+
+    The Orchestrator state tracks writer dispatches; everything beyond the first is
+    counted as a retry and surfaced through ``RunLessonOutcome.writer_retries`` so
+    the pipeline can accumulate it into ``RunReport``.
+    """
+
+    def test_outcome_writer_retries_zero_on_clean_run(
+        self,
+        workspace: RunWorkspace,
+        simple_spec: LessonSpec,
+        tool_registry: dict[str, Any],
+    ) -> None:
+        """One Writer dispatch (no retry) → writer_retries == 0."""
+        narrative = "## Test Lesson\n\nThe parser works by..."
+        llm = _ScriptedLLM(
+            [
+                _mk_result(
+                    "Dispatching researcher.",
+                    tool_calls=[
+                        _tc(
+                            "tc-1",
+                            "dispatch_researcher",
+                            {"symbol": "lesson-001", "research_brief": "x", "budget_usd": 0.05},
+                        )
+                    ],
+                ),
+                _mk_result("# Research\n\ndef foo(): pass\n"),
+                _mk_result(
+                    "Dispatching writer.",
+                    tool_calls=[
+                        _tc("tc-2", "dispatch_writer", {"research_refs": [], "lesson_spec": "{}"}),
+                    ],
+                ),
+                _mk_result(
+                    "Submitting draft.",
+                    tool_calls=[
+                        _tc(
+                            "tc-w1",
+                            "submit_lesson_draft",
+                            {
+                                "overview": "ov",
+                                "how_it_works": narrative,
+                                "key_details": "",
+                                "what_to_watch_for": "",
+                                "cited_symbols": [],
+                                "uncertain_regions": [],
+                            },
+                        )
+                    ],
+                ),
+                _mk_result(""),
+                _mk_result(
+                    "Dispatching reviewer.",
+                    tool_calls=[
+                        _tc("tc-3", "dispatch_reviewer", {"draft_path": "", "research_refs": []}),
+                    ],
+                ),
+                _mk_result(
+                    "Reviewer.",
+                    tool_calls=[
+                        _tc(
+                            "tc-rv",
+                            "submit_verdict",
+                            {"verdict": "pass", "checks": [], "feedback": ""},
+                        )
+                    ],
+                ),
+                _mk_result(""),
+                _mk_result(
+                    "Done.",
+                    tool_calls=[
+                        _tc(
+                            "tc-4",
+                            "mark_lesson_done",
+                            {"lesson_id": "lesson-001", "final_narrative": narrative},
+                        )
+                    ],
+                ),
+            ]
+        )
+
+        outcome = run_lesson(
+            simple_spec,
+            workspace=workspace,
+            llm=llm,  # type: ignore[arg-type]
+            tool_registry=tool_registry,
+        )
+
+        assert isinstance(outcome.result, Lesson)
+        assert outcome.writer_retries == 0
+
+    def test_outcome_writer_retries_one_after_reviewer_rejection(
+        self,
+        workspace: RunWorkspace,
+        simple_spec: LessonSpec,
+        tool_registry: dict[str, Any],
+    ) -> None:
+        """Two Writer dispatches (initial + retry after Reviewer fail) → writer_retries == 1."""
+        narrative_v1 = "## Lesson\n\nFirst draft."
+        narrative_v2 = "## Lesson\n\nRevised draft."
+        llm = _ScriptedLLM(
+            [
+                # Researcher
+                _mk_result(
+                    "Dispatching researcher.",
+                    tool_calls=[
+                        _tc(
+                            "tc-r",
+                            "dispatch_researcher",
+                            {"symbol": "lesson-001", "research_brief": "x", "budget_usd": 0.05},
+                        )
+                    ],
+                ),
+                _mk_result("# Research\n\ndef foo(): pass\n"),
+                # Writer #1
+                _mk_result(
+                    "Dispatching writer (1st).",
+                    tool_calls=[
+                        _tc(
+                            "tc-w-a", "dispatch_writer", {"research_refs": [], "lesson_spec": "{}"}
+                        ),
+                    ],
+                ),
+                _mk_result(
+                    "Submitting draft #1.",
+                    tool_calls=[
+                        _tc(
+                            "tc-d1",
+                            "submit_lesson_draft",
+                            {
+                                "overview": "ov",
+                                "how_it_works": narrative_v1,
+                                "key_details": "",
+                                "what_to_watch_for": "",
+                                "cited_symbols": [],
+                                "uncertain_regions": [],
+                            },
+                        )
+                    ],
+                ),
+                _mk_result(""),
+                # Reviewer #1 — FAIL
+                _mk_result(
+                    "Dispatching reviewer (1st).",
+                    tool_calls=[
+                        _tc("tc-rv1", "dispatch_reviewer", {"research_refs": []}),
+                    ],
+                ),
+                _mk_result(
+                    "Verdict fail.",
+                    tool_calls=[
+                        _tc(
+                            "tc-vd1",
+                            "submit_verdict",
+                            {"verdict": "fail", "checks": [], "feedback": "redo"},
+                        )
+                    ],
+                ),
+                _mk_result(""),
+                # Writer #2 — RETRY
+                _mk_result(
+                    "Dispatching writer (2nd, retry).",
+                    tool_calls=[
+                        _tc(
+                            "tc-w-b", "dispatch_writer", {"research_refs": [], "lesson_spec": "{}"}
+                        ),
+                    ],
+                ),
+                _mk_result(
+                    "Submitting draft #2.",
+                    tool_calls=[
+                        _tc(
+                            "tc-d2",
+                            "submit_lesson_draft",
+                            {
+                                "overview": "ov",
+                                "how_it_works": narrative_v2,
+                                "key_details": "",
+                                "what_to_watch_for": "",
+                                "cited_symbols": [],
+                                "uncertain_regions": [],
+                            },
+                        )
+                    ],
+                ),
+                _mk_result(""),
+                # Reviewer #2 — PASS
+                _mk_result(
+                    "Dispatching reviewer (2nd).",
+                    tool_calls=[
+                        _tc("tc-rv2", "dispatch_reviewer", {"research_refs": []}),
+                    ],
+                ),
+                _mk_result(
+                    "Verdict pass.",
+                    tool_calls=[
+                        _tc(
+                            "tc-vd2",
+                            "submit_verdict",
+                            {"verdict": "pass", "checks": [], "feedback": ""},
+                        )
+                    ],
+                ),
+                _mk_result(""),
+                # Mark done
+                _mk_result(
+                    "Done.",
+                    tool_calls=[
+                        _tc(
+                            "tc-done",
+                            "mark_lesson_done",
+                            {"lesson_id": "lesson-001", "final_narrative": narrative_v2},
+                        )
+                    ],
+                ),
+            ]
+        )
+
+        outcome = run_lesson(
+            simple_spec,
+            workspace=workspace,
+            llm=llm,  # type: ignore[arg-type]
+            tool_registry=tool_registry,
+        )
+
+        assert outcome.writer_retries == 1, (
+            f"second Writer dispatch should bump retries to 1; got {outcome.writer_retries}"
+        )
+
+    def test_run_closing_lesson_outcome_has_zero_retries(
+        self,
+        workspace: RunWorkspace,
+    ) -> None:
+        """Closing lesson is a single Writer pass — no retry path exists."""
+        closing_spec = LessonSpec(
+            id="lesson-closing",
+            title="Where to go next",
+            teaches="summary",
+            code_refs=(),
+        )
+        llm = _ScriptedLLM(
+            [
+                AgentResult(
+                    final_text="## Closing\n\nKeep reading.",
+                    transcript=[],
+                    total_input_tokens=5,
+                    total_output_tokens=8,
+                    total_cost_usd=0.0,
+                    stop_reason="end_turn",
+                    iterations=1,
+                )
+            ]
+        )
+
+        outcome = run_closing_lesson(
+            closing_spec,
+            workspace=workspace,
+            llm=llm,  # type: ignore[arg-type]
+        )
+
+        assert isinstance(outcome.result, Lesson)
+        assert outcome.writer_retries == 0
+
+
+# ---------------------------------------------------------------------------
 # Tests — skip path
 # ---------------------------------------------------------------------------
 
@@ -383,7 +655,9 @@ class TestSkipPath:
             ]
         )
 
-        result = run_lesson(simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry)  # type: ignore[arg-type]
+        result = run_lesson(
+            simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry
+        ).result  # type: ignore[arg-type]
 
         assert isinstance(result, SkippedLesson)
         assert result.lesson_id == "lesson-001"
@@ -451,7 +725,9 @@ class TestResumePath:
         # LLM should NOT be called (zero responses queued, any call would raise).
         llm = _ScriptedLLM([])
 
-        result = run_lesson(simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry)  # type: ignore[arg-type]
+        result = run_lesson(
+            simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry
+        ).result  # type: ignore[arg-type]
 
         assert isinstance(result, Lesson)
         assert "Pre-existing lesson" in result.narrative
@@ -470,7 +746,9 @@ class TestResumePath:
         )
         llm = _ScriptedLLM([])
 
-        result = run_lesson(simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry)  # type: ignore[arg-type]
+        result = run_lesson(
+            simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry
+        ).result  # type: ignore[arg-type]
 
         assert isinstance(result, SkippedLesson)
         assert "prior run skip" in result.reason
@@ -542,7 +820,9 @@ class TestFallbackPath:
             ]
         )
 
-        result = run_lesson(simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry)  # type: ignore[arg-type]
+        result = run_lesson(
+            simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry
+        ).result  # type: ignore[arg-type]
 
         # Should recover using the writer's output (returned by sub-agent)
         assert isinstance(result, (Lesson, SkippedLesson))
@@ -569,7 +849,9 @@ class TestFallbackPath:
             ]
         )
 
-        result = run_lesson(simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry)  # type: ignore[arg-type]
+        result = run_lesson(
+            simple_spec, workspace=workspace, llm=llm, tool_registry=tool_registry
+        ).result  # type: ignore[arg-type]
 
         assert isinstance(result, SkippedLesson)
         assert result.lesson_id == "lesson-001"
@@ -652,12 +934,13 @@ class TestFallbackPersistsToFinished:
             ]
         )
 
-        result = run_lesson(
+        outcome = run_lesson(
             simple_spec,
             workspace=workspace,
             llm=llm,  # type: ignore[arg-type]
             tool_registry=tool_registry,
         )
+        result = outcome.result
 
         assert isinstance(result, SkippedLesson)
         finished_path = workspace.base_dir / "finished" / "lesson-001" / "lesson.json"
@@ -742,7 +1025,7 @@ class TestFallbackPersistsToFinished:
             closing_spec,
             workspace=workspace,
             llm=llm,  # type: ignore[arg-type]
-        )
+        ).result
 
         assert isinstance(lesson, Lesson)
         # Each section must appear in the assembled narrative...
@@ -794,7 +1077,7 @@ class TestFallbackPersistsToFinished:
             closing_spec,
             workspace=workspace,
             llm=llm,  # type: ignore[arg-type]
-        )
+        ).result
 
         assert isinstance(lesson, Lesson)
         assert "Read on." in lesson.narrative
@@ -833,7 +1116,7 @@ class TestFallbackPersistsToFinished:
             closing_spec,
             workspace=workspace,
             llm=llm,  # type: ignore[arg-type]
-        )
+        ).result
 
         assert isinstance(lesson, Lesson)
         assert lesson.narrative == plain_markdown
@@ -869,7 +1152,7 @@ class TestFallbackPersistsToFinished:
             closing_spec,
             workspace=workspace,
             llm=llm,  # type: ignore[arg-type]
-        )
+        ).result
 
         assert isinstance(result, SkippedLesson)
         finished_path = workspace.base_dir / "finished" / "lesson-closing" / "lesson.json"
@@ -904,12 +1187,13 @@ class TestFallbackPersistsToFinished:
                 )
             ]
         )
-        result1 = run_lesson(
+        outcome1 = run_lesson(
             simple_spec,
             workspace=workspace,
             llm=llm1,  # type: ignore[arg-type]
             tool_registry=tool_registry,
         )
+        result1 = outcome1.result
         assert isinstance(result1, SkippedLesson)
 
         # Second run — must resume from checkpoint without calling run_agent.
@@ -917,12 +1201,13 @@ class TestFallbackPersistsToFinished:
             def run_agent(self, **kwargs: Any) -> AgentResult:  # type: ignore[override]
                 raise AssertionError("run_agent must not be called on resume")
 
-        result2 = run_lesson(
+        outcome2 = run_lesson(
             simple_spec,
             workspace=workspace,
             llm=_AssertNotCalled([]),  # type: ignore[arg-type]
             tool_registry=tool_registry,
         )
+        result2 = outcome2.result
         assert isinstance(result2, SkippedLesson)
         assert result2.lesson_id == "lesson-001"
 
