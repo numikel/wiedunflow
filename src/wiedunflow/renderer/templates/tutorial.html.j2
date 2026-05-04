@@ -17,6 +17,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none';">
   <title>{{ repo_name }} — WiedunFlow Tutorial</title>
   <style>
 {{ tokens_css | safe }}
@@ -116,6 +117,9 @@
   <script type="application/json" id="tutorial-clusters">{{ clusters_json | safe }}</script>
   <script type="application/json" id="tutorial-lessons">{{ lessons_json | safe }}</script>
 
+  <script>
+{{ dompurify_js | safe }}
+  </script>
   <script>
 {{ tutorial_js | safe }}
   </script>

@@ -91,10 +91,10 @@
           // as a document fragment so block elements (h1/h2/pre/ol/ul) land at
           // the top level of the narration column, not wrapped in <p>.
           var tmpl = document.createElement("template");
-          tmpl.innerHTML = seg.text;
+          tmpl.innerHTML = DOMPurify.sanitize(seg.text, {USE_PROFILES: {html: true}});
           root.appendChild(tmpl.content);
         } else if (seg.kind === "p") {
-          var p = document.createElement("p"); p.innerHTML = seg.text; root.appendChild(p);
+          var p = document.createElement("p"); p.innerHTML = DOMPurify.sanitize(seg.text, {USE_PROFILES: {html: true}}); root.appendChild(p);
           if (seg.code_ref) {
             var inline = document.createElement("pre");
             inline.className = "mobile-inline-code";
@@ -189,7 +189,7 @@
       head.textContent = "Project README";
       var wrap = document.createElement("div");
       wrap.className = "code-readme prose";
-      wrap.innerHTML = lesson.code_panel_html;
+      wrap.innerHTML = DOMPurify.sanitize(lesson.code_panel_html, {USE_PROFILES: {html: true}});
       root.appendChild(wrap);
       return;
     }
