@@ -9,7 +9,7 @@ from typing import Any
 
 from wiedunflow.entities.call_graph import CallGraph
 from wiedunflow.entities.code_symbol import CodeSymbol
-from wiedunflow.interfaces.ports import VectorStore
+from wiedunflow.interfaces.ports import FsBoundary, PathOutsideRootError, VectorStore
 
 # ---------------------------------------------------------------------------
 # Size caps
@@ -204,20 +204,53 @@ def make_search_docs(vector_store: VectorStore) -> ToolFn:
     return _call
 
 
-def make_read_tests(repo_root: Path, symbols: list[CodeSymbol]) -> ToolFn:
+def make_read_tests(
+    repo_root: Path,
+    symbols: list[CodeSymbol],
+    fs_boundary: FsBoundary,
+) -> ToolFn:
     """Find and return test code that mentions a symbol (up to 10 KB).
 
     Searches ``<repo_root>/tests/`` and ``<repo_root>/test/`` for
     ``test_*.py`` files that contain the symbol's short name (the part after
     the last dot), then returns up to 5 line-context excerpts per file.
 
+    The ``fs_boundary`` guard is applied defensively to every resolved test
+    file path — this catches symlinks inside the test tree that point outside
+    ``repo_root``.
+
     Args:
         repo_root: Absolute path to the repository root.
         symbols: All symbols from the ingestion snapshot.
+        fs_boundary: Boundary guard; files resolving outside root are skipped.
 
     Returns:
         A tool function ``(args) -> str``.
     """
+
+    def _excerpt_for_file(safe_file: Path, short: str) -> str | None:
+        """Return a context excerpt for *safe_file* if it mentions *short*, else None."""
+        try:
+            content = safe_file.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        if short not in content:
+            return None
+        try:
+            rel: Path | str = safe_file.relative_to(repo_root)
+        except ValueError:
+            rel = safe_file
+        file_lines = content.splitlines()
+        ctx_blocks: list[str] = []
+        for i, line in enumerate(file_lines):
+            if short in line:
+                start = max(0, i - 2)
+                end = min(len(file_lines), i + 5)
+                block = "\n".join(file_lines[start:end])
+                ctx_blocks.append(f"... line {i + 1}:\n{block}")
+                if len(ctx_blocks) >= _CAP_TEST_CTX_BLOCKS:
+                    break
+        return "\n".join([f"# {rel}", *ctx_blocks])
 
     def _call(args: dict[str, Any]) -> str:
         symbol = str(args.get("symbol", ""))
@@ -229,29 +262,15 @@ def make_read_tests(repo_root: Path, symbols: list[CodeSymbol]) -> ToolFn:
             if not test_dir.exists():
                 continue
             for test_file in sorted(test_dir.rglob("test_*.py")):
+                # Defensive boundary check: skip files that resolve outside
+                # repo_root (possible via symlinks in the test tree).
                 try:
-                    content = test_file.read_text(encoding="utf-8", errors="replace")
-                except OSError:
+                    safe_test_file = fs_boundary.ensure_within_root(test_file)
+                except PathOutsideRootError:
                     continue
-                if short not in content:
+                excerpt = _excerpt_for_file(safe_test_file, short)
+                if excerpt is None:
                     continue
-                try:
-                    rel = test_file.relative_to(repo_root)
-                except ValueError:
-                    rel = test_file
-                excerpt_lines: list[str] = [f"# {rel}"]
-                file_lines = content.splitlines()
-                ctx_blocks: list[str] = []
-                for i, line in enumerate(file_lines):
-                    if short in line:
-                        start = max(0, i - 2)
-                        end = min(len(file_lines), i + 5)
-                        block = "\n".join(file_lines[start:end])
-                        ctx_blocks.append(f"... line {i + 1}:\n{block}")
-                        if len(ctx_blocks) >= _CAP_TEST_CTX_BLOCKS:
-                            break
-                excerpt_lines.extend(ctx_blocks)
-                excerpt = "\n".join(excerpt_lines)
                 hits.append(excerpt)
                 total_chars += len(excerpt)
                 if total_chars > _CAP_TESTS:
@@ -266,11 +285,16 @@ def make_read_tests(repo_root: Path, symbols: list[CodeSymbol]) -> ToolFn:
     return _call
 
 
-def make_grep_usages(repo_root: Path) -> ToolFn:
+def make_grep_usages(repo_root: Path, fs_boundary: FsBoundary) -> ToolFn:
     """Regex grep over Python files in the repo (skips common noise dirs).
+
+    The ``fs_boundary`` guard is applied defensively to every resolved Python
+    file path — this catches symlinks inside the repo tree that point outside
+    ``repo_root``.
 
     Args:
         repo_root: Absolute path to the repository root.
+        fs_boundary: Boundary guard; files resolving outside root are skipped.
 
     Returns:
         A tool function ``(args) -> str``.  Accepts ``pattern`` (required)
@@ -285,16 +309,22 @@ def make_grep_usages(repo_root: Path) -> ToolFn:
             return f"[grep_usages] Invalid regex: {e}"
         hits: list[str] = []
         for src_file in _iter_python_files(repo_root, _SKIP_DIRS):
+            # Defensive boundary check: skip files that resolve outside root
+            # (possible via symlinks anywhere in the repo tree).
             try:
-                content = src_file.read_text(encoding="utf-8", errors="replace")
+                safe_src_file = fs_boundary.ensure_within_root(src_file)
+            except PathOutsideRootError:
+                continue
+            try:
+                content = safe_src_file.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
             for i, line in enumerate(content.splitlines(), 1):
                 if pat.search(line):
                     try:
-                        rel = src_file.relative_to(repo_root)
+                        rel = safe_src_file.relative_to(repo_root)
                     except ValueError:
-                        rel = src_file
+                        rel = safe_src_file
                     hits.append(f"{rel}:{i}: {line.rstrip()}")
                     if len(hits) >= _CAP_GREP:
                         hits.append(f"... [{_CAP_GREP} hits limit reached]")
@@ -306,11 +336,16 @@ def make_grep_usages(repo_root: Path) -> ToolFn:
     return _call
 
 
-def make_list_files_in_dir(repo_root: Path) -> ToolFn:
+def make_list_files_in_dir(repo_root: Path, fs_boundary: FsBoundary) -> ToolFn:
     """List files and subdirectories relative to ``repo_root``.
+
+    The ``fs_boundary`` guard is applied to the LLM-supplied path before any
+    filesystem access. Symlinked entries that resolve outside ``repo_root`` are
+    silently skipped in the listing.
 
     Args:
         repo_root: Absolute path to the repository root.
+        fs_boundary: Boundary guard; escaping paths return an error string.
 
     Returns:
         A tool function ``(args) -> str``.  Accepts ``path`` (default
@@ -320,19 +355,29 @@ def make_list_files_in_dir(repo_root: Path) -> ToolFn:
     def _call(args: dict[str, Any]) -> str:
         rel_path = str(args.get("path", "."))
         target = repo_root / rel_path
-        if not target.exists():
+        # Primary guard: validate the user-supplied directory path.
+        try:
+            safe_target = fs_boundary.ensure_within_root(target)
+        except PathOutsideRootError as exc:
+            return f"error: {exc}"
+        if not safe_target.exists():
             return f"[list_files_in_dir] Path '{rel_path}' does not exist"
-        if not target.is_dir():
+        if not safe_target.is_dir():
             return f"[list_files_in_dir] '{rel_path}' is a file, not a directory"
-        all_entries = sorted(target.iterdir())
+        all_entries = sorted(safe_target.iterdir())
         truncated = len(all_entries) > _CAP_LIST_FILES
         entries = all_entries[:_CAP_LIST_FILES]
         lines: list[str] = []
         for e in entries:
+            # Defensive: skip any entry (e.g. symlink) that resolves outside root.
+            try:
+                fs_boundary.ensure_within_root(e)
+            except PathOutsideRootError:
+                continue
             try:
                 rel = e.relative_to(repo_root)
             except ValueError:
-                rel = e
+                continue
             suffix = "/" if e.is_dir() else ""
             lines.append(f"{rel}{suffix}")
         if truncated:
@@ -342,11 +387,15 @@ def make_list_files_in_dir(repo_root: Path) -> ToolFn:
     return _call
 
 
-def make_read_lines(repo_root: Path) -> ToolFn:
+def make_read_lines(repo_root: Path, fs_boundary: FsBoundary) -> ToolFn:
     """Read specific lines from a file (up to ``_CAP_LINES`` lines).
+
+    The ``fs_boundary`` guard is applied to the LLM-supplied file path before
+    any filesystem access, preventing path-traversal attacks.
 
     Args:
         repo_root: Absolute path to the repository root.
+        fs_boundary: Boundary guard; escaping paths return an error string.
 
     Returns:
         A tool function ``(args) -> str``.  Accepts ``file_path`` (relative to
@@ -360,12 +409,17 @@ def make_read_lines(repo_root: Path) -> ToolFn:
         end_arg = args.get("end")
         end = int(end_arg) if end_arg is not None else start + 50
         target = repo_root / file_path
-        if not target.exists():
+        # Primary guard: validate the user-supplied file path.
+        try:
+            safe_target = fs_boundary.ensure_within_root(target)
+        except PathOutsideRootError as exc:
+            return f"error: {exc}"
+        if not safe_target.exists():
             return f"[read_lines] File '{file_path}' does not exist"
-        if not target.is_file():
+        if not safe_target.is_file():
             return f"[read_lines] '{file_path}' is not a file"
         try:
-            all_lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
+            all_lines = safe_target.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError as e:
             return f"[read_lines] Cannot read '{file_path}': {e}"
         start_idx = max(0, start - 1)
@@ -388,6 +442,7 @@ def build_tool_registry(
     graph: CallGraph,
     vector_store: VectorStore,
     repo_root: Path,
+    fs_boundary: FsBoundary,
 ) -> dict[str, ToolFn]:
     """Build a ``name → tool_fn`` registry.  Called once per run.
 
@@ -399,6 +454,9 @@ def build_tool_registry(
         graph: The resolved (Jedi-processed) call graph.
         vector_store: An indexed :class:`~wiedunflow.interfaces.ports.VectorStore`.
         repo_root: Absolute path to the repository root used for file tools.
+        fs_boundary: Filesystem boundary guard injected into every fs-touching
+            tool factory.  Must satisfy
+            :class:`~wiedunflow.interfaces.ports.FsBoundary`.
 
     Returns:
         Dictionary mapping tool names to their ``(args) -> str`` callables.
@@ -408,10 +466,10 @@ def build_tool_registry(
         "get_callers": make_get_callers(graph),
         "get_callees": make_get_callees(graph),
         "search_docs": make_search_docs(vector_store),
-        "read_tests": make_read_tests(repo_root, symbols),
-        "grep_usages": make_grep_usages(repo_root),
-        "list_files_in_dir": make_list_files_in_dir(repo_root),
-        "read_lines": make_read_lines(repo_root),
+        "read_tests": make_read_tests(repo_root, symbols, fs_boundary),
+        "grep_usages": make_grep_usages(repo_root, fs_boundary),
+        "list_files_in_dir": make_list_files_in_dir(repo_root, fs_boundary),
+        "read_lines": make_read_lines(repo_root, fs_boundary),
     }
 
 

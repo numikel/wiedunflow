@@ -11,6 +11,7 @@ import structlog
 from pydantic import BaseModel, ConfigDict
 
 from wiedunflow import __version__ as _wiedunflow_version
+from wiedunflow.adapters.fs_boundary import DefaultFsBoundary
 from wiedunflow.adapters.jinja_renderer import JinjaRenderer, _markdown_to_html
 from wiedunflow.adapters.pygments_highlighter import highlight_python as _highlight_python
 from wiedunflow.cli.cost_estimator import CostEstimate
@@ -790,6 +791,7 @@ def _stage_generation(
         graph=graph,
         vector_store=vector_store,
         repo_root=repo_path,
+        fs_boundary=DefaultFsBoundary(root=repo_path),
     )
 
     output = _StageGenerationOutput()

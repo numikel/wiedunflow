@@ -16,6 +16,29 @@ from wiedunflow.entities.lesson import Lesson
 from wiedunflow.entities.lesson_manifest import LessonManifest
 from wiedunflow.entities.ranked_graph import RankedGraph
 
+# ---------------------------------------------------------------------------
+# Exceptions
+# ---------------------------------------------------------------------------
+
+
+class PathOutsideRootError(PermissionError):
+    """Raised when an LLM-controlled path escapes the designated repo root.
+
+    Why: tool inputs to the Researcher agent include paths drawn from the
+    prompt-injection surface (analyzed third-party repo docstrings or
+    LLM-generated arguments). A crafted ``../../etc/passwd`` must not resolve
+    to a real host file outside ``repo_root``.
+
+    Inherits from :class:`PermissionError` so callers that already catch broad
+    OS-level permission errors will also catch boundary violations without
+    additional handling.
+    """
+
+
+# ---------------------------------------------------------------------------
+# Value objects (Pydantic models used as ports-layer DTOs)
+# ---------------------------------------------------------------------------
+
 
 class ToolSpec(BaseModel):
     """Specification for a tool that an agent can call."""
@@ -62,6 +85,11 @@ class AgentResult(BaseModel):
     total_cost_usd: float
     stop_reason: Literal["end_turn", "max_iterations", "max_cost", "error"]
     iterations: int
+
+
+# ---------------------------------------------------------------------------
+# Protocols (ports)
+# ---------------------------------------------------------------------------
 
 
 @runtime_checkable
@@ -203,7 +231,7 @@ class Parser(Protocol):
 class Resolver(Protocol):
     """Port for semantic resolution of call-graph edges (Jedi-powered by default).
 
-    Consumes the raw graph emitted by :class:`Parser` and returns a refined graph
+    Consumes the raw graph emitted by :class:`Parser`` and returns a refined graph
     where edges reference known node names. Attaches a :class:`ResolutionStats`
     summary reporting 3-tier coverage (resolved / uncertain / unresolved).
     """
@@ -271,6 +299,42 @@ class Cache(Protocol):
 
     def save_file_cache(self, entry: FileCacheEntry) -> None:
         """Persist file-level analysis payload keyed by its content SHA-256."""
+        ...
+
+
+@runtime_checkable
+class FsBoundary(Protocol):
+    """Port that validates filesystem paths stay within a designated root.
+
+    The production adapter is
+    :class:`~wiedunflow.adapters.fs_boundary.DefaultFsBoundary`.
+    Tests may inject any callable object that satisfies this structural
+    Protocol (including a simple lambda that always passes or always raises).
+
+    The boundary guard is applied to all four filesystem-touching tools in the
+    agent tool registry:
+
+    * ``list_files_in_dir`` — LLM supplies a relative directory path
+    * ``read_lines`` — LLM supplies a relative file path
+    * ``read_tests`` — defensive; paths come from ``rglob`` within ``tests/``
+    * ``grep_usages`` — defensive; paths come from ``rglob`` over Python files
+
+    Only ``list_files_in_dir`` and ``read_lines`` accept user-controlled path
+    strings; the other two are defended in depth against symlink escape.
+    """
+
+    def ensure_within_root(self, target: Path) -> Path:
+        """Resolve *target* and assert it is contained within the root.
+
+        Args:
+            target: The candidate path to validate.
+
+        Returns:
+            The fully-resolved absolute ``Path``.
+
+        Raises:
+            PathOutsideRootError: When the resolved path escapes the root.
+        """
         ...
 
 
