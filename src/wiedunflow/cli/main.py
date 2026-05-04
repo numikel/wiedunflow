@@ -29,10 +29,10 @@ import click
 from wiedunflow import __version__
 from wiedunflow.adapters import (
     Bm25Store,
-    FakeClock,
     FakeLLMProvider,
     JediResolver,
     NetworkxRanker,
+    SystemClock,
     TreeSitterParser,
 )
 from wiedunflow.adapters.anthropic_provider import AnthropicProvider
@@ -456,7 +456,7 @@ def generate_cmd(
         ranker=NetworkxRanker(),
         vector_store=Bm25Store(),
         cache=cache,
-        clock=FakeClock(),
+        clock=SystemClock(),
     )
 
     sigint = SigintHandler()

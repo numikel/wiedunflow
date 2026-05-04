@@ -6,8 +6,8 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from tests.fakes.clock import FakeClock
 from wiedunflow.adapters import (
-    FakeClock,
     FakeLLMProvider,
     InMemoryCache,
     StubBm25Store,

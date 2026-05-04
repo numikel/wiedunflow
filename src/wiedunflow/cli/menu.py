@@ -1833,9 +1833,9 @@ def _launch_pipeline(payload: dict[str, Any]) -> None:
 
     from wiedunflow.adapters import (
         Bm25Store,
-        FakeClock,
         JediResolver,
         NetworkxRanker,
+        SystemClock,
         TreeSitterParser,
     )
     from wiedunflow.adapters.sqlite_cache import SQLiteCache
@@ -1885,7 +1885,7 @@ def _launch_pipeline(payload: dict[str, Any]) -> None:
         ranker=NetworkxRanker(),
         vector_store=Bm25Store(),
         cache=SQLiteCache(),
-        clock=FakeClock(),
+        clock=SystemClock(),
     )
 
     sigint = SigintHandler()

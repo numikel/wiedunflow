@@ -8,7 +8,6 @@ from wiedunflow.adapters.dynamic_import_detector import (
     detect_dynamic_imports,
     detect_strict_uncertainty,
 )
-from wiedunflow.adapters.fake_clock import FakeClock
 from wiedunflow.adapters.fake_llm_provider import FakeLLMProvider
 from wiedunflow.adapters.git_context import get_git_context
 from wiedunflow.adapters.in_memory_cache import InMemoryCache
@@ -17,6 +16,7 @@ from wiedunflow.adapters.networkx_ranker import NetworkxRanker
 from wiedunflow.adapters.stub_jedi_resolver import StubJediResolver
 from wiedunflow.adapters.stub_ranker import StubRanker
 from wiedunflow.adapters.stub_tree_sitter import StubTreeSitterParser
+from wiedunflow.adapters.system_clock import SystemClock
 from wiedunflow.adapters.tree_sitter_parser import TreeSitterParser
 from wiedunflow.adapters.yaml_consent_store import YamlConsentStore
 
@@ -25,7 +25,6 @@ StubBm25Store = Bm25Store
 
 __all__ = [
     "Bm25Store",
-    "FakeClock",
     "FakeLLMProvider",
     "InMemoryCache",
     "JediResolver",
@@ -34,6 +33,7 @@ __all__ = [
     "StubJediResolver",
     "StubRanker",
     "StubTreeSitterParser",
+    "SystemClock",
     "TreeSitterParser",
     "YamlConsentStore",
     "detect_cycles",
