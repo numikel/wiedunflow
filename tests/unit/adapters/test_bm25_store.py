@@ -68,8 +68,8 @@ def test_index_and_search_returns_top_k_sorted_desc() -> None:
     # Both top results should be from the BM25-related documents
     ids = [r[0] for r in results]
     assert "doc_c" in ids or "doc_b" in ids
-    # Scores must be sorted descending
-    assert results[0][1] >= results[1][1]
+    # Scores must be sorted descending (score is now index [2] — tuple is (id, text, score))
+    assert results[0][2] >= results[1][2]
 
 
 def test_index_empty_documents_clears_store() -> None:

@@ -15,6 +15,10 @@
       "lesson_spec": {
         "type": "string",
         "description": "JSON string containing the lesson specification from the planning stage. Must include at minimum: lesson_id, lesson_title, lesson_teaches, primary_symbol, code_refs, and concepts_introduced. Example: '{\"lesson_id\": \"lesson-03\", \"lesson_title\": \"Retry Policy\", \"lesson_teaches\": \"How exponential backoff is applied to provider rate limits\", \"primary_symbol\": \"adapters.openai_provider.OpenAIProvider._call_with_retry\", \"code_refs\": [...], \"concepts_introduced\": [\"exponential-backoff\"]}'"
+      },
+      "reviewer_feedback": {
+        "type": "string",
+        "description": "Feedback from a prior Reviewer fatal verdict. Pass verbatim to the Writer to guide the retry. Omit on the first dispatch."
       }
     },
     "required": ["research_refs", "lesson_spec"]

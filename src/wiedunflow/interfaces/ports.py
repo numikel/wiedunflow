@@ -244,8 +244,8 @@ class VectorStore(Protocol):
         """Index a list of (id, text) pairs."""
         ...
 
-    def search(self, query: str, k: int = 5) -> list[tuple[str, float]]:
-        """Return up to k (id, score) pairs for the given query."""
+    def search(self, query: str, k: int = 5) -> list[tuple[str, str, float]]:
+        """Return up to k (doc_id, text, score) triples for the given query."""
         ...
 
 

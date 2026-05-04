@@ -32,6 +32,17 @@ class PlanningFatalError(RuntimeError):
         self.last_error = last_error
 
 
+def _prepend_allowed_symbols(outline: str, allowed_symbols: frozenset[str]) -> str:
+    """Prepend an ALLOWED SYMBOLS list to the planning outline.
+
+    Mirrors the reinforcement block from ``_build_reinforcement`` so the model
+    gets the full symbol list on the first attempt, not only on retry.
+    """
+    top = sorted(allowed_symbols)[:100]
+    block = "\n".join(f"- {s}" for s in top)
+    return f"{outline}\n\nALLOWED SYMBOLS (use only names from this list in code_refs):\n{block}"
+
+
 def plan_with_retry(
     llm: LLMProvider,
     outline: str,
@@ -71,7 +82,7 @@ def plan_with_retry(
     """
     attempts = 0
     last_error = ""
-    current_outline = outline
+    current_outline = _prepend_allowed_symbols(outline, allowed_symbols)
     _ep = entry_points or frozenset()
 
     while attempts < _MAX_PLANNING_ATTEMPTS:

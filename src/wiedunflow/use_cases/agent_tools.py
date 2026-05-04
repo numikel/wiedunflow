@@ -190,10 +190,15 @@ def make_search_docs(vector_store: VectorStore) -> ToolFn:
             return "[search_docs] No results found"
         lines: list[str] = []
         total = 0
-        for doc_id, score in results:
-            snippet = f"[{doc_id}] (score={score:.3f})"
-            lines.append(snippet)
-            total += len(snippet)
+        for doc_id, text, score in results:
+            snippet = text[:500].replace("\n", " ").strip()
+            entry = (
+                f"[{doc_id}] (score={score:.3f})\n  {snippet}"
+                if snippet
+                else f"[{doc_id}] (score={score:.3f})"
+            )
+            lines.append(entry)
+            total += len(entry)
             if total > _CAP_DOCS:
                 lines.append("... [truncated]")
                 break

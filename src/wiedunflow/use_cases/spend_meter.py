@@ -20,7 +20,7 @@ class SpendMeter:
     Args:
         budget_usd: Maximum allowed spend in USD.
         abort_factor: Abort when ``actual_cost > budget_usd * abort_factor``
-            (default 1.5 — permits a 50% overrun before hard abort).
+            (default 1.1 — permits a 10% buffer above budget before hard abort).
         pricing: Optional ``PricingCatalog`` for model-specific blended rates.
             When ``None``, the conservative fallback of
             ``_FALLBACK_BLENDED_PRICE_PER_MTOK`` USD/MTok is used for every
@@ -31,7 +31,7 @@ class SpendMeter:
         self,
         *,
         budget_usd: float,
-        abort_factor: float = 1.5,
+        abort_factor: float = 1.1,
         pricing: PricingCatalog | None = None,
     ) -> None:
         if budget_usd <= 0:
@@ -77,7 +77,7 @@ class SpendMeter:
         )
 
     def would_exceed(self) -> bool:
-        """Return ``True`` when ``actual_cost > budget_usd * abort_factor``."""
+        """Return ``True`` when ``actual_cost > budget_usd * abort_factor`` (10% buffer above budget)."""
         return self._total_cost_usd > self._budget_usd * self._abort_factor
 
     def assert_within_budget(self) -> None:
@@ -114,7 +114,7 @@ class SpendMeter:
 
     @property
     def abort_factor(self) -> float:
-        """The configured abort factor (abort when cost exceeds budget x factor)."""
+        """The configured abort factor (abort when cost exceeds budget x factor; default 1.1 = 10% buffer)."""
         return self._abort_factor
 
     @property

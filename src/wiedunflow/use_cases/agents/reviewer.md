@@ -20,6 +20,8 @@ input_schema:
   primary_symbol: str
   research_notes: str
   concepts_introduced: list[str]
+  word_count_floor: int
+  word_count_fatal_floor: int
 output_contract:
   format: json
   description: "JSON: {\"verdict\": \"pass|warn|fatal\", \"checks\": [{\"name\": str, \"result\": \"pass|warn|fatal\", \"severity\": \"info|warn|fatal\", \"message\": str}], \"feedback\": str}"
@@ -67,9 +69,9 @@ Tool: call `read_symbol_body` on the primary symbol to compare the actual signat
 
 ### 3. `word_count` — Minimum content length
 - Count the words in the draft narrative.
-- **Pass**: ≥ 150 words.
-- **Warn**: 80–149 words (thin but not useless).
-- **Fatal**: < 80 words (the lesson conveys essentially no information).
+- **Pass**: ≥ {{word_count_floor}} words.
+- **Warn**: {{word_count_fatal_floor}}–{{word_count_floor}}-1 words (thin but not useless).
+- **Fatal**: < {{word_count_fatal_floor}} words (the lesson conveys essentially no information).
 
 No tool needed — count directly from `draft_narrative`.
 

@@ -15,9 +15,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from wiedunflow.entities.lesson import Lesson
 from wiedunflow.entities.lesson_manifest import LessonSpec
 from wiedunflow.entities.skipped_lesson import SkippedLesson
+from wiedunflow.entities.word_count import fatal_floor_for_span, floor_for_span
 from wiedunflow.interfaces.ports import (
     AgentResult,
     LLMProvider,
@@ -177,13 +180,65 @@ def _run_researcher(
     return f"Research notes saved to {rel} (stop_reason={result.stop_reason})."
 
 
+_SYMBOL_BLOCKLIST: frozenset[str] = frozenset(
+    {
+        # Python literals
+        "None",
+        "True",
+        "False",
+        # Built-in types
+        "str",
+        "int",
+        "float",
+        "bool",
+        "list",
+        "dict",
+        "tuple",
+        "set",
+        "bytes",
+        "bytearray",
+        "memoryview",
+        "type",
+        "object",
+        # Common exceptions
+        "Exception",
+        "ValueError",
+        "TypeError",
+        "KeyError",
+        "AttributeError",
+        "RuntimeError",
+        "StopIteration",
+        # Common stdlib top-level names
+        "Path",
+        "os",
+        "re",
+        "json",
+        "logging",
+        "sys",
+        # typing
+        "Any",
+        "Optional",
+        "Union",
+        "Callable",
+        "Iterator",
+        "Generator",
+        "Sequence",
+        "Mapping",
+        "typing",
+    }
+)
+
+
 def _extract_research_symbols(text: str) -> set[str]:
     """Return the set of backtick-wrapped identifiers found in *text*.
 
     Used as a heuristic to build the grounding reference set from research notes.
-    Matches ``foo``, ``module.sub.foo``, etc.
+    Matches ``foo``, ``module.sub.foo``, etc.  Common builtins and stdlib names
+    are filtered via :data:`_SYMBOL_BLOCKLIST` to avoid inflating the grounding
+    reference set with non-project symbols.
     """
-    return {m.group(1) for m in re.finditer(r"`([\w.]+(?:\.\w+)*)`", text)}
+    raw = {m.group(1) for m in re.finditer(r"`([\w.]+(?:\.\w+)*)`", text)}
+    return raw - _SYMBOL_BLOCKLIST
 
 
 def _assemble_draft_markdown(draft_holder: dict[str, Any]) -> tuple[str, list[str]]:
@@ -238,6 +293,7 @@ def _run_writer(
     spend_meter: SpendMeterProto | None,
     agents_dir: Path | None,
     target_audience: str,
+    reviewer_feedback: str = "",
 ) -> str:
     """Run a Writer sub-agent and save the draft to workspace.
 
@@ -295,14 +351,23 @@ def _run_writer(
     tool_specs = [_tool_spec_from_schema(s) for s in card.tools]
     executor = _make_tool_executor(writer_registry)
 
+    user_msg = (
+        f"Write the full tutorial lesson for `{lesson_id}` ({lesson_title}).\n"
+        f"Lesson spec:\n{lesson_spec_json}\n\n"
+    )
+    if reviewer_feedback:
+        user_msg += (
+            f"REVIEWER FEEDBACK FROM PRIOR ATTEMPT (address all points before submitting):\n"
+            f"{reviewer_feedback}\n\n"
+        )
+    user_msg += (
+        "Submit your draft via the submit_lesson_draft tool. "
+        "Do not write prose outside the tool call."
+    )
+
     result: AgentResult = llm.run_agent(
         system=card.system_prompt,
-        user=(
-            f"Write the full tutorial lesson for `{lesson_id}` ({lesson_title}).\n"
-            f"Lesson spec:\n{lesson_spec_json}\n\n"
-            f"Submit your draft via the submit_lesson_draft tool. "
-            f"Do not write prose outside the tool call."
-        ),
+        user=user_msg,
         tools=tool_specs,
         tool_executor=executor,
         model=model,
@@ -390,6 +455,8 @@ def _run_reviewer(
     budget_usd: float,
     spend_meter: SpendMeterProto | None,
     agents_dir: Path | None,
+    word_count_floor: int,
+    word_count_fatal_floor: int,
 ) -> str:
     """Run a Reviewer sub-agent and return its JSON verdict as a string."""
     full_draft = workspace.base_dir / draft_path
@@ -410,6 +477,8 @@ def _run_reviewer(
             "primary_symbol": primary_symbol,
             "research_notes": combined_notes,
             "concepts_introduced": str(list(concepts_introduced)),
+            "word_count_floor": str(word_count_floor),
+            "word_count_fatal_floor": str(word_count_fatal_floor),
         },
         agents_dir=agents_dir,
     )
@@ -518,6 +587,7 @@ def _build_dispatch_tools(
     def _dispatch_writer(args: dict[str, Any]) -> str:
         refs = list(args.get("research_refs", state.research_paths))
         ls_json = str(args.get("lesson_spec", lesson_spec_json))
+        reviewer_fb = str(args.get("reviewer_feedback", "")).strip()
         return _run_writer(
             research_refs=refs,
             lesson_spec_json=ls_json,
@@ -534,11 +604,15 @@ def _build_dispatch_tools(
             spend_meter=spend_meter,
             agents_dir=agents_dir,
             target_audience=target_audience,
+            reviewer_feedback=reviewer_fb,
         )
 
     def _dispatch_reviewer(args: dict[str, Any]) -> str:
         draft = str(args.get("draft_path", state.last_draft_path or ""))
         refs = list(args.get("research_refs", state.research_paths))
+        _span = (
+            spec.code_refs[0].line_end - spec.code_refs[0].line_start + 1 if spec.code_refs else 1
+        )
         return _run_reviewer(
             draft_path=draft,
             research_refs=refs,
@@ -552,6 +626,8 @@ def _build_dispatch_tools(
             budget_usd=float(args.get("budget_usd", 0.15)),
             spend_meter=spend_meter,
             agents_dir=agents_dir,
+            word_count_floor=floor_for_span(_span),
+            word_count_fatal_floor=fatal_floor_for_span(_span),
         )
 
     def _mark_lesson_done(args: dict[str, Any]) -> str:
@@ -623,6 +699,7 @@ _WRITER_SECTIONS: tuple[str, ...] = (
     "overview",
     "how_it_works",
     "key_details",
+    "in_context",
     "what_to_watch_for",
 )
 
@@ -699,8 +776,12 @@ def run_closing_lesson(
             data = workspace.read_json(finished_path)
             if isinstance(data, dict) and not data.get("skipped"):
                 return RunLessonOutcome(result=Lesson.model_validate(data))
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError, ValidationError):
+            logger.warning(
+                "closing_lesson_resume_parse_error lesson=%s",
+                lesson_id,
+                exc_info=True,
+            )
 
     closing_notes = (
         f"This is the closing 'Where to go next' lesson.\n\n"

@@ -133,6 +133,7 @@ class Bm25Store:
 
     def __init__(self) -> None:
         self._doc_ids: list[str] = []
+        self._doc_texts: dict[str, str] = {}
         self._bm25: BM25Okapi | None = None
 
     # ------------------------------------------------------------------
@@ -152,15 +153,17 @@ class Bm25Store:
         """
         if not documents:
             self._doc_ids = []
+            self._doc_texts = {}
             self._bm25 = None
             return
 
         self._doc_ids = [doc_id for doc_id, _ in documents]
+        self._doc_texts = {doc_id: text for doc_id, text in documents}
         tokenized_corpus = [_tokenize(content) for _, content in documents]
         self._bm25 = BM25Okapi(tokenized_corpus, k1=1.5, b=0.75)
 
-    def search(self, query: str, k: int = 5) -> list[tuple[str, float]]:
-        """Return up to *k* ``(doc_id, score)`` pairs ranked by relevance.
+    def search(self, query: str, k: int = 5) -> list[tuple[str, str, float]]:
+        """Return up to *k* ``(doc_id, text, score)`` triples ranked by relevance.
 
         Returns an empty list when the store has not been indexed or the
         tokenised query is empty (all tokens are stopwords / single chars).
@@ -170,8 +173,9 @@ class Bm25Store:
             k: Maximum number of results to return.
 
         Returns:
-            List of ``(doc_id, score)`` pairs sorted by score descending.
-            Scores are raw BM25 values (non-negative floats).
+            List of ``(doc_id, text, score)`` triples sorted by score descending.
+            Scores are raw BM25 values (non-negative floats).  ``text`` is the
+            original document content as supplied to :meth:`index`.
         """
         if self._bm25 is None or not self._doc_ids:
             return []
@@ -181,10 +185,13 @@ class Bm25Store:
             return []
 
         scores = self._bm25.get_scores(tokenized_query)
-        # Pair each doc_id with its score, sort descending, take top-k.
+        # Pair each doc_id with its text and score, sort descending, take top-k.
         ranked = sorted(
-            zip(self._doc_ids, (float(s) for s in scores), strict=True),
-            key=lambda pair: pair[1],
+            (
+                (doc_id, self._doc_texts.get(doc_id, ""), float(s))
+                for doc_id, s in zip(self._doc_ids, scores, strict=True)
+            ),
+            key=lambda triple: triple[2],
             reverse=True,
         )
         return ranked[:k]

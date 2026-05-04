@@ -12,6 +12,8 @@
       "checks": {
         "type": "array",
         "description": "One entry per rubric check (6 total). The Orchestrator uses these to decide retry vs. accept vs. skip.",
+        "minItems": 6,
+        "maxItems": 6,
         "items": {
           "type": "object",
           "properties": {

@@ -16,6 +16,10 @@
         "type": "string",
         "description": "Notable implementation details, edge cases in the body, parameter semantics, return type implications. Empty string \"\" if the symbol is trivial (single-line helper, plain getter) and there are no notable details."
       },
+      "in_context": {
+        "type": "string",
+        "description": "Where this symbol fits in the broader codebase architecture (1–2 paragraphs). Focus on placement — not a re-introduction of the symbol itself."
+      },
       "what_to_watch_for": {
         "type": "string",
         "description": "Edge cases, gotchas, dependencies the reader should pay attention to when reading or modifying this code. Include cross-references to other symbols by name when behavior depends on them. 1-2 paragraphs."
@@ -36,14 +40,14 @@
             },
             "callout": {
               "type": "string",
-              "description": "Brief explanation of why uncertain (dynamic dispatch, reflection, runtime polymorphism). Will be rendered as Obsidian > [!note] callout in the lesson."
+              "description": "Brief explanation of why uncertain (dynamic dispatch, reflection, runtime polymorphism). Will be rendered as a > **Note:** callout in the lesson."
             }
           },
           "required": ["symbol", "callout"]
         },
-        "description": "Symbols flagged as UNCERTAIN in research_notes that you reference in any section. May be empty array if no uncertain symbols are referenced. Each entry will be rendered as a > [!note] callout block in the final lesson markdown."
+        "description": "Symbols flagged as UNCERTAIN in research_notes that you reference in any section. May be empty array if no uncertain symbols are referenced. Each entry will be rendered as a > **Note:** callout block in the final lesson markdown."
       }
     },
-    "required": ["overview", "how_it_works", "key_details", "what_to_watch_for", "cited_symbols", "uncertain_regions"]
+    "required": ["overview", "how_it_works", "key_details", "in_context", "what_to_watch_for", "cited_symbols", "uncertain_regions"]
   }
 }

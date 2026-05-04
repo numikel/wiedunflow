@@ -39,7 +39,7 @@ class _NullPricing:
 def test_init_default_values() -> None:
     meter = SpendMeter(budget_usd=10.0)
     assert meter.budget_usd == 10.0
-    assert meter.abort_factor == 1.5
+    assert meter.abort_factor == 1.1
     assert meter.total_cost_usd == 0.0
     assert meter.calls == 0
 

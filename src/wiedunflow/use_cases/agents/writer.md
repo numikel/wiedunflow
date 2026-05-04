@@ -86,17 +86,17 @@ def document_loader_node(state: SummarifAIState):
 
 Hard rules for UNCERTAIN markers in `research_notes`. Violations cause a fatal Reviewer verdict:
 
-- **If `research_notes` flagged ANY symbol as UNCERTAIN, the lesson MUST include an Obsidian-style `> [!note]` callout** explaining what is uncertain and why.
+- **If `research_notes` flagged ANY symbol as UNCERTAIN, the lesson MUST include a `> **Note:**` callout** explaining what is uncertain and why.
 - **Never narrate UNCERTAIN behavior as if it were determined fact.** Frame it explicitly: "this dispatch happens at runtime — see actual callers for behavior", "the resolved import depends on configuration", "this method may be overridden in subclasses".
 - **The following patterns always get an explicit uncertainty callout**: dynamic imports, reflection (`getattr`, `setattr`), metaclass usage, runtime polymorphism, and unresolved Jedi references flagged in `research_notes`.
 - **Format**:
   ```markdown
-  > [!note] Runtime dispatch
+  > **Note:** Runtime dispatch
   > The `process()` call is resolved dynamically based on `config.processor_type` —
   > the actual implementation depends on runtime configuration, not on the symbol
   > you see in this lesson.
   ```
-- **Self-check**: scan `research_notes` for "UNCERTAIN" markers. For every UNCERTAIN symbol you reference in the lesson, verify you added a `> [!note]` callout. If any callout is missing — add it before submitting.
+- **Self-check**: scan `research_notes` for "UNCERTAIN" markers. For every UNCERTAIN symbol you reference in the lesson, verify you added a `> **Note:**` callout. If any callout is missing — add it before submitting.
 
 ## Narrative Structure
 
@@ -114,8 +114,8 @@ Structure every lesson with these sections:
 ### Key Details
 <Bullet list of 3–6 important facts: parameters, return values, error handling, configuration hooks. Each bullet = one grounded claim from research_notes.>
 
-### In Context
-<1–2 sentences describing callers or callees that make this symbol meaningful. Only include if research_notes has non-empty Callers Context or Dependencies. Skip section if both are empty.>
+### In Context (1–2 paragraphs)
+Explain where this symbol fits in the broader architecture. Answer: why does it exist, what module boundary does it sit at, what calls it and what does it call? Do not re-introduce the symbol.
 
 ### What To Watch For
 <1–3 sentences on edge cases, uncertainty regions, or gotchas documented in research_notes. Mandatory if UNCERTAIN entries exist. Optional but encouraged otherwise.>
@@ -157,8 +157,9 @@ Required arguments:
 - `overview`: 1-2 paragraph intro mentioning primary symbol by name (no code blocks).
 - `how_it_works`: step-by-step explanation, may include code blocks with verbatim signatures.
 - `key_details`: notable implementation details, OR empty string `""` for trivial helpers.
+- `in_context`: 1-2 paragraphs on where this symbol fits in the broader architecture (callers, module boundary, design role). Do not re-introduce the symbol.
 - `what_to_watch_for`: edge cases, gotchas, dependencies.
 - `cited_symbols`: list of every class/function/method name appearing in code blocks. MUST all appear verbatim in research_notes — Reviewer programmatically checks this.
 - `uncertain_regions`: list of `{symbol, callout}` for any UNCERTAIN-flagged symbols you reference (per Uncertainty Discipline).
 
-Do not write any prose outside the tool call — the Orchestrator reads only `submit_lesson_draft` arguments. The Orchestrator assembles the final markdown by rendering each section under its own `## Header` and inserting `> [!note]` callouts from `uncertain_regions`.
+Do not write any prose outside the tool call — the Orchestrator reads only `submit_lesson_draft` arguments. The Orchestrator assembles the final markdown by rendering each section under its own `## Header` and inserting `> **Note:**` callouts from `uncertain_regions`.

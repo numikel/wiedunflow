@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -26,14 +25,10 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from wiedunflow import __version__
+from wiedunflow.adapters._plan_parser import parse_plan_response
 from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.lesson import Lesson
-from wiedunflow.entities.lesson_manifest import (
-    LessonManifest,
-    LessonSpec,
-    ManifestMetadata,
-)
+from wiedunflow.entities.lesson_manifest import LessonManifest
 from wiedunflow.interfaces.ports import (
     AgentResult,
     AgentTurn,
@@ -148,7 +143,7 @@ class OpenAIProvider:
             messages=[{"role": "user", "content": outline}],
             response_format={"type": "json_object"},
         )
-        return _parse_plan_response(raw)
+        return parse_plan_response(raw)
 
     def describe_symbol(self, symbol: CodeSymbol, context: str) -> str:
         """Produce a short natural-language description of a leaf symbol.
@@ -419,39 +414,6 @@ class OpenAIProvider:
             return response.choices[0].message.content or ""
 
         return _call()
-
-
-def _parse_plan_response(raw: str) -> LessonManifest:
-    """Parse the LLM JSON response into a fully-constructed ``LessonManifest``.
-
-    The LLM returns ``{"schema_version": "1.0.0", "lessons": [...]}`` — a subset
-    of the full ``LessonManifest`` schema (``ManifestMetadata`` is server-side
-    provenance that the LLM does not produce).  This function:
-
-    1. Validates the ``lessons`` list via ``LessonSpec.model_validate``.
-    2. Constructs ``ManifestMetadata`` using the current timestamp and version.
-    3. Returns a fully-valid ``LessonManifest``.
-
-    Raises:
-        pydantic.ValidationError: On schema mismatch in the LLM output.
-        json.JSONDecodeError: On invalid JSON.
-    """
-    data: Any = json.loads(raw)
-    raw_lessons: list[Any] = data.get("lessons", [])
-    lessons: tuple[LessonSpec, ...] = tuple(LessonSpec.model_validate(spec) for spec in raw_lessons)
-    metadata = ManifestMetadata(
-        schema_version="1.0.0",
-        wiedunflow_version=__version__,
-        total_lessons=len(lessons),
-        generated_at=datetime.now(UTC),
-        has_readme=True,
-        doc_coverage=None,
-    )
-    return LessonManifest(
-        schema_version="1.0.0",
-        lessons=lessons,
-        metadata=metadata,
-    )
 
 
 def _uses_max_completion_tokens(model: str) -> bool:

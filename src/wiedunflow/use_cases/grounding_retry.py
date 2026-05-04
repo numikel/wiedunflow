@@ -10,6 +10,12 @@ import structlog
 from wiedunflow.entities.lesson import Lesson
 from wiedunflow.entities.lesson_manifest import LessonSpec
 from wiedunflow.entities.skipped_lesson import SkippedLesson
+from wiedunflow.entities.word_count import (
+    _FLOOR_COMPLEX,
+    _FLOOR_MODERATE,
+    _FLOOR_TRIVIAL,
+    floor_for_span,
+)
 from wiedunflow.interfaces.ports import LLMProvider
 from wiedunflow.use_cases.snippet_validator import validate_narrative_snippets
 
@@ -26,19 +32,17 @@ HallucinationAccumulator = list[str]
 
 logger = structlog.get_logger(__name__)
 
-# v0.2.1: per-tier word count floors (replaces hard-coded _MIN_WORDS = 150).
-_MIN_WORDS_DEFAULT = 150  # legacy fallback (no primary code_ref)
-_MIN_WORDS_TRIVIAL = 80  # 2-9 lines
-_MIN_WORDS_MODERATE = 220  # 10-30 lines
-_MIN_WORDS_COMPLEX = 350  # >30 lines
-# Kept for backward-compat — validators still use the tier logic, but
-# callers may still reference this name in tests written before v0.2.1.
-_MIN_WORDS = _MIN_WORDS_DEFAULT
+# Legacy fallback used when no primary code_ref is present (no span info).
+# Kept as a named constant so callers/tests that reference it still compile;
+# the per-tier logic now delegates to entities.word_count.floor_for_span.
+_MIN_WORDS_DEFAULT = 150
 
-# Span thresholds for word-count tier selection.
-_SPAN_SINGLE_LINE = 1
-_SPAN_TRIVIAL_MAX = 9  # inclusive upper bound for "trivial" tier (< 10 lines)
-_SPAN_MODERATE_MAX = 30  # inclusive upper bound for "moderate" tier (<= 30 lines)
+# Backward-compat aliases for the word-count tier values.  Tests and other
+# callers that imported these names directly from this module keep working;
+# the canonical values live in entities.word_count (ADR-0012 refactor).
+_MIN_WORDS_TRIVIAL = _FLOOR_TRIVIAL
+_MIN_WORDS_MODERATE = _FLOOR_MODERATE
+_MIN_WORDS_COMPLEX = _FLOOR_COMPLEX
 
 _MAX_WORDS = 1200
 
@@ -114,10 +118,15 @@ def truncate_at_sentence_boundary(text: str, max_words: int = _MAX_WORDS) -> str
 def _floor_for_lesson(spec: LessonSpec, *, min_words_trivial: int) -> int:
     """Determine the minimum word count for a lesson based on its primary code_ref body span.
 
+    Delegates to :func:`~wiedunflow.entities.word_count.floor_for_span` for the
+    per-tier calculation, so the thresholds are the single source of truth in
+    ``entities/word_count.py`` (ADR-0012).
+
     Args:
         spec: The lesson spec to inspect for a primary code_ref.
         min_words_trivial: Configurable floor for 1-line spans (from
             ``config.narration_min_words_trivial``; default 50 per plan).
+            Overrides the entity default for the 1-line tier only.
 
     Returns:
         Minimum word count integer.  Falls back to :data:`_MIN_WORDS_DEFAULT`
@@ -127,13 +136,11 @@ def _floor_for_lesson(spec: LessonSpec, *, min_words_trivial: int) -> int:
     if primary is None:
         return _MIN_WORDS_DEFAULT
     span = primary.line_end - primary.line_start + 1
-    if span <= _SPAN_SINGLE_LINE:
+    # Honour the caller-supplied trivial override for the 1-line tier; all
+    # other tiers come directly from the canonical word_count entity.
+    if span <= 1:
         return min_words_trivial
-    if span <= _SPAN_TRIVIAL_MAX:
-        return _MIN_WORDS_TRIVIAL
-    if span <= _SPAN_MODERATE_MAX:
-        return _MIN_WORDS_MODERATE
-    return _MIN_WORDS_COMPLEX
+    return floor_for_span(span)
 
 
 def _spec_to_json(spec: LessonSpec, *, project_context: str | None = None) -> str:

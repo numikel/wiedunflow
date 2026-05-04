@@ -74,13 +74,13 @@ def graph(symbols: list[CodeSymbol]) -> CallGraph:
 class _StubVectorStore:
     """Minimal VectorStore stub."""
 
-    def __init__(self, results: list[tuple[str, float]]) -> None:
+    def __init__(self, results: list[tuple[str, str, float]]) -> None:
         self._results = results
 
     def index(self, documents: list[tuple[str, str]]) -> None:
         pass
 
-    def search(self, query: str, k: int = 5) -> list[tuple[str, float]]:
+    def search(self, query: str, k: int = 5) -> list[tuple[str, str, float]]:
         return self._results[:k]
 
 
@@ -223,7 +223,7 @@ def test_get_callees_nonexistent_symbol(symbols: list[CodeSymbol], graph: CallGr
 
 
 def test_search_docs_returns_results() -> None:
-    vs = _StubVectorStore([("doc_1", 0.9), ("doc_2", 0.7)])
+    vs = _StubVectorStore([("doc_1", "first doc text", 0.9), ("doc_2", "second doc text", 0.7)])
     tool = make_search_docs(vs)
     result = tool({"query": "hello world", "k": 2})
     assert "doc_1" in result
@@ -240,7 +240,7 @@ def test_search_docs_no_results() -> None:
 
 def test_search_docs_respects_k_cap() -> None:
     # k > 10 should be capped to 10.
-    vs = _StubVectorStore([(f"doc_{i}", float(i)) for i in range(20)])
+    vs = _StubVectorStore([(f"doc_{i}", f"text {i}", float(i)) for i in range(20)])
     tool = make_search_docs(vs)
     result = tool({"query": "test", "k": 20})
     # At most 10 entries before potential truncation.
@@ -249,7 +249,7 @@ def test_search_docs_respects_k_cap() -> None:
 
 
 def test_search_docs_scores_in_output() -> None:
-    vs = _StubVectorStore([("readme", 0.85)])
+    vs = _StubVectorStore([("readme", "readme content here", 0.85)])
     tool = make_search_docs(vs)
     result = tool({"query": "overview"})
     assert "0.850" in result
@@ -499,7 +499,7 @@ def test_build_tool_registry_all_callable(
 def test_build_tool_registry_tools_return_strings(
     symbols: list[CodeSymbol], graph: CallGraph, tmp_path: Path
 ) -> None:
-    vs = _StubVectorStore([("d", 0.5)])
+    vs = _StubVectorStore([("d", "doc text", 0.5)])
     registry = build_tool_registry(
         symbols=symbols,
         graph=graph,

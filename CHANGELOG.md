@@ -6,6 +6,80 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-05-04 — Multi-agent Pipeline Correctness & Code Quality
+
+### Fixed
+
+**Multi-agent pipeline correctness**
+
+- Reviewer feedback now reaches the Writer on retry. The `dispatch_writer` tool
+  schema now accepts an optional `reviewer_feedback` field which is forwarded
+  verbatim into the Writer's prompt, giving it explicit guidance on what to fix
+  rather than repeating the same draft blind.
+
+- The Writer's narrative schema now matches its five-section template. The
+  `submit_lesson_draft` tool was missing the `in_context` field — the section
+  that places a described symbol in the broader codebase architecture. Content
+  was silently dropped or bleed into adjacent sections; `in_context` is now a
+  first-class required field and the Orchestrator assembles it as section 4.
+
+- Word-count thresholds are now a single source of truth in
+  `entities/word_count.py`. Previously the Reviewer, the Writer prompt, and the
+  grounding-retry helper each carried separate hardcoded floor values that had
+  diverged from one another. All three now derive from `floor_for_span()` and
+  `fatal_floor_for_span()`, which scale with the primary symbol's body span
+  (trivial single-line → 50 words; complex >30 lines → 350 words). The
+  Reviewer receives the computed per-lesson values through its `input_schema`
+  substitution (`word_count_floor`, `word_count_fatal_floor`).
+
+- `search_docs` now returns text snippets alongside scores. The Researcher was
+  receiving only document IDs and BM25 scores — not readable content — making
+  the documentation-lookup step effectively a no-op. The `VectorStore.search()`
+  contract now returns `(id, text, score)` triples; `BM25Store` stores raw text
+  at index time and exposes it in results; the `search_docs` agent tool formats
+  up to 500 characters of each passage in its output.
+
+- Planning prompts now include the full allowed-symbol list on the first attempt,
+  not only on retry. The planning stage was adding the `ALLOWED SYMBOLS` block
+  only when re-prompting after a grounding failure, causing unnecessary retries
+  when the model guessed symbol names from prose context alone.
+
+- Backtick-wrapped Python builtins (`str`, `int`, `float`, `Path`, `None`,
+  `True`, `False`, `os`, `re`, `json`, `logging`, etc.) are now excluded from
+  the grounding reference set. Previously these inflated `research_symbols`,
+  allowing Reviewer grounding checks to pass for standard-library names that the
+  Researcher never verified in the target codebase.
+
+- The Reviewer schema now enforces exactly six quality checks. The `checks` array
+  in `submit_verdict` lacked a `minItems` constraint, so smaller models could
+  silently omit the `audience_fit` or `no_re_teach` checks without a schema
+  error. `minItems: 6, maxItems: 6` now makes this a hard provider-enforced
+  contract.
+
+- Writer callout syntax changed from Obsidian-flavoured `> [!note]` to standard
+  Markdown `> **Note:**`. The generated output is a self-contained HTML file
+  without an Obsidian renderer, so every uncertainty callout was rendering as a
+  plain blockquote containing the literal text `[!note]`.
+
+**Cost accounting**
+
+- `SpendMeter.abort_factor` reduced from `1.5` to `1.1` (10 % buffer above
+  budget instead of 50 %). The previous default allowed an $8.00-budget run
+  to reach $12.00 before the cost guard fired.
+
+**Code quality**
+
+- `_parse_plan_response` extracted from both provider adapters into a shared
+  `adapters/_plan_parser.py` module, eliminating copy-paste drift. The function
+  now accepts `has_readme: bool` (default `False`) instead of hardcoding `True`,
+  so manifest metadata correctly reflects whether a README was present during
+  ingestion.
+
+- Closing-lesson checkpoint resume now logs a structured warning on parse errors
+  (JSON decode, I/O, or Pydantic validation) instead of silently swallowing the
+  exception with a bare `except Exception: pass`. The lesson is re-generated,
+  consistent with how regular lessons handle corrupt checkpoint files.
+
 ## [0.9.3] - 2026-05-04 — Critical Correctness & Performance Fixes
 
 ### Fixed

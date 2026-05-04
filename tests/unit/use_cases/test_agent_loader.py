@@ -425,6 +425,7 @@ def test_real_writer_card_loads_with_submit_lesson_draft_tool(tmp_path: Path) ->
         "overview",
         "how_it_works",
         "key_details",
+        "in_context",
         "what_to_watch_for",
         "cited_symbols",
         "uncertain_regions",
