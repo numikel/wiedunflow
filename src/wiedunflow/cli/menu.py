@@ -30,7 +30,13 @@ from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from wiedunflow.adapters.anthropic_model_catalog import AnthropicModelCatalog
 from wiedunflow.adapters.cached_model_catalog import CachedModelCatalog
 from wiedunflow.adapters.openai_model_catalog import OpenAIModelCatalog
-from wiedunflow.cli.config import WiedunflowConfig, load_config, user_config_path
+from wiedunflow.cli.config import (
+    ConfigError,
+    WiedunflowConfig,
+    load_config,
+    user_config_path,
+    validate_base_url,
+)
 from wiedunflow.cli.menu_banner import print_banner
 from wiedunflow.cli.picker_sources import discover_git_repos, load_recent_runs
 from wiedunflow.interfaces.model_catalog import ModelCatalog
@@ -447,10 +453,23 @@ def _run_init_from_menu(
                 return
             cursor -= 1
             continue
+
+        # F-010: validate base_url immediately after user input so they can
+        # correct the value without losing other wizard state (re-prompt, not abort).
+        if step == "base_url" and result.strip():
+            try:
+                validate_base_url(result.strip(), provider=state["provider"])
+            except ConfigError as exc:
+                print(f"  ! {exc}")
+                continue  # stay on same step (cursor unchanged)
+
         state[step] = result
         cursor += 1
 
-    base_url = state["base_url"].strip() or None
+    # F-010: defense-in-depth — validate again before writing to disk even if
+    # the step machine somehow delivered an invalid value.
+    raw_base_url = state["base_url"].strip() or None
+    base_url = validate_base_url(raw_base_url, provider=state["provider"])
     llm_block: dict[str, Any] = {
         "provider": state["provider"],
         "model_plan": state["model_plan"],

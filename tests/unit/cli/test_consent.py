@@ -10,6 +10,7 @@ import wiedunflow.cli.consent as consent_module
 from wiedunflow.cli.consent import (
     ConsentDeniedError,
     ConsentRequiredError,
+    _print_banner,
     _provider_policy_url,
     _reset_for_tests,
     ensure_consent_granted,
@@ -175,3 +176,96 @@ def test_provider_policy_url_openai():
 def test_provider_policy_url_unknown():
     url = _provider_policy_url("some_unknown_provider")
     assert url  # Should return a non-empty fallback string
+
+
+# ---------------------------------------------------------------------------
+# 7. F-010 — banner shown for all providers + base_url customisation
+# ---------------------------------------------------------------------------
+
+
+def test_banner_shown_for_custom_provider_with_base_url(monkeypatch):
+    """Banner IS shown for custom provider with base_url (was bypassed before F-010 fix)."""
+    echoed: list[str] = []
+    confirm_calls: list[bool] = []
+
+    monkeypatch.setattr(consent_module.click, "echo", lambda msg="", **kw: echoed.append(str(msg)))
+    monkeypatch.setattr(
+        consent_module.click,
+        "confirm",
+        lambda *a, **kw: confirm_calls.append(True) or True,
+    )
+
+    ensure_consent_granted(
+        "custom",
+        bypass=False,
+        tty=True,
+        base_url="http://localhost:11434/v1",
+    )
+
+    assert echoed, "Banner must be printed for custom provider"
+    assert len(confirm_calls) == 1, "User must be prompted to confirm"
+
+
+def test_banner_text_contains_base_url_when_set(monkeypatch):
+    """When base_url is set, the banner displays the endpoint URL."""
+    echoed: list[str] = []
+    monkeypatch.setattr(consent_module.click, "echo", lambda msg="", **kw: echoed.append(str(msg)))
+    monkeypatch.setattr(consent_module.click, "confirm", lambda *a, **kw: True)
+
+    ensure_consent_granted(
+        "openai_compatible",
+        bypass=False,
+        tty=True,
+        base_url="http://192.168.1.50:8080/v1",
+    )
+
+    full_output = "\n".join(echoed)
+    assert "192.168.1.50:8080" in full_output
+
+
+def test_banner_localhost_text_for_local_endpoint(monkeypatch):
+    """localhost base_url triggers the 'LOCAL endpoint … code does NOT leave' copy."""
+    echoed: list[str] = []
+    monkeypatch.setattr(consent_module.click, "echo", lambda msg="", **kw: echoed.append(str(msg)))
+
+    _print_banner("custom", base_url="http://localhost:11434/v1")
+
+    full_output = "\n".join(echoed)
+    assert "LOCAL" in full_output
+    assert "does NOT leave" in full_output
+
+
+def test_banner_remote_url_text_for_external_endpoint(monkeypatch):
+    """Non-localhost base_url triggers the 'CUSTOM endpoint … Verify trusted' copy."""
+    echoed: list[str] = []
+    monkeypatch.setattr(consent_module.click, "echo", lambda msg="", **kw: echoed.append(str(msg)))
+
+    _print_banner("openai_compatible", base_url="https://my-proxy.example.com/v1")
+
+    full_output = "\n".join(echoed)
+    assert "CUSTOM" in full_output
+    assert "trust" in full_output.lower()
+
+
+def test_consent_bypass_via_yes_still_works(monkeypatch):
+    """bypass=True skips banner + prompt even when base_url is set."""
+    confirm_calls: list[bool] = []
+    echo_calls: list[str] = []
+
+    monkeypatch.setattr(
+        consent_module.click,
+        "confirm",
+        lambda *a, **kw: confirm_calls.append(True) or True,
+    )
+    monkeypatch.setattr(
+        consent_module.click, "echo", lambda msg="", **kw: echo_calls.append(str(msg))
+    )
+
+    ensure_consent_granted(
+        "custom",
+        bypass=True,
+        tty=True,
+        base_url="http://localhost:11434/v1",
+    )
+
+    assert confirm_calls == [], "bypass=True must suppress the interactive prompt"

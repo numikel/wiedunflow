@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import click
 import platformdirs
@@ -94,6 +95,7 @@ def ensure_consent_granted(
     *,
     bypass: bool = False,
     tty: bool = True,
+    base_url: str | None = None,
 ) -> None:
     """Ensure the user has consented to sending code to ``provider``.
 
@@ -114,6 +116,8 @@ def ensure_consent_granted(
             ``--no-consent-prompt``.
         tty: Whether stdin is a terminal.  Non-TTY without ``bypass`` raises
             :class:`ConsentRequiredError`.
+        base_url: Custom endpoint URL when not using the default hosted API.
+            Passed to :func:`_print_banner` to customise the displayed text.
 
     Raises:
         ConsentRequiredError: Non-TTY and ``bypass`` is ``False``.
@@ -138,7 +142,7 @@ def ensure_consent_granted(
         )
 
     # Interactive banner + prompt.
-    _print_banner(provider)
+    _print_banner(provider, base_url=base_url)
     if click.confirm("Continue?", default=False):
         _granted.add(provider)
         resolved_store.grant(provider, datetime.now(UTC))
@@ -147,16 +151,40 @@ def ensure_consent_granted(
     raise ConsentDeniedError(f"User declined consent for provider {provider!r}")
 
 
-def _print_banner(provider: str) -> None:
+def _print_banner(provider: str, *, base_url: str | None = None) -> None:
+    """Print the data-egress consent banner.
+
+    Args:
+        provider: Provider name (``"anthropic"``, ``"openai"``, …).
+        base_url: Custom endpoint URL.  ``None`` means the default hosted API
+            is used; a non-``None`` value triggers endpoint-specific copy.
+    """
     click.echo("")
     click.echo("=" * 60)
-    click.echo(f"  Your source code will be sent to {provider}.")
+    if base_url is None:
+        click.echo(f"  Your source code will be sent to {provider}.")
+    else:
+        click.echo(f"  Your source code will be sent to: {base_url}")
+        click.echo(f"  (provider: {provider})")
     click.echo("=" * 60)
     click.echo("")
-    click.echo("  - WiedunFlow reads your local repository and sends")
-    click.echo(f"    excerpts to the {provider} LLM API for analysis.")
+
+    if base_url is None:
+        click.echo("  - WiedunFlow reads your local repository and sends")
+        click.echo(f"    excerpts to the {provider} LLM API for analysis.")
+    else:
+        host = (urlparse(base_url).hostname or "").lower()
+        if host in {"localhost", "127.0.0.1", "::1", "[::1]"}:
+            click.echo(f"  - WiedunFlow will send excerpts to a LOCAL endpoint at {base_url}.")
+            click.echo("    Your code does NOT leave your machine if this is truly local")
+            click.echo("    (e.g. Ollama, LM Studio, vLLM).")
+        else:
+            click.echo(f"  - WiedunFlow will send excerpts to a CUSTOM endpoint at {base_url}.")
+            click.echo("    Verify that you trust this endpoint before continuing.")
+
     click.echo("  - No telemetry or analytics is collected by WiedunFlow.")
-    click.echo(f"  - Review the provider's data policy: {_provider_policy_url(provider)}")
+    if base_url is None:
+        click.echo(f"  - Review the provider's data policy: {_provider_policy_url(provider)}")
     click.echo("  - Bypass in future runs with --no-consent-prompt or --yes.")
     click.echo("")
 

@@ -15,6 +15,7 @@ from wiedunflow.cli.config import (
     WiedunflowConfig,
     load_config,
     resolve_api_key,
+    validate_base_url,
 )
 
 # ---------------------------------------------------------------------------
@@ -461,3 +462,87 @@ def test_wiedunflow_env_var_picked_up(monkeypatch):
 
     cfg = load_config()
     assert cfg.llm_provider == "openai"
+
+
+# ---------------------------------------------------------------------------
+# 12. validate_base_url — F-010 SSRF + scheme validation
+# ---------------------------------------------------------------------------
+
+
+def test_validate_base_url_none_returns_none():
+    """None (no custom endpoint configured) passes through unchanged."""
+    assert validate_base_url(None, provider="openai") is None
+
+
+def test_validate_base_url_http_localhost_passes():
+    """http://localhost endpoints are valid (e.g. Ollama default)."""
+    url = "http://localhost:11434/v1"
+    assert validate_base_url(url, provider="custom") == url
+
+
+def test_validate_base_url_https_passes():
+    """https:// endpoints pointing at arbitrary hosts are allowed (warn path)."""
+    url = "https://my-custom-llm.example.com/v1"
+    # No exception means validation passed.
+    result = validate_base_url(url, provider="openai_compatible")
+    assert result == url
+
+
+def test_validate_base_url_blocks_imds_v4():
+    """AWS IMDS v4 (169.254.169.254) is hard-blocked."""
+    with pytest.raises(ConfigError, match="cloud-metadata endpoint"):
+        validate_base_url("http://169.254.169.254/latest/meta-data/", provider="openai_compatible")
+
+
+def test_validate_base_url_blocks_gcp_metadata_fqdn():
+    """GCP metadata FQDN (metadata.google.internal) is hard-blocked."""
+    with pytest.raises(ConfigError, match="cloud-metadata endpoint"):
+        validate_base_url("http://metadata.google.internal/computeMetadata/v1/", provider="custom")
+
+
+def test_validate_base_url_blocks_gcp_metadata_short():
+    """GCP metadata short hostname (metadata) is hard-blocked."""
+    with pytest.raises(ConfigError, match="cloud-metadata endpoint"):
+        validate_base_url("http://metadata/computeMetadata/v1/", provider="custom")
+
+
+def test_validate_base_url_blocks_alibaba_metadata():
+    """Alibaba Cloud metadata endpoint (100.100.100.200) is hard-blocked."""
+    with pytest.raises(ConfigError, match="cloud-metadata endpoint"):
+        validate_base_url("http://100.100.100.200/latest/meta-data/", provider="openai_compatible")
+
+
+def test_validate_base_url_rejects_file_scheme():
+    """file:// scheme is rejected — only http/https are allowed."""
+    with pytest.raises(ConfigError, match="scheme must be http or https"):
+        validate_base_url("file:///etc/passwd", provider="custom")
+
+
+def test_validate_base_url_rejects_gopher_scheme():
+    """gopher:// scheme is rejected (classic SSRF pivot)."""
+    with pytest.raises(ConfigError, match="scheme must be http or https"):
+        validate_base_url("gopher://internal.service/exploit", provider="custom")
+
+
+def test_validate_base_url_rejects_no_hostname():
+    """A URL with no resolvable hostname raises ConfigError."""
+    with pytest.raises(ConfigError, match="no hostname"):
+        validate_base_url("http:///v1/chat", provider="openai_compatible")
+
+
+def test_validate_base_url_warns_on_private_192_168(capsys):
+    """Private 192.168.x.x address emits stderr warning but is NOT blocked."""
+    url = "http://192.168.1.100:8080/v1"
+    result = validate_base_url(url, provider="custom")
+    assert result == url  # not blocked
+
+    captured = capsys.readouterr()
+    assert "private network" in captured.err
+    assert "192.168.1.100" in captured.err
+
+
+def test_validate_base_url_no_warn_on_localhost(capsys):
+    """localhost does NOT trigger the private-network warning."""
+    validate_base_url("http://localhost:11434/v1", provider="custom")
+    captured = capsys.readouterr()
+    assert captured.err == ""

@@ -13,11 +13,14 @@ Precedence (highest to lowest):
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
+import click
 import platformdirs
 import yaml
 from pydantic import Field, SecretStr
@@ -28,6 +31,95 @@ logger = logging.getLogger(__name__)
 
 class ConfigError(Exception):
     """Raised when required configuration is missing or invalid."""
+
+
+# ---------------------------------------------------------------------------
+# SSRF + scheme validation for base_url (F-010)
+# ---------------------------------------------------------------------------
+
+_BLOCKED_HOSTS: frozenset[str] = frozenset(
+    {
+        "169.254.169.254",  # AWS IMDS / link-local IPv4
+        "metadata.google.internal",  # GCP metadata FQDN
+        "metadata",  # GCP short-name fallback
+        "100.100.100.200",  # Alibaba Cloud metadata
+    }
+)
+_BLOCKED_HOST_PREFIXES: tuple[str, ...] = ("fd00:ec2::",)  # AWS IMDSv6
+_ALLOWED_SCHEMES: frozenset[str] = frozenset({"http", "https"})
+_PRIVATE_NETS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("fc00::/7"),
+)
+_LOCALHOST_HOSTS: frozenset[str] = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+
+
+def validate_base_url(url: str | None, *, provider: str) -> str | None:
+    """Validate *base_url* against SSRF and scheme-injection attacks.
+
+    Why: a malicious ``tutorial.config.yaml`` (e.g. bundled in a third-party
+    repo being analysed) could set ``base_url=http://169.254.169.254/`` (AWS
+    IMDS) and exfiltrate the API key together with the source excerpts sent
+    to the LLM.
+
+    Validation rules:
+
+    * ``None`` passes through unchanged (no custom endpoint configured).
+    * Scheme must be ``http`` or ``https`` — rejects ``file://``, ``gopher://``,
+      ``ftp://``, etc.
+    * Hostname must be non-empty.
+    * Cloud-metadata endpoints (AWS IMDS, GCP, Alibaba Cloud) are hard-blocked.
+    * Private-network non-localhost IPs emit a stderr *warning* but are **not**
+      blocked — Ollama-on-LAN is a legitimate use-case (D5 architecture decision).
+
+    Args:
+        url: The raw ``llm.base_url`` string from config / user input, or ``None``.
+        provider: Provider name for error message context (e.g. ``"custom"``).
+
+    Returns:
+        The URL unchanged when valid.
+
+    Raises:
+        ConfigError: Scheme is not http/https, hostname is missing, or the host
+            matches a known cloud-metadata endpoint.
+    """
+    if url is None:
+        return None
+
+    parsed = urlparse(url)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise ConfigError(
+            f"base_url scheme must be http or https, got: {parsed.scheme!r} (provider={provider})"
+        )
+
+    host = (parsed.hostname or "").lower()
+    if not host:
+        raise ConfigError(f"base_url has no hostname: {url!r}")
+
+    if host in _BLOCKED_HOSTS or any(host.startswith(p) for p in _BLOCKED_HOST_PREFIXES):
+        raise ConfigError(
+            f"base_url host {host!r} is a cloud-metadata endpoint and is blocked "
+            f"to prevent SSRF (API key + source code exfiltration). "
+            f"If you need this endpoint, file an issue. (provider={provider})"
+        )
+
+    # Warn — but do NOT block — private-network non-localhost IPs.
+    # Rationale: Ollama running on a LAN NAS is a valid use case (D5).
+    if host not in _LOCALHOST_HOSTS:
+        try:
+            ip = ipaddress.ip_address(host)
+            if any(ip in net for net in _PRIVATE_NETS):
+                click.echo(
+                    f"warning: base_url targets private network address {host!r} — "
+                    f"confirm this endpoint is trusted before continuing.",
+                    err=True,
+                )
+        except ValueError:
+            pass  # Hostname (not a bare IP address) — skip RFC1918 check.
+
+    return url
 
 
 def user_config_path() -> Path:

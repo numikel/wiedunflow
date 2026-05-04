@@ -38,7 +38,13 @@ from wiedunflow.adapters import (
 from wiedunflow.adapters.anthropic_provider import AnthropicProvider
 from wiedunflow.adapters.openai_provider import OpenAIProvider
 from wiedunflow.adapters.sqlite_cache import SQLiteCache
-from wiedunflow.cli.config import ConfigError, WiedunflowConfig, load_config, resolve_api_key
+from wiedunflow.cli.config import (
+    ConfigError,
+    WiedunflowConfig,
+    load_config,
+    resolve_api_key,
+    validate_base_url,
+)
 from wiedunflow.cli.consent import (
     ConsentDeniedError,
     ConsentRequiredError,
@@ -526,8 +532,19 @@ def _build_llm_provider(
     bypass_consent = no_consent_prompt or yes
     tty = sys.stdin.isatty()
 
+    # F-010: Validate base_url early — reject SSRF targets and bad schemes
+    # before any SDK or consent path is reached.
+    validate_base_url(config.llm_base_url, provider=config.llm_provider)
+
     if config.llm_provider == "anthropic":
-        ensure_consent_granted("anthropic", bypass=bypass_consent, tty=tty)
+        # base_url is not used by AnthropicProvider; always show banner for
+        # the hosted API (no custom-endpoint path for Anthropic in MVP).
+        ensure_consent_granted(
+            "anthropic",
+            bypass=bypass_consent,
+            tty=tty,
+            base_url=config.llm_base_url,
+        )
         return AnthropicProvider(
             api_key=resolve_api_key(config),
             model_plan=config.llm_model_plan,
@@ -537,9 +554,15 @@ def _build_llm_provider(
         )
 
     if config.llm_provider in ("openai", "openai_compatible"):
-        # Consent only for the hosted OpenAI endpoint — base_url=None.
-        if config.llm_base_url is None:
-            ensure_consent_granted(config.llm_provider, bypass=bypass_consent, tty=tty)
+        # F-010 fix: always show banner regardless of base_url.
+        # Previously the banner was skipped when base_url was set —
+        # that allowed silent exfiltration to arbitrary endpoints.
+        ensure_consent_granted(
+            config.llm_provider,
+            bypass=bypass_consent,
+            tty=tty,
+            base_url=config.llm_base_url,
+        )
         return OpenAIProvider(
             api_key=resolve_api_key(config),
             base_url=config.llm_base_url,
@@ -551,11 +574,18 @@ def _build_llm_provider(
         )
 
     if config.llm_provider == "custom":
-        # Custom/OSS endpoint: no consent banner (local inference, zero egress).
         if config.llm_base_url is None:
             raise ConfigError(
                 "llm.base_url is required for --provider=custom (e.g. http://localhost:11434/v1)."
             )
+        # F-010 fix: show banner for custom endpoints — previously skipped under
+        # the (incorrect) assumption that custom == local inference, zero egress.
+        ensure_consent_granted(
+            config.llm_provider,
+            bypass=bypass_consent,
+            tty=tty,
+            base_url=config.llm_base_url,
+        )
         return OpenAIProvider(
             api_key=resolve_api_key(config),
             base_url=config.llm_base_url,
