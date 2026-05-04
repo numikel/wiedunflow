@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from wiedunflow import __version__ as _wiedunflow_version
 from wiedunflow.entities.code_ref import CodeRef
 from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.lesson import Lesson
@@ -97,7 +98,7 @@ class FakeLLMProvider:
             lessons=lessons,
             metadata=ManifestMetadata(
                 schema_version="1.0.0",
-                wiedunflow_version="0.0.3",
+                wiedunflow_version=_wiedunflow_version,
                 total_lessons=len(lessons),
                 generated_at=datetime(2026, 4, 20, 0, 0, 0, tzinfo=UTC),
                 has_readme=True,

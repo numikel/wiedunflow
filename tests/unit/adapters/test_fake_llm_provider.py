@@ -63,3 +63,12 @@ def test_describe_symbol_embeds_first_docstring_line() -> None:
     description = fake.describe_symbol(symbol, context="")
     assert "First summary line." in description
     assert "Extended description." not in description
+
+
+def test_fake_llm_provider_uses_current_version() -> None:
+    """F-017 regression: hardcoded `0.0.3` was 6 majors stale."""
+    from wiedunflow import __version__
+
+    fake = FakeLLMProvider()
+    manifest = fake.plan(outline="ignored")
+    assert manifest.metadata.wiedunflow_version == __version__
