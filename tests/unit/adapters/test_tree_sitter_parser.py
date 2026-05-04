@@ -362,9 +362,7 @@ def test_parse_with_cache_miss_then_hit_returns_equivalent_output(
     assert len(cache._file_cache) == 1
 
 
-def test_parse_skips_tree_sitter_on_cache_hit(
-    parser: TreeSitterParser, tmp_path: Path
-) -> None:
+def test_parse_skips_tree_sitter_on_cache_hit(parser: TreeSitterParser, tmp_path: Path) -> None:
     """A cached file is reconstructed from the payload without re-saving the entry.
 
     The hit branch in :func:`TreeSitterParser.parse` skips the tree-sitter
