@@ -39,6 +39,12 @@ Copyright 2020 The JetBrains Mono Project Authors
 (https://github.com/JetBrains/JetBrainsMono).
 See src/wiedunflow/renderer/fonts/OFL-JetBrainsMono.txt for the full license.
 
+This product includes the DOMPurify XSS sanitizer (vendored as
+src/wiedunflow/renderer/templates/_dompurify_vendor.js), version 3.2.4,
+copyright (c) 2015 Mario Heiderich and Cure53. Dual-licensed under the
+Apache License 2.0 and the Mozilla Public License 2.0. Source:
+https://github.com/cure53/DOMPurify/blob/3.2.4/LICENSE.
+
 This product includes software developed by third parties under the Apache-2.0
 license. Their NOTICE attribution blocks follow:
 
