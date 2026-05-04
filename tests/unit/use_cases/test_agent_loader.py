@@ -508,3 +508,35 @@ def test_real_compile_orchestrator_card(tmp_path: Path) -> None:
     assert "lesson-01" in result.system_prompt
     assert "0.75" in result.system_prompt
     assert len(result.tools) == 5
+
+
+def test_real_cards_render_budget_without_stray_brace() -> None:
+    """F-001 regression: ${{{var}}} bug rendered '$0.80} USD' with leading } leftover.
+
+    The triple-brace pattern matched the inner `{{var}}` placeholder, leaving the
+    third `}` as a literal in the compiled prompt. Every Orchestrator/Researcher/
+    Writer dispatch shipped malformed budget lines to the LLM until fixed.
+    """
+    real_agents_dir = (
+        Path(__file__).parent.parent.parent.parent / "src" / "wiedunflow" / "use_cases" / "agents"
+    )
+    if not (real_agents_dir / "orchestrator.md").exists():
+        pytest.skip("Real agent cards not present in test environment")
+
+    common_kwargs = {
+        "lesson_id": "lesson-01",
+        "lesson_title": "T",
+        "lesson_teaches": "X",
+        "primary_symbol": "p",
+        "code_refs": [],
+        "concepts_introduced": [],
+        "research_brief": "rb",
+        "research_notes": "rn",
+        "target_audience": "mid-level Python developer",
+        "budget_remaining_usd": 0.80,
+    }
+    for card_name in ("orchestrator", "researcher", "writer"):
+        result = compile_card(card_name, kwargs=common_kwargs, agents_dir=real_agents_dir)
+        assert "} USD" not in result.system_prompt, f"{card_name}: triple-brace residue '}} USD'"
+        assert "0.80}" not in result.system_prompt, f"{card_name}: triple-brace residue '0.80}}'"
+        assert "$0.8 USD" in result.system_prompt, f"{card_name}: budget not rendered"

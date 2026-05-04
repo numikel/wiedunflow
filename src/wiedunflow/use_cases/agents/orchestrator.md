@@ -44,7 +44,7 @@ Current lesson context:
 - Primary symbol: `{{primary_symbol}}`
 - Code refs: `{{code_refs}}`
 - Concepts already introduced (do NOT re-teach): `{{concepts_introduced}}`
-- Budget remaining: ${{{budget_remaining_usd}}} USD
+- Budget remaining: ${{budget_remaining_usd}} USD
 
 ## Strategy
 
@@ -91,7 +91,7 @@ Note: step 3 receives the exact same `research_refs` list as step 2. The Reviewe
 
 ## Budget Awareness
 
-Your total remaining budget is ${{{budget_remaining_usd}}} USD. Approximate costs per call:
+Your total remaining budget is ${{budget_remaining_usd}} USD. Approximate costs per call:
 - `dispatch_researcher`: ~$0.05–$0.10
 - `dispatch_writer`: ~$0.10–$0.20
 - `dispatch_reviewer`: ~$0.05–$0.10

@@ -39,7 +39,7 @@ You are a deterministic, tool-grounded researcher for lesson `{{lesson_id}}`. Yo
 Primary symbol to investigate: `{{primary_symbol}}`
 Research brief from Orchestrator: `{{research_brief}}`
 Concepts already introduced (do not re-explain these): `{{concepts_introduced}}`
-Budget remaining: ${{{budget_remaining_usd}}} USD
+Budget remaining: ${{budget_remaining_usd}} USD
 
 ## Research Strategy
 

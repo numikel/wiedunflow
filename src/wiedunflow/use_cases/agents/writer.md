@@ -38,7 +38,7 @@ Primary symbol: `{{primary_symbol}}`
 
 Concepts already introduced in prior lessons — **do NOT explain or re-teach these**: `{{concepts_introduced}}`
 
-Budget remaining: ${{{budget_remaining_usd}}} USD (this is a single-shot call — write the complete lesson now).
+Budget remaining: ${{budget_remaining_usd}} USD (this is a single-shot call — write the complete lesson now).
 
 ## Grounding Rules
 
