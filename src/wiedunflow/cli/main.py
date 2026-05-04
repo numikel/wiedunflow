@@ -62,10 +62,9 @@ from wiedunflow.cli.signals import SigintHandler
 from wiedunflow.cli.stage_reporter import StageReporter
 from wiedunflow.entities.run_report import RunReport, RunStatus
 from wiedunflow.interfaces.ports import LLMProvider
+from wiedunflow.use_cases.errors import CostGateAbortedError, MaxCostExceededError
 from wiedunflow.use_cases.generate_tutorial import (
-    CostGateAbortedError,
     GenerationResult,
-    MaxCostExceededError,
     Providers,
     generate_tutorial,
 )

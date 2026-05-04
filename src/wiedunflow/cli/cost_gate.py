@@ -29,21 +29,12 @@ import click
 
 from wiedunflow.cli.cost_estimator import CostEstimate
 from wiedunflow.cli.output import CostGateRow, render_cost_gate
+from wiedunflow.use_cases.errors import CostGateAbortedError
 
-
-class CostGateAbortedError(RuntimeError):
-    """Raised when the user declines the cost-gate prompt (US-084).
-
-    The CLI catches this exception, prints the spec-mandated abort message,
-    and exits with status code 0 (clean user abort, not a failure).
-    """
-
-    def __init__(self, estimate_usd: float, lessons: int) -> None:
-        super().__init__(
-            f"User aborted at cost gate: estimate ${estimate_usd:.2f} for {lessons} lessons"
-        )
-        self.estimate_usd = estimate_usd
-        self.lessons = lessons
+# Re-export so legacy callers importing ``CostGateAbortedError`` from
+# :mod:`wiedunflow.cli.cost_gate` keep working. Canonical home is
+# :mod:`wiedunflow.use_cases.errors` (ADR-0003 — dependencies point inward).
+__all__ = ["CostGateAbortedError", "prompt_cost_gate", "should_skip_prompt"]
 
 
 def should_skip_prompt(

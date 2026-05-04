@@ -30,6 +30,7 @@ from wiedunflow.use_cases.agent_orchestrator import run_closing_lesson, run_less
 from wiedunflow.use_cases.agent_tools import build_tool_registry
 from wiedunflow.use_cases.doc_coverage import compute_doc_coverage
 from wiedunflow.use_cases.entry_point_detector import detect_entry_points
+from wiedunflow.use_cases.errors import CostGateAbortedError, MaxCostExceededError
 from wiedunflow.use_cases.ingestion import ingest
 from wiedunflow.use_cases.inject_source_excerpts import inject_source_excerpts
 from wiedunflow.use_cases.offline_linter import validate_offline_invariant
@@ -79,40 +80,6 @@ _CLOSING_OMITTED_SYMBOLS_COUNT = 5
 
 # Re-export so callers that import from this module can reach the helper.
 highlight_python = _highlight_python
-
-
-class MaxCostExceededError(RuntimeError):
-    """Raised by the cost-gate pre-flight check when the estimate exceeds ``--max-cost``.
-
-    US-019: the CLI translates this into a structured run-report with ``status="failed"``
-    and an exit code of 1 without making any narration calls.
-    """
-
-    def __init__(self, estimate_usd: float, cap_usd: float, lessons: int) -> None:
-        super().__init__(
-            f"Estimated cost ${estimate_usd:.2f} exceeds --max-cost cap ${cap_usd:.2f} "
-            f"for {lessons} lessons"
-        )
-        self.estimate_usd = estimate_usd
-        self.cap_usd = cap_usd
-        self.lessons = lessons
-
-
-class CostGateAbortedError(RuntimeError):
-    """Raised when the user declines the interactive cost-gate prompt (US-084 — Sprint 8).
-
-    Distinguished from :class:`MaxCostExceededError` because this is a clean
-    user abort (exit code 0), not a failure (exit code 1). The CLI prints
-    the spec-mandated abort message and writes a ``status="ok"`` run-report
-    with zero cost.
-    """
-
-    def __init__(self, estimate_usd: float, lessons: int) -> None:
-        super().__init__(
-            f"User declined cost-gate prompt: estimate ${estimate_usd:.2f} for {lessons} lessons"
-        )
-        self.estimate_usd = estimate_usd
-        self.lessons = lessons
 
 
 @dataclass(frozen=True)

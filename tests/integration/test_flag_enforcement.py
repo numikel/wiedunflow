@@ -24,8 +24,8 @@ from wiedunflow.adapters import (
     StubRanker,
     StubTreeSitterParser,
 )
+from wiedunflow.use_cases.errors import MaxCostExceededError
 from wiedunflow.use_cases.generate_tutorial import (
-    MaxCostExceededError,
     Providers,
     generate_tutorial,
 )

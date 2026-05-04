@@ -26,11 +26,11 @@ from rich.console import Console
 
 from wiedunflow.cli.cost_estimator import estimate
 from wiedunflow.cli.cost_gate import (
-    CostGateAbortedError,
     prompt_cost_gate,
     should_skip_prompt,
 )
 from wiedunflow.cli.output import make_theme
+from wiedunflow.use_cases.errors import CostGateAbortedError
 
 
 def _make_console() -> tuple[Console, io.StringIO]:
