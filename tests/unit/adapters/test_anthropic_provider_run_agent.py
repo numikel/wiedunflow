@@ -11,6 +11,7 @@ from anthropic.types import TextBlock, ToolUseBlock
 
 from wiedunflow.adapters.anthropic_provider import AnthropicProvider
 from wiedunflow.interfaces.ports import AgentResult, AgentTurn, ToolCall, ToolResult, ToolSpec
+from wiedunflow.use_cases.spend_meter import SpendMeter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -213,3 +214,66 @@ def test_run_agent_transcript_records_turns(
     assert turn.output_tokens == 30
     assert result.total_input_tokens == 120
     assert result.total_output_tokens == 30
+
+
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
+def test_run_agent_total_cost_reflects_spend_meter_delta(
+    mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AgentResult.total_cost_usd carries the per-call delta, not cumulative meter spend.
+
+    The meter is shared across many ``run_agent`` invocations within a single
+    pipeline run. The result must report only what *this* call spent, so the
+    pipeline can attribute cost per role/lesson without subtracting earlier
+    runs by hand.
+    """
+    provider = _mk_provider(monkeypatch, mock_cls)
+    mock_client = mock_cls.return_value
+
+    mock_client.messages.create.return_value = _mk_text_response(
+        text="done",
+        stop_reason="end_turn",
+        input_tokens=200_000,
+        output_tokens=100_000,
+    )
+
+    # Pre-spend $5 on the meter (simulating earlier agent runs in the same pipeline).
+    meter = SpendMeter(budget_usd=100.0)
+    meter.charge(model="claude-sonnet-4-6", input_tokens=250_000, output_tokens=83_333)
+    pre_spend = meter.total_cost_usd
+    assert pre_spend > 0.0
+
+    result = provider.run_agent(
+        system="sys",
+        user="hi",
+        tools=[],
+        tool_executor=_passthrough_executor,
+        model="claude-sonnet-4-6",
+        spend_meter=meter,
+    )
+
+    # Per-call delta: only what *this* run charged.
+    expected_delta = meter.total_cost_usd - pre_spend
+    assert result.total_cost_usd == pytest.approx(expected_delta)
+    # Sanity: the delta is strictly less than cumulative — no leak of prior spend.
+    assert result.total_cost_usd < meter.total_cost_usd
+
+
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
+def test_run_agent_total_cost_zero_without_spend_meter(
+    mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When no SpendMeter is wired, AgentResult.total_cost_usd is 0.0 (no synthetic cost)."""
+    provider = _mk_provider(monkeypatch, mock_cls)
+    mock_client = mock_cls.return_value
+    mock_client.messages.create.return_value = _mk_text_response(stop_reason="end_turn")
+
+    result = provider.run_agent(
+        system="sys",
+        user="hi",
+        tools=[],
+        tool_executor=_passthrough_executor,
+        model="claude-sonnet-4-6",
+    )
+
+    assert result.total_cost_usd == 0.0

@@ -65,7 +65,18 @@ class AgentResult(BaseModel):
 
 @runtime_checkable
 class SpendMeterProto(Protocol):
-    """Minimal port for SpendMeter — Phase B implements the concrete class."""
+    """Port for the cumulative-cost meter consulted by adapters.
+
+    Adapters read :attr:`total_cost_usd` at the start and end of each
+    ``run_agent`` call to compute the per-call delta surfaced via
+    :class:`AgentResult.total_cost_usd`. Cumulative spend remains on the
+    meter for the whole run.
+    """
+
+    @property
+    def total_cost_usd(self) -> float:
+        """Cumulative USD spend across all :meth:`charge` calls so far."""
+        ...
 
     def charge(self, *, model: str, input_tokens: int, output_tokens: int) -> None:
         """Record token usage for the given model."""

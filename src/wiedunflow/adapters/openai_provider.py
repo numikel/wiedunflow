@@ -266,7 +266,12 @@ class OpenAIProvider:
         ]
         transcript: list[AgentTurn] = []
         total_input = total_output = 0
-        total_cost = 0.0
+        # Capture the meter snapshot at the start so AgentResult.total_cost_usd
+        # carries the per-call delta. Cumulative spend stays on the meter.
+        cost_at_start = spend_meter.total_cost_usd if spend_meter is not None else 0.0
+
+        def _delta_cost() -> float:
+            return (spend_meter.total_cost_usd - cost_at_start) if spend_meter is not None else 0.0
 
         for iteration in range(max_iterations):
             kwargs: dict[str, Any] = {
@@ -316,7 +321,7 @@ class OpenAIProvider:
                         transcript=transcript,
                         total_input_tokens=total_input,
                         total_output_tokens=total_output,
-                        total_cost_usd=total_cost,
+                        total_cost_usd=_delta_cost(),
                         stop_reason="max_cost",
                         iterations=iteration + 1,
                     )
@@ -328,7 +333,7 @@ class OpenAIProvider:
                     transcript=transcript,
                     total_input_tokens=total_input,
                     total_output_tokens=total_output,
-                    total_cost_usd=total_cost,
+                    total_cost_usd=_delta_cost(),
                     stop_reason="end_turn",
                     iterations=iteration + 1,
                 )
@@ -367,7 +372,7 @@ class OpenAIProvider:
             transcript=transcript,
             total_input_tokens=total_input,
             total_output_tokens=total_output,
-            total_cost_usd=total_cost,
+            total_cost_usd=_delta_cost(),
             stop_reason="max_iterations",
             iterations=max_iterations,
         )

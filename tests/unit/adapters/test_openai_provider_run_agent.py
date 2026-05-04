@@ -10,6 +10,7 @@ import pytest
 
 from wiedunflow.adapters.openai_provider import OpenAIProvider
 from wiedunflow.interfaces.ports import AgentResult, AgentTurn, ToolCall, ToolResult, ToolSpec
+from wiedunflow.use_cases.spend_meter import SpendMeter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -226,3 +227,67 @@ def test_run_agent_transcript_records_turns(
     assert turn.output_tokens == 30
     assert result.total_input_tokens == 120
     assert result.total_output_tokens == 30
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_total_cost_reflects_spend_meter_delta(
+    mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AgentResult.total_cost_usd carries the per-call delta, not cumulative meter spend.
+
+    The meter is shared across many ``run_agent`` invocations within a single
+    pipeline run. The result must report only what *this* call spent, so the
+    pipeline can attribute cost per role/lesson without subtracting earlier
+    runs by hand.
+    """
+    provider = _mk_provider(monkeypatch, mock_cls)
+    mock_client = mock_cls.return_value
+
+    mock_client.chat.completions.create.return_value = _mk_chat_response(
+        content="done",
+        tool_calls=None,
+        finish_reason="stop",
+        prompt_tokens=200_000,
+        completion_tokens=100_000,
+    )
+
+    # Pre-spend on the meter (simulating earlier agent runs in the same pipeline).
+    meter = SpendMeter(budget_usd=100.0)
+    meter.charge(model="gpt-5.4", input_tokens=250_000, output_tokens=83_333)
+    pre_spend = meter.total_cost_usd
+    assert pre_spend > 0.0
+
+    result = provider.run_agent(
+        system="sys",
+        user="hi",
+        tools=[],
+        tool_executor=_passthrough_executor,
+        model="gpt-5.4",
+        spend_meter=meter,
+    )
+
+    expected_delta = meter.total_cost_usd - pre_spend
+    assert result.total_cost_usd == pytest.approx(expected_delta)
+    assert result.total_cost_usd < meter.total_cost_usd
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_total_cost_zero_without_spend_meter(
+    mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When no SpendMeter is wired, AgentResult.total_cost_usd is 0.0."""
+    provider = _mk_provider(monkeypatch, mock_cls)
+    mock_client = mock_cls.return_value
+    mock_client.chat.completions.create.return_value = _mk_chat_response(
+        content="hi", tool_calls=None, finish_reason="stop"
+    )
+
+    result = provider.run_agent(
+        system="sys",
+        user="hi",
+        tools=[],
+        tool_executor=_passthrough_executor,
+        model="gpt-5.4",
+    )
+
+    assert result.total_cost_usd == 0.0

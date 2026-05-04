@@ -861,8 +861,10 @@ def _stage_generation(
         output.lessons.append(closing_result)
 
     # Wire cumulative spend from the meter (if present) into the stage output.
+    # ``total_cost_usd`` is part of SpendMeterProto, so no getattr fallback —
+    # mock meters in tests must implement the property to be type-correct.
     if spend_meter is not None:
-        output.total_cost_usd = getattr(spend_meter, "total_cost_usd", 0.0)
+        output.total_cost_usd = spend_meter.total_cost_usd
 
     return output
 
