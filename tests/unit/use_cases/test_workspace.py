@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import os
+import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from wiedunflow.use_cases.workspace import (
+    RunWorkspace,
     allocate_workspace,
     clean_old_runs,
     generate_run_id,
@@ -269,3 +274,39 @@ def test_clean_old_runs_returns_count(tmp_path: Path) -> None:
         os.utime(d, (old_mtime, old_mtime))
     removed = clean_old_runs(base_dir=tmp_path, max_age_days=7)
     assert removed == 2
+
+
+# ---------------------------------------------------------------------------
+# POSIX permission enforcement
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission semantics")
+@pytest.mark.parametrize(
+    "subdir_factory",
+    [
+        pytest.param(lambda ws: ws.base_dir, id="base_dir"),
+        pytest.param(lambda ws: ws.lesson_dir("L1", "raw"), id="raw"),
+        pytest.param(lambda ws: ws.lesson_dir("L1", "processing"), id="processing"),
+        pytest.param(lambda ws: ws.lesson_dir("L1", "finished"), id="finished"),
+        pytest.param(lambda ws: ws.transcript_dir("L1"), id="transcript"),
+    ],
+)
+def test_workspace_dirs_are_user_only(
+    tmp_path: Path, subdir_factory: Callable[[RunWorkspace], Path]
+) -> None:
+    """Workspace dirs must be 0o700 on POSIX (source excerpts + LLM transcripts)."""
+    ws = allocate_workspace("test-run", base_dir=tmp_path)
+    target = subdir_factory(ws)
+    mode = os.stat(target).st_mode & 0o777
+    assert mode == 0o700, f"Expected 0o700 for {target}, got {oct(mode)}"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission semantics")
+def test_write_atomic_parent_dir_is_user_only(tmp_path: Path) -> None:
+    """write_atomic must set 0o700 on any parent dir it creates."""
+    ws = allocate_workspace("test-run", base_dir=tmp_path)
+    nested = ws.base_dir / "deep" / "nested" / "file.txt"
+    ws.write_atomic(nested, "content")
+    mode = os.stat(nested.parent).st_mode & 0o777
+    assert mode == 0o700, f"Expected 0o700 for {nested.parent}, got {oct(mode)}"

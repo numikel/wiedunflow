@@ -25,6 +25,11 @@ _CAP_LIST_FILES = 100  # entries
 _CAP_LINES = 200  # lines
 _CAP_TEST_CTX_BLOCKS = 5  # max context blocks per test file
 
+_MAX_PATTERN_LEN = 500
+_MAX_LINE_LEN = 2000
+# Sniffer for nested quantifiers — catches (.+)+, (\w+)+, (.*){2,}, (a{2,})+, (a+)+$ etc.
+_NESTED_QUANTIFIER_RE = re.compile(r"\([^)]*[+*?{][^)]*\)[+*{]")
+
 # Directories to skip when walking the repo tree.
 _SKIP_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".mypy_cache"}
 
@@ -303,6 +308,13 @@ def make_grep_usages(repo_root: Path, fs_boundary: FsBoundary) -> ToolFn:
 
     def _call(args: dict[str, Any]) -> str:
         pattern_str = str(args.get("pattern", ""))
+        if len(pattern_str) > _MAX_PATTERN_LEN:
+            return f"[grep_usages] Pattern too long ({len(pattern_str)} chars; max {_MAX_PATTERN_LEN})."
+        if _NESTED_QUANTIFIER_RE.search(pattern_str):
+            return (
+                "[grep_usages] Pattern rejected: nested quantifiers can cause "
+                "catastrophic backtracking. Try a simpler pattern."
+            )
         try:
             pat = re.compile(pattern_str)
         except re.error as e:
@@ -320,6 +332,8 @@ def make_grep_usages(repo_root: Path, fs_boundary: FsBoundary) -> ToolFn:
             except OSError:
                 continue
             for i, line in enumerate(content.splitlines(), 1):
+                if len(line) > _MAX_LINE_LEN:
+                    continue
                 if pat.search(line):
                     try:
                         rel = safe_src_file.relative_to(repo_root)

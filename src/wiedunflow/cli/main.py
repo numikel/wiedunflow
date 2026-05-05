@@ -64,6 +64,7 @@ from wiedunflow.cli.output import (
     render_run_report,
 )
 from wiedunflow.cli.run_report_writer import write_run_report
+from wiedunflow.cli.secret_filter import redact as _redact_secret
 from wiedunflow.cli.signals import SigintHandler
 from wiedunflow.cli.stage_reporter import StageReporter
 from wiedunflow.entities.run_report import RunReport, RunStatus
@@ -334,6 +335,14 @@ def init_cmd(
     help="(dev-only) Disable SecretFilter in logs.",
 )
 @click.option(
+    "--log-redact-paths/--no-log-redact-paths",
+    "log_redact_paths",
+    default=True,
+    help=(
+        "Redact external absolute paths from log output (default: on; disable for local debugging)."
+    ),
+)
+@click.option(
     "--python-path",
     "python_path",
     type=click.Path(exists=True, dir_okay=False, file_okay=True, path_type=Path),
@@ -378,12 +387,18 @@ def generate_cmd(
     no_cost_prompt: bool,
     output_path: Path | None,
     no_log_redaction: bool,
+    log_redact_paths: bool,
     python_path: Path | None,
     bootstrap_venv: bool,
 ) -> None:
     """Generate an interactive HTML tutorial from a local Git repository."""
     json_mode = log_format == "json"
-    configure_logging(json_mode=json_mode, redact_secrets=not no_log_redaction)
+    configure_logging(
+        json_mode=json_mode,
+        redact_secrets=not no_log_redaction,
+        redact_paths=log_redact_paths,
+        repo_root=repo_path,
+    )
     console = init_console(json_mode=json_mode)
     structlog_logger = get_structlog(stage="cli")
 
@@ -996,6 +1011,8 @@ def _write_final_report(
     mask the underlying pipeline failure the CLI is trying to report.
     """
     try:
+        # stack_trace can carry API keys via repr(exc)/locals — strip before persisting.
+        safe_stack_trace = _redact_secret(stack_trace) if stack_trace else None
         report = RunReport(
             status=status,
             started_at=started_at,
@@ -1006,7 +1023,7 @@ def _write_final_report(
             cache_hit_rate=cache_hit_rate,
             total_cost_usd=total_cost_usd,
             provider=provider_label,
-            stack_trace=stack_trace,
+            stack_trace=safe_stack_trace,
             failed_at_lesson=failed_at_lesson,
             degraded_ratio=degraded_ratio,
             hallucinated_symbols=hallucinated_symbols,

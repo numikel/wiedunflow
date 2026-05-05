@@ -6,6 +6,68 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.7] - 2026-05-05 — Security: Workspace Permissions, Log Redaction, ReDoS Guard
+
+### Added
+
+- **`--log-redact-paths` / `--no-log-redact-paths`** flag on `wiedunflow generate`
+  (default **on**). External absolute paths in JSON/text logs are replaced
+  with `<external>` so developers no longer leak `/home/<user>/...` or
+  `C:\Users\<user>\...` when pasting logs into bug reports. Opt out for
+  local debugging.
+- **ReDoS guard** in the Researcher agent's `grep_usages` tool. Patterns
+  longer than 500 characters or containing nested quantifiers
+  (`(a+)+`, `(.*)+`, `(\w+)+`, `(a{2,})+`, `(.+)+$`, …) are rejected before
+  `re.compile`; source lines longer than 2000 characters are skipped during
+  search. Eliminates a class of pipeline hangs caused by LLM-generated
+  pathological regexes — no new dependencies.
+- **POSIX permission tightening** for `~/.wiedunflow/runs/<run_id>/` and every
+  per-lesson subdirectory (`raw/`, `processing/`, `finished/`, `transcript/`):
+  every `mkdir` is now followed by `os.chmod(d, 0o700)`. Source-code excerpts
+  and LLM transcripts are no longer world-readable on multi-user systems.
+
+### Changed
+
+- Stack traces written to `<repo>/.wiedunflow/run-report.json` are passed
+  through the standard secret-redaction filter before serialisation. API
+  keys captured in `repr(exc)` (HTTP client errors, request payload
+  echoes, etc.) no longer leak to disk.
+- The structured logger redacts external absolute paths in addition to
+  API-key shaped substrings. The processor was refactored from a hardcoded
+  function into a `_make_redact_processor` factory parameterised on
+  `redact_secrets`, `redact_paths`, and `repo_root`.
+
+### Fixed
+
+- `_ABS_PATH_RE` in `cli/secret_filter.py` no longer silently fails on
+  Windows. The previous pattern `[A-Za-z]:\[…]+` matched `C:` followed by
+  a literal `[` (a typo: `\[` instead of `\\`), so every `C:\Users\…` path
+  slipped past `redact_path()` undetected. Windows path redaction now works
+  as documented.
+
+### Removed
+
+- The retired walking-skeleton template `tutorial_minimal.html.j2` (replaced
+  by the pixel-perfect `tutorial.html.j2` in v0.0.5) is deleted from the
+  source tree. A regression test now fails CI if any new `.j2` file lands
+  in the templates directory without an explicit decision.
+
+### Documentation
+
+- ADR-0010 amended with **§D12** (Path-redaction default-ON for logs and
+  run-report), documenting the operational rationale for diverging from
+  §D2's "opt-in explicitly" stance for the CLI layer (entities and
+  use-cases remain opt-in).
+
+### Tests
+
+- 13 new test cases: stack-trace redaction round-trip, path-redaction
+  processor (5 parametric cases), workspace permission bits per subdir
+  (POSIX-only, parametrised over 5 paths), `write_atomic` parent
+  permissions, ReDoS pattern rejection (5 nested-quantifier shapes),
+  oversized-pattern rejection, oversized-line skip, retired-template
+  guard, Windows-path redaction.
+
 ## [0.9.6] - 2026-05-05 — Security: Path Traversal, XSS, SSRF, Redaction
 
 ### Security

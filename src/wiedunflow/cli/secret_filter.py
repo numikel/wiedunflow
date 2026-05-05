@@ -54,9 +54,11 @@ _PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
 
 _REDACTED: Final[str] = "[REDACTED]"
 
-# Regex for matching Unix/Windows absolute paths.
+# Regex for matching Unix/Windows absolute paths. Windows branch needs `\\`
+# (literal backslash after the drive letter) — the earlier `\[` was a typo
+# that made every Windows path silently slip past path redaction.
 _ABS_PATH_RE: Final[re.Pattern[str]] = re.compile(
-    r"(?:/[^\s\"'<>]+|[A-Za-z]:\[^\s\"'<>]+)",
+    r"(?:/[^\s\"'<>]+|[A-Za-z]:\\[^\s\"'<>]+)",
 )
 
 _EXTERNAL_PLACEHOLDER: Final[str] = "<external>"

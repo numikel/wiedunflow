@@ -15,11 +15,14 @@ from __future__ import annotations
 import logging
 import sys
 from collections.abc import MutableMapping
+from pathlib import Path
 from typing import Any
 
 import structlog
+from structlog.types import Processor
 
 from wiedunflow.cli.secret_filter import redact as _redact_secret
+from wiedunflow.cli.secret_filter import redact_path as _redact_path
 
 _state: dict[str, bool] = {"configured": False}
 
@@ -50,19 +53,39 @@ def _rename_timestamp_to_ts(
     return event_dict
 
 
-def _redact_secrets_processor(
-    _: object, __: str, event_dict: MutableMapping[str, Any]
-) -> MutableMapping[str, Any]:
-    """Redact API-key-shaped substrings in every string value (US-069).
+def _make_redact_processor(
+    *,
+    redact_secrets: bool,
+    redact_paths: bool,
+    repo_root: Path | None,
+) -> Processor:
+    """Build a structlog processor that scrubs secrets and/or external paths.
 
-    Installed by :func:`configure` before the rendering processor when
-    ``redact_secrets=True`` (the default). Authoritative pattern list lives
-    in :mod:`wiedunflow.cli.secret_filter` per ADR-0010.
+    Both filters operate on top-level string values in the event dict.
+
+    Args:
+        redact_secrets: When ``True``, apply :func:`~wiedunflow.cli.secret_filter.redact`
+            to every string value (API keys, bearer tokens, etc.).
+        redact_paths: When ``True``, replace absolute paths that fall outside
+            *repo_root* with ``"<external>"``. No-op when *repo_root* is ``None``.
+        repo_root: Absolute root of the analysed repository, used to decide
+            which paths are internal (kept) vs external (replaced).
     """
-    for key, val in list(event_dict.items()):
-        if isinstance(val, str):
-            event_dict[key] = _redact_secret(val)
-    return event_dict
+
+    def _processor(
+        _: object, __: str, event_dict: MutableMapping[str, Any]
+    ) -> MutableMapping[str, Any]:
+        for key in list(event_dict):
+            raw = event_dict[key]
+            if not isinstance(raw, str):
+                continue
+            filtered = _redact_secret(raw) if redact_secrets else raw
+            if redact_paths and repo_root is not None:
+                filtered = _redact_path(filtered, repo_root)
+            event_dict[key] = filtered
+        return event_dict
+
+    return _processor
 
 
 def configure(
@@ -70,6 +93,8 @@ def configure(
     json_mode: bool,
     level: int = logging.INFO,
     redact_secrets: bool = True,
+    redact_paths: bool = True,
+    repo_root: Path | None = None,
 ) -> None:
     """Configure the global structlog logger for the current run.
 
@@ -81,6 +106,14 @@ def configure(
         redact_secrets: When ``True`` (default), a ``SecretFilter`` processor
             redacts API-key-shaped substrings before rendering (US-069). The
             ``--no-log-redaction`` flag is the only supported way to disable.
+        redact_paths: When ``True`` (default), replace absolute paths outside
+            *repo_root* with ``"<external>"`` in every log event. Disable via
+            ``--no-log-redact-paths`` for local debugging. No-op when
+            *repo_root* is ``None``.
+        repo_root: Absolute root of the analysed repository. Required for
+            path redaction to distinguish internal from external paths. When
+            ``None``, path redaction is silently skipped even if *redact_paths*
+            is ``True``.
     """
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
@@ -92,8 +125,14 @@ def configure(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
     ]
-    if redact_secrets:
-        shared_processors.append(_redact_secrets_processor)
+    if redact_secrets or redact_paths:
+        shared_processors.append(
+            _make_redact_processor(
+                redact_secrets=redact_secrets,
+                redact_paths=redact_paths,
+                repo_root=repo_root,
+            )
+        )
 
     if json_mode:
         renderer: structlog.types.Processor = structlog.processors.JSONRenderer(

@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,6 +80,8 @@ class RunWorkspace:
         """
         d = self.base_dir / stage / lesson_id
         d.mkdir(parents=True, exist_ok=True)
+        if sys.platform != "win32":
+            os.chmod(d, 0o700)
         return d
 
     def transcript_dir(self, lesson_id: str) -> Path:
@@ -92,6 +95,8 @@ class RunWorkspace:
         """
         d = self.base_dir / "transcript" / lesson_id
         d.mkdir(parents=True, exist_ok=True)
+        if sys.platform != "win32":
+            os.chmod(d, 0o700)
         return d
 
     # ------------------------------------------------------------------
@@ -109,6 +114,8 @@ class RunWorkspace:
             content: UTF-8 string to write.
         """
         dest.parent.mkdir(parents=True, exist_ok=True)
+        if sys.platform != "win32":
+            os.chmod(dest.parent, 0o700)
         tmp = dest.with_suffix(dest.suffix + ".tmp")
         tmp.write_text(content, encoding="utf-8")
         os.replace(tmp, dest)
@@ -190,6 +197,9 @@ def allocate_workspace(run_id: str, *, base_dir: Path | None = None) -> RunWorks
     """
     root = (base_dir or _DEFAULT_BASE) / run_id
     root.mkdir(parents=True, exist_ok=True)
+    if sys.platform != "win32":
+        # Restrict to user (umask-independent); workspace holds source excerpts + LLM transcripts.
+        os.chmod(root, 0o700)
     logger.debug("allocate_workspace run_id=%s base_dir=%s", run_id, root)
     return RunWorkspace(run_id=run_id, base_dir=root)
 

@@ -254,3 +254,23 @@ class TestXssViaJinjaRenderer:
         assert "default-src 'none'" in html
         assert "base-uri 'none'" in html
         assert "form-action 'none'" in html
+
+
+def test_only_expected_templates_shipped() -> None:
+    """Guard against re-introducing retired templates without CSP / script-tag escaping.
+
+    Adding a new Jinja2 template requires an explicit decision: every shipped
+    template must carry a CSP meta tag and route JSON payloads through
+    ``_safe_for_script_tag`` (see ADR-0010 §D12). This test fails fast when a
+    new ``.j2`` file lands in the templates directory.
+    """
+    from pathlib import Path
+
+    templates_dir = (
+        Path(__file__).resolve().parents[3] / "src" / "wiedunflow" / "renderer" / "templates"
+    )
+    jinja_files = sorted(p.name for p in templates_dir.glob("*.j2"))
+    assert jinja_files == ["tutorial.html.j2"], (
+        f"Unexpected Jinja2 templates in {templates_dir}: {jinja_files}. "
+        f"Adding a new template requires explicit CSP review."
+    )

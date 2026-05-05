@@ -80,6 +80,25 @@ def test_second_write_overwrites_first(tmp_path: Path) -> None:
     assert payload["status"] == "interrupted"
 
 
+def test_stack_trace_secrets_are_redacted(tmp_path: Path) -> None:
+    """API keys in stack_trace are redacted before write to run-report.json."""
+    from datetime import UTC, datetime
+
+    from wiedunflow.cli.main import _write_final_report
+
+    leaked = "sk-ant-api03-leaked-key-abcdef0123456789-XYZ"
+    _write_final_report(
+        repo_path=tmp_path,
+        provider_label="anthropic",
+        started_at=datetime.now(UTC),
+        status="failed",
+        stack_trace=f"Traceback... ANTHROPIC_API_KEY='{leaked}' at line 42",
+    )
+    report_json = (tmp_path / ".wiedunflow" / "run-report.json").read_text(encoding="utf-8")
+    assert leaked not in report_json
+    assert "[REDACTED]" in report_json
+
+
 def test_hallucinated_field_emitted(tmp_path: Path) -> None:
     """hallucinated_symbols_count and hallucinated_symbols appear in run-report.json.
 

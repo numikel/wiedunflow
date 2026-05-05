@@ -637,3 +637,30 @@ def test_grep_usages_skips_outside_root_symlinks(tmp_path: Path, attack_pattern:
     # Pattern is a valid regex; the tool should return "No matches" (empty repo).
     result = tool({"pattern": "anything"})
     assert "No matches" in result
+
+
+def test_grep_usages_rejects_oversized_pattern(tmp_path: Path) -> None:
+    """Patterns longer than 500 chars are rejected pre-compile."""
+    tool = make_grep_usages(tmp_path, _PassthroughFsBoundary())
+    result = tool({"pattern": "a" * 600})
+    assert "Pattern too long" in result
+
+
+@pytest.mark.parametrize(
+    "bad_pattern",
+    ["(a+)+", "(.*)+", r"(\w+)+", "(a{2,})+", "(.+)+$"],
+)
+def test_grep_usages_rejects_nested_quantifier(tmp_path: Path, bad_pattern: str) -> None:
+    """Catastrophic-backtracking shapes are rejected pre-compile."""
+    tool = make_grep_usages(tmp_path, _PassthroughFsBoundary())
+    result = tool({"pattern": bad_pattern})
+    assert "nested quantifiers" in result.lower()
+
+
+def test_grep_usages_skips_oversized_line(tmp_path: Path) -> None:
+    """Lines longer than 2000 chars are not searched (DoS guard)."""
+    src = tmp_path / "huge.py"
+    src.write_text("def foo():\n" + "x" * 3000 + " # match_me\n", encoding="utf-8")
+    tool = make_grep_usages(tmp_path, _PassthroughFsBoundary())
+    result = tool({"pattern": "match_me"})
+    assert "No matches" in result

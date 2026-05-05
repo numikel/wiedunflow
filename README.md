@@ -2,7 +2,7 @@
 
 ![Python version](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)
-![Version](https://img.shields.io/badge/version-0.9.5-orange.svg)
+![Version](https://img.shields.io/badge/version-0.9.7-orange.svg)
 ![CI](https://github.com/numikel/wiedunflow/actions/workflows/ci.yml/badge.svg)
 
 ## What is WiedunFlow
@@ -58,7 +58,7 @@ Code's custom-agent picker. Arrow keys + Enter + Esc — no flags to remember.
  ╚███╔███╔╝██║███████╗██████╔╝╚██████╔╝██║ ╚████║███████╗███████╗╚██████╔╝╚███╔███╔╝
   ╚══╝╚══╝ ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚══════╝ ╚═════╝  ╚══╝╚══╝
 
-  v0.9.5 · multi-agent tutorial generator from your local Git repository
+  v0.9.7 · multi-agent tutorial generator from your local Git repository
 
 ? What would you like to do?
   ❯ Initialize config
@@ -179,6 +179,9 @@ Options:
   --dry-run                    Run Stages 0..4 and emit a preview HTML without paying for narration (US-015).
   --review-plan                Pause after Stage 4 and open the lesson manifest in $EDITOR (US-016).
   --log-format [text|json]     Structured log output on stderr (US-022). Default: text.
+  --log-redact-paths /         Replace external absolute paths in log output with `<external>`
+    --no-log-redact-paths      (default: on). Keeps `/home/<user>/...` and `C:\Users\<user>\...`
+                               out of bug-report logs; opt out for local debugging.
   --python-path PATH           Python interpreter for Jedi to use when resolving the call graph
                                (defaults to auto-detected `.venv/`/`venv/`/`env/` then system Python.
   --bootstrap-venv             Run `uv sync --no-dev` in the target repo before Stage 2 to populate
@@ -197,7 +200,7 @@ click group class rewrites an unknown first positional to `generate <positional>
 Running `wiedunflow ./my-repo` in a TTY produces:
 
 ```
-WiedunFlow v0.9.5
+WiedunFlow v0.9.7
 offline-friendly tutorial generator from local Git repos
 
 [1/7] Ingestion
@@ -403,6 +406,14 @@ HuggingFace `hf_...`, generic `Bearer ...`, `Authorization: ...` headers, 40+ ch
 are replaced with `[REDACTED]` before structured logs reach stderr — on every log level, in
 both `--log-format=text` and `--log-format=json`.  A hidden `--no-log-redaction` flag disables
 redaction for local debugging only (not documented in `--help`).
+
+External absolute paths are also replaced with `<external>` by default
+(`--log-redact-paths`, on by default). Paths inside the analysed repo are kept
+intact; everything else — `/home/<user>/...`, `C:\Users\<user>\...`,
+`/usr/local/...` — is scrubbed before logs hit stderr or `run-report.json`.
+Disable with `--no-log-redact-paths` for local debugging. Stack traces written
+to `<repo>/.wiedunflow/run-report.json` are always passed through the
+secret-redaction filter.
 
 ### Zero telemetry
 

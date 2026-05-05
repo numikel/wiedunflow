@@ -149,6 +149,25 @@ def test_redact_path_none_repo_root() -> None:
     assert redact_path(msg, None) == msg
 
 
+def test_redact_path_replaces_windows_absolute(tmp_path: Path) -> None:
+    """Windows-style absolute paths (`C:\\Users\\...`) must also be redacted."""
+    repo_root = tmp_path / "myrepo"
+    repo_root.mkdir()
+    msg = r"event=loaded path=C:\Users\alice\private\secret.py extra=ok"
+    result = redact_path(msg, repo_root)
+    assert r"C:\Users\alice" not in result
+    assert "<external>" in result
+
+
+def test_redact_path_keeps_internal_windows_path(tmp_path: Path) -> None:
+    """Windows paths inside repo_root must NOT be replaced."""
+    repo_root = tmp_path / "myrepo"
+    repo_root.mkdir()
+    internal = str(repo_root / "src" / "main.py")
+    result = redact_path(f"parsing {internal}", repo_root)
+    assert internal in result
+
+
 def test_truncate_source_returns_hash_colon_symbol() -> None:
     """truncate_source() must return hash:symbol regardless of body size."""
     body = "def my_func():\n    return 42\n" * 100

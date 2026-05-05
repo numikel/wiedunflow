@@ -1,7 +1,7 @@
 # ADR-0010 — Secret redaction policy + zero-telemetry contract
 
 - **Status**: Accepted
-- **Date**: 2026-04-22 (amended 2026-05-04)
+- **Date**: 2026-04-22 (amended 2026-05-04, 2026-05-05)
 - **Sprint**: 6 (Privacy + Config + Hardening)
 - **Related US**: US-005, US-006, US-007, US-008, US-011, US-068, US-069
 - **Supersedes**: —
@@ -163,6 +163,28 @@ with user-supplied env vars. Malicious payloads in a CI runner's
 environment must not translate into shell execution. All three guards
 are cheap and independently auditable.
 
+### D12 — Path redaction default-ON dla logs i run-report (operational lesson)
+
+**Decision (amendment 2026-05-05, v0.9.7)**: `redact_path()` jest invokowany
+automatycznie w dwóch miejscach:
+
+1. `cli/logging.py::_make_redact_processor` — gdy `--log-redact-paths` jest
+   ustawiony (default ON, opt-out via `--no-log-redact-paths`). Aplikowane
+   na obu sinks (JSONRenderer + ConsoleRenderer).
+2. `cli/main.py::_write_final_report` — `stack_trace` jest przepuszczany
+   przez `redact()` (sekrety) przed wpisaniem do
+   `<repo>/.wiedunflow/run-report.json`.
+
+**Rationale**: §D2 ustawiał path redaction jako "opt-in explicitly" zakładając
+że callers znają kontekst repo. Operacyjne doświadczenie pokazało że
+deweloperzy regularnie kopiują `--log-format=json` output do GitHub issues —
+`/home/<user>/private-repo/...` wycieka publicznie. Default ON dla logs +
+auto-redaction stack_trace zamykają ten wektor bez zmiany surface API.
+
+**Niezmienione**: entities/use_cases (renderer, planner, agent_orchestrator)
+nadal opt-in explicitly per §D2 — redakcja jest cli-layer concern, nie
+domain concern.
+
 ### D11 — Log redaction pattern catalog (amended 2026-05-04, v0.9.6)
 
 **Decision**: Redaction patterns applied by `redact()` in `cli/secret_filter.py` are
@@ -226,8 +248,9 @@ redacted by D11's PEM pattern.
 
 ## Implementation references
 
-- `src/wiedunflow/cli/secret_filter.py` — D1, D2
-- `src/wiedunflow/cli/logging.py::_redact_secrets_processor` — D2
+- `src/wiedunflow/cli/secret_filter.py` — D1, D2, D12
+- `src/wiedunflow/cli/logging.py::_make_redact_processor` — D2, D12
+- `src/wiedunflow/cli/main.py::_write_final_report` — D12
 - `src/wiedunflow/adapters/yaml_consent_store.py` — D3
 - `src/wiedunflow/cli/consent.py::ensure_consent_granted` — D4
 - `src/wiedunflow/ingestion/secret_blocklist.py` — D5
