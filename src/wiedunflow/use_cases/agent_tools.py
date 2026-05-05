@@ -241,10 +241,7 @@ def make_read_tests(
             return None
         if short not in content:
             return None
-        try:
-            rel: Path | str = safe_file.relative_to(repo_root)
-        except ValueError:
-            rel = safe_file
+        rel = safe_file.relative_to(repo_root)
         file_lines = content.splitlines()
         ctx_blocks: list[str] = []
         for i, line in enumerate(file_lines):
@@ -335,11 +332,7 @@ def make_grep_usages(repo_root: Path, fs_boundary: FsBoundary) -> ToolFn:
                 if len(line) > _MAX_LINE_LEN:
                     continue
                 if pat.search(line):
-                    try:
-                        rel = safe_src_file.relative_to(repo_root)
-                    except ValueError:
-                        rel = safe_src_file
-                    hits.append(f"{rel}:{i}: {line.rstrip()}")
+                    hits.append(f"{safe_src_file.relative_to(repo_root)}:{i}: {line.rstrip()}")
                     if len(hits) >= _CAP_GREP:
                         hits.append(f"... [{_CAP_GREP} hits limit reached]")
                         return "\n".join(hits)
@@ -388,10 +381,7 @@ def make_list_files_in_dir(repo_root: Path, fs_boundary: FsBoundary) -> ToolFn:
                 fs_boundary.ensure_within_root(e)
             except PathOutsideRootError:
                 continue
-            try:
-                rel = e.relative_to(repo_root)
-            except ValueError:
-                continue
+            rel = e.relative_to(repo_root)
             suffix = "/" if e.is_dir() else ""
             lines.append(f"{rel}{suffix}")
         if truncated:

@@ -246,16 +246,91 @@ redacted by D11's PEM pattern.
 - `security.allow_secret_files` — project config array.
 - Consent revocation: `rm ~/.config/wiedunflow/consent.yaml`.
 
+## §D13 — Consent-file protection on Windows is documentation + warning, not an ACL operation (v0.9.8 amendment, 2026-05-05)
+
+**Context**: §D3 leaves `consent.yaml` ACL on Windows to the default of
+`%APPDATA%`. On a single-user machine that default is normally adequate, but
+on domain-joined / multi-user / RDP environments it allows other local
+accounts to read the file. We considered tightening the ACL through `icacls`
+(subprocess) or `pywin32` (optional dependency).
+
+**Decision**: We do *not* tighten the ACL programmatically. Instead, we emit
+a one-shot `stderr` notice the first time the consent store writes the file
+in a process, and we describe the manual remediation procedure
+(Properties → Security → Edit) in README §Privacy.
+
+**Rationale**:
+
+- The project commits to *zero platform-conditional dependencies* in
+  `pyproject.toml`. Adding `pywin32` solely to harden one file is
+  disproportionate.
+- `icacls` quoting is brittle for usernames containing non-ASCII characters
+  (Polish locales, accented names) when called from `subprocess`, and silent
+  failures on edge cases (UAC scenarios, OneDrive-mapped `%APPDATA%`) would
+  leave users believing the file was hardened when it was not — strictly
+  worse than today's transparency.
+- The threat model addressed here is "another local user reads my consent
+  decision plus a timestamp"; it is **not** "an attacker steals my API key"
+  — keys live in environment variables / OS keychain, not in this file.
+- The runtime warning means nobody is silently exposed; the README gives a
+  precise remediation in three clicks.
+
+**Deferred upgrade path**: if telemetry from issue reports shows recurring
+confusion on shared Windows machines, we may revisit and add an optional
+`pywin32`-based hardening in a future minor release. That decision will
+require a fresh ADR amendment and an entry in the implementation-references
+table below.
+
+## §D14 — `--bootstrap-venv` requires explicit per-invocation consent for arbitrary repo code execution (v0.9.8 amendment, 2026-05-05)
+
+**Context**: `wiedunflow generate --bootstrap-venv` runs `uv sync --no-dev`
+inside the analyzed repository so Jedi can resolve cross-package symbols.
+That subprocess **executes the analyzed repository's `pyproject.toml`
+build-backend hooks** (setuptools / hatchling / meson-python) and any
+post-install scripts — i.e. arbitrary Python code from a source we have not
+yet read. A malicious repository can smuggle code execution under the guise
+of "set up Jedi cross-file resolution", and the original opt-in `--bootstrap-venv`
+description was insufficiently alarming.
+
+**Decision**: Two-flag gate, orthogonal to the cost gate.
+
+- In an interactive TTY, the CLI prints a warning banner that names the
+  exact command (`uv sync --no-dev`), the target path, and the categories of
+  code that will run; then asks `y/N` with default `N`.
+- In non-TTY contexts (CI scripts, piped stdin) the run aborts with exit
+  code 2 unless `--yes-execute-repo-code` is supplied — the new flag is the
+  only way to skip the prompt non-interactively.
+- The cost-gate flag `--yes` does not cover repository-code execution. The
+  two flags are intentionally orthogonal because the categories of risk are
+  different (USD spend vs. arbitrary code execution from third-party source).
+
+**Rationale**:
+
+- Adds a hard guard rail at the only point where WiedunFlow voluntarily
+  hands execution to foreign code, before any AST / planning stage runs.
+- Coupling consent into `--yes` would dilute the signal: a CI script that
+  pre-accepts cost should not, in the same gesture, pre-accept arbitrary
+  code execution from any repository it might be pointed at.
+- Consistent with the broader policy that any new "user voluntarily makes
+  the network or the host wider" surface gets a banner + opt-in flag.
+
+**Deferred work**: a future hardening could sandbox `uv sync` (e.g.
+`bubblewrap` on Linux, App Container on Windows) so the consent prompt
+becomes belt-and-braces rather than the only line of defence. That is a
+multi-month effort and is explicitly out of scope for v0.9.8.
+
 ## Implementation references
 
 - `src/wiedunflow/cli/secret_filter.py` — D1, D2, D12
 - `src/wiedunflow/cli/logging.py::_make_redact_processor` — D2, D12
 - `src/wiedunflow/cli/main.py::_write_final_report` — D12
-- `src/wiedunflow/adapters/yaml_consent_store.py` — D3
+- `src/wiedunflow/adapters/yaml_consent_store.py` — D3, D13
 - `src/wiedunflow/cli/consent.py::ensure_consent_granted` — D4
 - `src/wiedunflow/ingestion/secret_blocklist.py` — D5
 - `tests/integration/test_zero_telemetry.py` — D6
 - `src/wiedunflow/cli/editor_resolver.py::_validate_editor_cmd` — D7
+- `src/wiedunflow/cli/main.py::_confirm_repo_code_exec` — D14
+- `src/wiedunflow/adapters/litellm_pricing_catalog.py::_validate_pricing_map` — pricing integrity (companion to this ADR; see CHANGELOG [0.9.8])
 
 ## Links
 

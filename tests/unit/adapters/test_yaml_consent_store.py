@@ -180,3 +180,34 @@ def test_creates_parent_directories(tmp_path: Path) -> None:
     store = YamlConsentStore(path=path)
     store.grant("anthropic", datetime.now(UTC))
     assert path.exists()
+
+
+# ---------------------------------------------------------------------------
+# 7. Windows-specific ACL warning
+# ---------------------------------------------------------------------------
+
+
+def test_windows_warning_emitted_once_per_instance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """On Windows, the visibility notice is printed once per process even
+    across multiple grant() calls."""
+    monkeypatch.setattr("sys.platform", "win32")
+    store = YamlConsentStore(path=tmp_path / "consent.yaml")
+    store.grant("openai", datetime.now())
+    store.grant("anthropic", datetime.now())  # second grant on same instance
+    captured = capsys.readouterr()
+    assert captured.err.count("[wiedunflow] consent.yaml") == 1
+    assert "Windows ACL" in captured.err
+    assert (tmp_path / "consent.yaml").exists()
+
+
+def test_no_windows_warning_on_posix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """POSIX path emits no Windows-specific stderr noise."""
+    monkeypatch.setattr("sys.platform", "linux")
+    store = YamlConsentStore(path=tmp_path / "consent.yaml")
+    store.grant("openai", datetime.now())
+    captured = capsys.readouterr()
+    assert "[wiedunflow]" not in captured.err

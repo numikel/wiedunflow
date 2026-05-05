@@ -185,7 +185,13 @@ Options:
   --python-path PATH           Python interpreter for Jedi to use when resolving the call graph
                                (defaults to auto-detected `.venv/`/`venv/`/`env/` then system Python.
   --bootstrap-venv             Run `uv sync --no-dev` in the target repo before Stage 2 to populate
-                               `.venv/` so Jedi can resolve cross-package symbols.
+                               `.venv/` so Jedi can resolve cross-package symbols. Executes that
+                               repository's pyproject.toml build hooks (arbitrary code), so it is
+                               gated: in a TTY you will be prompted; in non-TTY contexts you must
+                               also pass --yes-execute-repo-code, otherwise the run aborts.
+  --yes-execute-repo-code      Required alongside --bootstrap-venv in non-interactive contexts to
+                               confirm acceptance of the arbitrary-code-execution risk. The cost-gate
+                               flag --yes is intentionally orthogonal — it does NOT cover this.
   -h, --help                   Show this message and exit.
 ```
 
@@ -385,6 +391,47 @@ the relevant provider key).
 - `--yes` — auto-accept everything (stronger variant of `--no-consent-prompt`).
 - `--base-url` with `--provider=openai_compatible` / `custom` skips the banner entirely
   — local inference means no code leaves the machine.
+
+### Multi-user Windows machines
+
+On Linux and macOS, `consent.yaml` is created with mode `0o600` — only your
+user account can read it. On Windows, WiedunFlow does **not** invoke `icacls`
+or take a `pywin32` dependency by design, so the file inherits the default ACL
+of `%APPDATA%`. On a single-user machine that is normally adequate, but on:
+
+- domain-joined workstations,
+- machines with RDP or multiple local accounts,
+- shared development VMs,
+
+other accounts may be able to read it. WiedunFlow prints a one-time reminder
+to `stderr` the first time it writes the file in a process. To tighten the
+ACL manually:
+
+1. Right-click `%APPDATA%\wiedunflow\consent.yaml` → Properties → Security → Edit.
+2. Remove `Users` and `Authenticated Users`.
+3. Confirm your own account has Full control.
+
+To clear consent entirely on any platform, delete `consent.yaml`; it has no
+impact on `config.yaml` or any other settings.
+
+### Repository-code execution gate (`--bootstrap-venv`)
+
+`wiedunflow generate --bootstrap-venv` runs `uv sync --no-dev` inside the
+repository being analyzed so Jedi can resolve imports across third-party
+packages. **That subprocess executes the analyzed repository's `pyproject.toml`
+build-backend hooks** (setuptools / hatchling / meson-python) and any
+post-install scripts — arbitrary code from foreign source. Two guard rails:
+
+- In an interactive terminal, you will be shown a warning banner and asked
+  to confirm with `y/N` (default `N`) **before** the subprocess is launched.
+- In non-TTY contexts (CI, redirected stdin, pipes) you must pass
+  `--yes-execute-repo-code` to confirm in advance, otherwise the run aborts
+  with exit code 2 before any subprocess starts.
+
+The cost-gate flag `--yes` does **not** cover repository-code execution —
+the two flags are intentionally orthogonal. CI scripts that previously paired
+`--bootstrap-venv` with `--yes` must additionally pass `--yes-execute-repo-code`
+from v0.9.8 onwards.
 
 ### Hard-refuse secret list
 

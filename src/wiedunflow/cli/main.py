@@ -365,6 +365,19 @@ def init_cmd(
         "but no .venv/. Requires 'uv' to be available on PATH."
     ),
 )
+@click.option(
+    "--yes-execute-repo-code",
+    "yes_execute_repo_code",
+    is_flag=True,
+    default=False,
+    help=(
+        "Required alongside --bootstrap-venv to confirm you accept that "
+        "running 'uv sync' executes pyproject.toml build hooks from the "
+        "analyzed repository (arbitrary code execution risk). In a TTY, "
+        "you will be prompted interactively if this flag is omitted; in "
+        "non-TTY contexts the operation aborts."
+    ),
+)
 def generate_cmd(
     repo_path: Path,
     excludes: tuple[str, ...],
@@ -390,6 +403,7 @@ def generate_cmd(
     log_redact_paths: bool,
     python_path: Path | None,
     bootstrap_venv: bool,
+    yes_execute_repo_code: bool,
 ) -> None:
     """Generate an interactive HTML tutorial from a local Git repository."""
     json_mode = log_format == "json"
@@ -406,6 +420,20 @@ def generate_cmd(
     # Must run before JediResolver is instantiated so the detected .venv/ path
     # is available when _detect_python_path() scans the repo root.
     if bootstrap_venv:
+        _tty_for_bootstrap = sys.stdin.isatty() and sys.stdout.isatty()
+        if not _confirm_repo_code_exec(
+            repo_path,
+            yes_flag=yes_execute_repo_code,
+            is_tty=_tty_for_bootstrap,
+            console=init_console(json_mode=log_format == "json"),
+        ):
+            click.echo(
+                "Aborted: --bootstrap-venv requires explicit consent. "
+                "Re-run with --yes-execute-repo-code or in an interactive "
+                "terminal.",
+                err=True,
+            )
+            sys.exit(2)
         bootstrapped = _bootstrap_venv(repo_path)
         if bootstrapped is not None and python_path is None:
             # Only override when the caller did not supply an explicit --python-path.
@@ -738,6 +766,48 @@ def _bootstrap_venv(repo_path: Path) -> Path | None:
     else:
         logger.info("bootstrap_venv_done", python=str(detected))
     return detected
+
+
+def _confirm_repo_code_exec(
+    repo_path: Path,
+    *,
+    yes_flag: bool,
+    is_tty: bool,
+    console: object,
+) -> bool:
+    """Gate for --bootstrap-venv. True => proceed with 'uv sync' subprocess.
+
+    Bootstrap of analyzed repos invokes 'uv sync', which runs build-backend
+    hooks from foreign pyproject.toml. We require explicit per-invocation
+    consent so a malicious repository cannot smuggle code execution under
+    the guise of "set up Jedi cross-file resolution".
+
+    Args:
+        repo_path: The repository being analyzed (shown in the warning banner).
+        yes_flag: True when the caller passed ``--yes-execute-repo-code``.
+        is_tty: Whether the current process has an interactive TTY on stdin+stdout.
+        console: Rich Console instance (or any object) used for the warning banner.
+
+    Returns:
+        True if the caller should proceed; False to abort.
+    """
+    if yes_flag:
+        return True
+    if not is_tty:
+        return False
+    # TTY: show banner with explicit warning + y/N (default N).
+    # ``console`` is treated as opaque here (three-sink rule: no rich import in
+    # this module); at runtime it is the Rich Console returned by init_console.
+    console.print(  # type: ignore[attr-defined]
+        "[bold yellow]Warning[/]: --bootstrap-venv will run "
+        "[cyan]uv sync --no-dev[/] inside "
+        f"[magenta]{repo_path}[/].\n"
+        "This executes [bold]pyproject.toml[/] build hooks "
+        "(setuptools/hatchling/meson-python) and any post-install scripts "
+        "from the analyzed repository. Only proceed if you trust the "
+        "source.",
+    )
+    return click.confirm("Proceed?", default=False)
 
 
 def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with many exception paths

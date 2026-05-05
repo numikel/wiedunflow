@@ -1,6 +1,6 @@
 [project]
 name = "wiedunflow"
-version = "0.9.7"
+version = "0.9.8"
 description = "Generate interactive, self-contained HTML tutorials from local Git repositories"
 readme = "README.md"
 requires-python = ">=3.11"

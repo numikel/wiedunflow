@@ -21,6 +21,39 @@ from wiedunflow.interfaces.pricing_catalog import PricingCatalog
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
+
+# ---------------------------------------------------------------------------
+# Shared payload builder (must pass _validate_pricing_map)
+# ---------------------------------------------------------------------------
+
+
+def _make_valid_payload(n_entries: int = 60) -> dict[str, Any]:
+    """Build a synthetic LiteLLM-shaped payload with n_entries plus sentinels.
+
+    The total number of *parsed* keys will exceed ``_MIN_VALID_ENTRIES``
+    because each prefixed entry also generates a bare alias.
+    """
+    payload: dict[str, Any] = {
+        "gpt-4o": {
+            "input_cost_per_token": 2.5e-6,
+            "output_cost_per_token": 1.0e-5,
+            "mode": "chat",
+        },
+        "claude-opus-4-7": {
+            "input_cost_per_token": 1.5e-5,
+            "output_cost_per_token": 6.0e-5,
+            "mode": "chat",
+        },
+    }
+    for i in range(n_entries):
+        payload[f"model-{i}"] = {
+            "input_cost_per_token": 1.0e-6,
+            "output_cost_per_token": 2.0e-6,
+            "mode": "chat",
+        }
+    return payload
+
+
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
@@ -128,33 +161,32 @@ def _patch_httpx(monkeypatch: pytest.MonkeyPatch, payload: Any) -> None:
     )
 
 
+def _patch_http_get(monkeypatch: pytest.MonkeyPatch, payload: Any) -> None:
+    """Alias used by the new validation tests — same target as ``_patch_httpx``."""
+    _patch_httpx(monkeypatch, payload)
+
+
 def test_returns_prices_after_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_httpx(
-        monkeypatch,
-        {
-            "gpt-4.1": {
-                "input_cost_per_token": 0.000002,
-                "output_cost_per_token": 0.000008,
-                "mode": "chat",
-            }
-        },
-    )
+    payload = _make_valid_payload(n_entries=60)
+    payload["gpt-4.1"] = {
+        "input_cost_per_token": 0.000002,
+        "output_cost_per_token": 0.000008,
+        "mode": "chat",
+    }
+    _patch_httpx(monkeypatch, payload)
     cat = LiteLLMPricingCatalog()
     assert cat.prices_per_mtok("gpt-4.1") == pytest.approx((2.0, 8.0))
 
 
 def test_provider_prefix_falls_back_to_bare(monkeypatch: pytest.MonkeyPatch) -> None:
     """User ships ``openai/gpt-4.1``; LiteLLM JSON only has ``gpt-4.1`` → still match."""
-    _patch_httpx(
-        monkeypatch,
-        {
-            "gpt-4.1": {
-                "input_cost_per_token": 0.000002,
-                "output_cost_per_token": 0.000008,
-                "mode": "chat",
-            }
-        },
-    )
+    payload = _make_valid_payload(n_entries=60)
+    payload["gpt-4.1"] = {
+        "input_cost_per_token": 0.000002,
+        "output_cost_per_token": 0.000008,
+        "mode": "chat",
+    }
+    _patch_httpx(monkeypatch, payload)
     cat = LiteLLMPricingCatalog()
     assert cat.prices_per_mtok("openai/gpt-4.1") == pytest.approx((2.0, 8.0))
 
@@ -181,16 +213,13 @@ def test_unexpected_payload_shape_returns_none(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_export_dump_matches_prices(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_httpx(
-        monkeypatch,
-        {
-            "gpt-4.1": {
-                "input_cost_per_token": 0.000002,
-                "output_cost_per_token": 0.000008,
-                "mode": "chat",
-            }
-        },
-    )
+    payload = _make_valid_payload(n_entries=60)
+    payload["gpt-4.1"] = {
+        "input_cost_per_token": 0.000002,
+        "output_cost_per_token": 0.000008,
+        "mode": "chat",
+    }
+    _patch_httpx(monkeypatch, payload)
     cat = LiteLLMPricingCatalog()
     dump = cat.export_dump()
     assert dump["gpt-4.1"] == pytest.approx((2.0, 8.0))
@@ -269,3 +298,63 @@ def test_build_pricing_chain_wires_litellm_then_static() -> None:
     assert len(chain._catalogs) == 2
     assert isinstance(chain._catalogs[0], CachedPricingCatalog)
     assert isinstance(chain._catalogs[1], StaticPricingCatalog)
+
+
+# ---------------------------------------------------------------------------
+# Pricing-map integrity validation (_validate_pricing_map + _ensure_loaded)
+# ---------------------------------------------------------------------------
+
+
+def test_validation_rejects_payload_below_min_entries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A near-empty payload is discarded and the cache stays empty."""
+    payload = _make_valid_payload(n_entries=5)  # well below 50
+    catalog = LiteLLMPricingCatalog()
+    _patch_http_get(monkeypatch, payload)
+    assert catalog.prices_per_mtok("gpt-4o") is None
+
+
+def test_validation_rejects_underpriced_sentinel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An underpriced sentinel model trips the integrity check."""
+    payload = _make_valid_payload(n_entries=60)
+    payload["gpt-4o"]["input_cost_per_token"] = 1e-10  # absurdly cheap
+    catalog = LiteLLMPricingCatalog()
+    _patch_http_get(monkeypatch, payload)
+    assert catalog.prices_per_mtok("gpt-4o") is None
+
+
+def test_validation_rejects_overpriced_general_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A wildly overpriced entry trips the general sanity range."""
+    payload = _make_valid_payload(n_entries=60)
+    payload["model-0"]["input_cost_per_token"] = 1.0  # $1M per token = absurd
+    catalog = LiteLLMPricingCatalog()
+    _patch_http_get(monkeypatch, payload)
+    assert catalog.prices_per_mtok("gpt-4o") is None
+
+
+def test_validation_passes_for_well_formed_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A well-formed, sufficiently large payload is accepted."""
+    payload = _make_valid_payload(n_entries=60)
+    catalog = LiteLLMPricingCatalog()
+    _patch_http_get(monkeypatch, payload)
+    assert catalog.prices_per_mtok("gpt-4o") == pytest.approx((2.5, 10.0))
+
+
+def test_missing_sentinel_does_not_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the upstream drops a sentinel, validation still passes (not fatal)."""
+    payload = _make_valid_payload(n_entries=60)
+    del payload["gpt-4o"]
+    del payload["claude-opus-4-7"]
+    catalog = LiteLLMPricingCatalog()
+    _patch_http_get(monkeypatch, payload)
+    # Other models still work
+    assert catalog.prices_per_mtok("model-0") == pytest.approx((1.0, 2.0))

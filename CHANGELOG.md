@@ -6,6 +6,67 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.8] - 2026-05-05 — Security: Repo-Code Consent Guard, Pricing Integrity, Windows Consent Visibility
+
+### Added
+
+- **`--yes-execute-repo-code` flag** on `wiedunflow generate`. The
+  `--bootstrap-venv` flag invokes `uv sync --no-dev` inside the analyzed
+  repository, and that subprocess executes that repository's `pyproject.toml`
+  build-backend hooks (setuptools / hatchling / meson-python) and any
+  post-install scripts — i.e. arbitrary code from the source we are about to
+  read. We now gate it: in an interactive terminal a warning banner shows the
+  exact command, the target path, and asks `y/N` (default `N`); in non-TTY
+  contexts (CI pipes, redirected stdin) the run aborts with exit code 2
+  unless `--yes-execute-repo-code` is supplied. The cost-gate flag `--yes`
+  is **intentionally orthogonal** — it auto-confirms USD spend only and
+  never repository-code execution.
+- **Pricing JSON integrity validation** in `LiteLLMPricingCatalog`. The
+  payload fetched from `raw.githubusercontent.com` is now checked across
+  three layers before being cached: a minimum entry count, a per-entry
+  sanity range (USD per million tokens), and narrow expected-range checks on
+  sentinel models (`gpt-4o`, `claude-opus-4-7`) whose true prices we mirror
+  in `StaticPricingCatalog`. A payload that fails any layer is discarded,
+  the chained catalog falls through to the static fallback, and a structured
+  `litellm_pricing_validation_failed` warning is emitted. Closes a
+  CDN/proxy-tampering vector where altered prices could have bypassed the
+  preflight cost gate.
+- **Windows consent.yaml visibility warning**. On Windows — where the
+  project intentionally does **not** invoke `icacls` or take a `pywin32`
+  dependency — the consent store now writes a one-shot `stderr` notice the
+  first time it persists `consent.yaml` in a process. The notice points at
+  the README section that describes the manual ACL tightening procedure for
+  shared (RDP / domain-joined / multi-user) machines. POSIX behaviour is
+  unchanged: file mode `0o600` is enforced after every write.
+
+### Changed
+
+- **`agent_tools` boundary checks**. Removed three unreachable
+  `try/except ValueError` fallbacks (`make_read_tests`,
+  `make_grep_usages`, `make_list_files_in_dir`) that survived the
+  `FsBoundary` introduction in v0.9.6. Every path the loops see has already
+  been validated against the repository root, so `Path.relative_to(repo_root)`
+  cannot raise. Behaviour is identical; the diff hardens intent and removes
+  branches that could be re-armed by a careless refactor.
+
+### BREAKING (pre-PyPI window — informational only)
+
+- Scripts that combined `--bootstrap-venv` with `--yes` must additionally
+  pass `--yes-execute-repo-code` to keep working in non-interactive shells.
+  There are no external PyPI users yet, so no migration window is being
+  offered, but we record the change for any downstream automation.
+
+### Documentation
+
+- README §Privacy gains a *Multi-user Windows machines* subsection with a
+  three-click procedure (Properties → Security → Edit) for tightening
+  `consent.yaml` ACLs, plus an explanation that the runtime reminder is
+  emitted at most once per process to avoid log noise.
+- ADR-0010 is amended (§D13) to record that consent-file protection on
+  Windows is, by design, limited to a runtime warning plus user-visible
+  documentation; an `icacls`/`pywin32` upgrade path is enumerated as a
+  deferred option.
+
 ## [0.9.7] - 2026-05-05 — Security: Workspace Permissions, Log Redaction, ReDoS Guard
 
 ### Added

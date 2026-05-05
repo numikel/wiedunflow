@@ -44,6 +44,51 @@ def _entry_to_prices_per_mtok(entry: dict[str, Any]) -> tuple[float, float] | No
     return float(in_per_tok) * 1_000_000.0, float(out_per_tok) * 1_000_000.0
 
 
+# ---------------------------------------------------------------------------
+# Integrity validation
+# ---------------------------------------------------------------------------
+
+# Sentinel models with prices we know to ground truth (mirroring
+# StaticPricingCatalog). A compromised upstream that underprices these to
+# bypass the cost cap is the primary threat we mitigate here. Constants
+# live in code (NOT config) so a hostile config cannot weaken the guard.
+_MIN_VALID_ENTRIES = 50
+_GENERAL_PRICE_RANGE: tuple[float, float] = (0.0, 1000.0)  # USD per million tokens
+_SENTINELS: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {
+    # model_id: ((input_min, input_max), (output_min, output_max)) USD/MTok
+    "gpt-4o": ((0.5, 10.0), (2.0, 50.0)),
+    "claude-opus-4-7": ((5.0, 50.0), (20.0, 200.0)),
+}
+
+
+def _validate_pricing_map(prices: dict[str, tuple[float, float]]) -> bool:
+    """Return True if the parsed map looks plausible.
+
+    Three layers of defense against a tampered upstream:
+    - At least ``_MIN_VALID_ENTRIES`` entries (catches a near-empty payload).
+    - Every entry's input/output price falls in ``_GENERAL_PRICE_RANGE``
+      (catches absurd negative or huge values).
+    - Sentinel models sit inside narrow per-model expected ranges (catches an
+      underpricing attack that would bypass the cost cap).
+    """
+    if len(prices) < _MIN_VALID_ENTRIES:
+        return False
+    lo, hi = _GENERAL_PRICE_RANGE
+    for inp, out in prices.values():
+        if not (lo <= inp <= hi and lo <= out <= hi):
+            return False
+    for sentinel_id, ((in_lo, in_hi), (out_lo, out_hi)) in _SENTINELS.items():
+        prices_for = prices.get(sentinel_id) or prices.get(_provider_strip(sentinel_id))
+        if prices_for is None:
+            continue  # upstream may have dropped a sentinel; not fatal alone
+        in_actual, out_actual = prices_for
+        if not (in_lo <= in_actual <= in_hi):
+            return False
+        if not (out_lo <= out_actual <= out_hi):
+            return False
+    return True
+
+
 def _parse_pricing_payload(payload: dict[str, Any]) -> dict[str, tuple[float, float]]:
     """Build ``{model_id: (input_per_mtok, output_per_mtok)}`` from parsed LiteLLM JSON.
 
@@ -107,7 +152,20 @@ class LiteLLMPricingCatalog:
             self._cache = {}
             return self._cache
 
-        self._cache = _parse_pricing_payload(payload)
+        parsed = _parse_pricing_payload(payload)
+        if not _validate_pricing_map(parsed):
+            logger.warning(
+                "litellm_pricing_validation_failed",
+                entry_count=len(parsed),
+                msg=(
+                    "Parsed pricing payload failed integrity checks "
+                    "(too few entries, out-of-range prices, or sentinel mismatch). "
+                    "Falling back to static pricing catalog."
+                ),
+            )
+            self._cache = {}
+            return self._cache
+        self._cache = parsed
         return self._cache
 
     def prices_per_mtok(self, model_id: str) -> tuple[float, float] | None:

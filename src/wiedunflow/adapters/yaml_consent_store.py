@@ -36,6 +36,7 @@ class YamlConsentStore:
         self._path: Path = path or (
             Path(platformdirs.user_config_dir("wiedunflow")) / "consent.yaml"
         )
+        self._warned_windows: bool = False
 
     # ------------------------------------------------------------------
     # Public API (ConsentStore protocol)
@@ -113,3 +114,15 @@ class YamlConsentStore:
             yaml.safe_dump(data, fh, default_flow_style=False, allow_unicode=True)
         if sys.platform != "win32":
             os.chmod(self._path, 0o600)
+        elif not self._warned_windows:
+            # On Windows we cannot replicate POSIX 0o600 without optional deps;
+            # warn the user once per process so multi-user / RDP machines are
+            # not silently exposed.
+            sys.stderr.write(
+                "[wiedunflow] consent.yaml stored at "
+                f"{self._path} relies on the default Windows ACL of %APPDATA%; "
+                "if this is a shared / RDP / domain-joined machine, "
+                "review or remove the file manually after generation. "
+                "(See README Privacy section.)\n"
+            )
+            self._warned_windows = True
