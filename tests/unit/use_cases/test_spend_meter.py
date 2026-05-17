@@ -236,3 +236,135 @@ def test_with_mock_pricing_cost_exceeds_budget() -> None:
     assert meter.would_exceed()
     with pytest.raises(RuntimeError):
         meter.assert_within_budget()
+
+
+# ---------------------------------------------------------------------------
+# Cache token accounting (Anthropic + OpenAI multipliers)
+# ---------------------------------------------------------------------------
+
+
+def test_charge_anthropic_cache_write_costs_125_percent_of_input() -> None:
+    """Anthropic cache_creation tokens bill at 1.25x the regular input rate.
+
+    Cleanly isolated: 0 regular input, 0 output, 1M cache write tokens.
+    With a 10.0 input rate the call costs 1M * 10 * 1.25 / 1M = $12.50.
+    """
+    pricing = _FixedPricing(input_rate=10.0, output_rate=10.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    meter.charge(
+        model="claude-sonnet-4-6",
+        input_tokens=0,
+        output_tokens=0,
+        cache_creation_input_tokens=1_000_000,
+        provider="anthropic",
+    )
+    assert meter.total_cost_usd == pytest.approx(12.50, rel=1e-6)
+
+
+def test_charge_anthropic_cache_read_costs_10_percent_of_input() -> None:
+    """Anthropic cache_read tokens bill at 0.1x the regular input rate."""
+    pricing = _FixedPricing(input_rate=10.0, output_rate=10.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    meter.charge(
+        model="claude-sonnet-4-6",
+        input_tokens=0,
+        output_tokens=0,
+        cache_read_input_tokens=1_000_000,
+        provider="anthropic",
+    )
+    assert meter.total_cost_usd == pytest.approx(1.00, rel=1e-6)
+
+
+def test_charge_anthropic_all_three_tiers_summed() -> None:
+    """Anthropic charges regular + cache_write x 1.25 + cache_read x 0.1 + output."""
+    pricing = _FixedPricing(input_rate=10.0, output_rate=20.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    # 100k regular input + 200k cache write + 300k cache read + 50k output
+    # = 100k*10 + 200k*10*1.25 + 300k*10*0.1 + 50k*20 = 1.0 + 2.5 + 0.3 + 1.0 = 4.8
+    meter.charge(
+        model="claude-sonnet-4-6",
+        input_tokens=100_000,
+        output_tokens=50_000,
+        cache_creation_input_tokens=200_000,
+        cache_read_input_tokens=300_000,
+        provider="anthropic",
+    )
+    assert meter.total_cost_usd == pytest.approx(4.80, rel=1e-6)
+
+
+def test_charge_openai_cached_tokens_subtract_from_input_then_bill_at_half() -> None:
+    """OpenAI cached tokens are already in prompt_tokens — subtract then bill at 0.5x.
+
+    1M total prompt_tokens of which 600k were cache hits at 0.5x and 400k
+    regular: 400k*10 + 600k*10*0.5 = 4.0 + 3.0 = $7.0.
+    """
+    pricing = _FixedPricing(input_rate=10.0, output_rate=10.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    meter.charge(
+        model="gpt-5.4",
+        input_tokens=1_000_000,
+        output_tokens=0,
+        cache_read_input_tokens=600_000,
+        provider="openai",
+    )
+    assert meter.total_cost_usd == pytest.approx(7.00, rel=1e-6)
+
+
+def test_charge_provider_auto_detects_anthropic_from_claude_prefix() -> None:
+    """provider='auto' (default) routes claude-* models through Anthropic accounting."""
+    pricing = _FixedPricing(input_rate=10.0, output_rate=10.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    meter.charge(
+        model="claude-opus-4-7",
+        input_tokens=0,
+        output_tokens=0,
+        cache_read_input_tokens=1_000_000,
+        # provider defaults to "auto"
+    )
+    # Anthropic: 1M * 10 * 0.1 = $1.0. OpenAI accounting would give a different result.
+    assert meter.total_cost_usd == pytest.approx(1.00, rel=1e-6)
+
+
+def test_charge_provider_auto_detects_openai_from_gpt_prefix() -> None:
+    """provider='auto' routes gpt-* models through OpenAI accounting (cached subtracted)."""
+    pricing = _FixedPricing(input_rate=10.0, output_rate=10.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    meter.charge(
+        model="gpt-5.4-mini",
+        input_tokens=1_000_000,
+        output_tokens=0,
+        cache_read_input_tokens=1_000_000,  # entirely cached
+    )
+    # OpenAI: 0 regular + 1M * 10 * 0.5 = $5.0.
+    assert meter.total_cost_usd == pytest.approx(5.00, rel=1e-6)
+
+
+def test_charge_unknown_model_prefix_falls_back_to_anthropic_style() -> None:
+    """Unknown prefixes (custom / OSS) use Anthropic-style — bit-equivalent legacy path.
+
+    When no cache_* kwargs are passed, this branch yields the same cost as
+    the pre-cache pricing formula, so test fixtures with names like
+    'expensive' keep working.
+    """
+    pricing = _FixedPricing(input_rate=10.0, output_rate=20.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    meter.charge(model="ollama-mistral:7b", input_tokens=100_000, output_tokens=50_000)
+    # input 100k*10 + output 50k*20 = 1.0 + 1.0 = $2.0 — matches legacy.
+    assert meter.total_cost_usd == pytest.approx(2.00, rel=1e-6)
+
+
+def test_charge_explicit_provider_overrides_prefix_detection() -> None:
+    """Passing provider='openai' with a claude-* model name forces OpenAI accounting."""
+    pricing = _FixedPricing(input_rate=10.0, output_rate=10.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    # Trick: claude-* prefix would normally route to Anthropic, but explicit
+    # provider hint overrides. OpenAI's cached-tokens accounting subtracts.
+    meter.charge(
+        model="claude-sonnet-4-6",
+        input_tokens=1_000_000,
+        output_tokens=0,
+        cache_read_input_tokens=1_000_000,
+        provider="openai",
+    )
+    # OpenAI: 0 regular + 1M * 10 * 0.5 = $5.0 (NOT Anthropic's $1.0).
+    assert meter.total_cost_usd == pytest.approx(5.00, rel=1e-6)

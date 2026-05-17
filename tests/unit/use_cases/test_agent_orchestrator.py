@@ -124,6 +124,8 @@ class _ScriptedLLM:
         max_iterations: int = 15,
         max_cost_usd: float = 1.0,
         spend_meter: SpendMeterProto | None = None,
+        prompt_caching: bool = False,
+        max_history_iterations: int = 10,
     ) -> AgentResult:
         self.calls.append({"system_prefix": system[:80], "model": model})
         transcript: list[AgentTurn] = []

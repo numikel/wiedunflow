@@ -161,6 +161,8 @@ def _run_researcher(
         max_iterations=card.budgets.max_iterations,
         max_cost_usd=budget_usd,
         spend_meter=spend_meter,
+        prompt_caching=card.budgets.prompt_caching,
+        max_history_iterations=card.budgets.max_history_iterations,
     )
 
     notes = result.final_text or ""
@@ -374,6 +376,8 @@ def _run_writer(
         max_iterations=card.budgets.max_iterations,
         max_cost_usd=budget_usd,
         spend_meter=spend_meter,
+        prompt_caching=card.budgets.prompt_caching,
+        max_history_iterations=card.budgets.max_history_iterations,
     )
 
     if draft_holder:
@@ -513,6 +517,8 @@ def _run_reviewer(
         max_iterations=card.budgets.max_iterations,
         max_cost_usd=budget_usd,
         spend_meter=spend_meter,
+        prompt_caching=card.budgets.prompt_caching,
+        max_history_iterations=card.budgets.max_history_iterations,
     )
 
     if verdict_holder:
@@ -816,6 +822,8 @@ def run_closing_lesson(
         max_iterations=1,
         max_cost_usd=budget_remaining_usd,
         spend_meter=spend_meter,
+        prompt_caching=card.budgets.prompt_caching,
+        max_history_iterations=card.budgets.max_history_iterations,
     )
 
     narrative = _assemble_narrative_from_structured(result.final_text or "")
@@ -954,6 +962,8 @@ def run_lesson(
         max_iterations=orchestrator_card.budgets.max_iterations,
         max_cost_usd=budget_remaining_usd,
         spend_meter=spend_meter,
+        prompt_caching=orchestrator_card.budgets.prompt_caching,
+        max_history_iterations=orchestrator_card.budgets.max_history_iterations,
     )
 
     if state.result is not None:

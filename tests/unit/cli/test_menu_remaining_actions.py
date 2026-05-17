@@ -145,6 +145,7 @@ def test_init_from_menu_openai_compatible_writes_base_url(
             "llama3",
             "any-key",
             "http://localhost:11434/v1",
+            "600",  # http_read_timeout_s prompt — local providers always get asked
         ]
     )
 
@@ -152,6 +153,7 @@ def test_init_from_menu_openai_compatible_writes_base_url(
 
     data = yaml.safe_load(isolated_user_config.read_text(encoding="utf-8"))
     assert data["llm"]["base_url"] == "http://localhost:11434/v1"
+    assert data["llm"]["http_read_timeout_s"] == 600
 
 
 def test_init_from_menu_abort_on_provider(isolated_user_config: Path) -> None:
@@ -225,6 +227,7 @@ def test_init_from_menu_back_from_base_url_returns_to_api_key(
             None,  # Esc on base_url → back to api_key
             "right-key",  # api key re-prompt
             "http://localhost:11434/v1",  # base_url
+            "600",  # http_read_timeout_s (final step for local providers)
         ]
     )
 
@@ -270,6 +273,7 @@ def test_init_from_menu_provider_change_inserts_base_url_step(
             "llama3",  # narrate
             "any-key",  # api key
             "http://localhost:8000/v1",  # base_url
+            "600",  # http_read_timeout_s
         ]
     )
 

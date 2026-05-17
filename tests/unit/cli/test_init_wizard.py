@@ -164,6 +164,9 @@ def test_wizard_non_interactive_base_url(monkeypatch: pytest.MonkeyPatch, tmp_pa
             "--model-narrate=gpt-4o",
             "--api-key=sk-test",
             "--base-url=http://localhost:11434/v1",
+            # http_read_timeout_s is required non-interactively for local
+            # providers; cloud setups skip the prompt entirely.
+            "--http-read-timeout-s=600",
         ],
         input="",
         catch_exceptions=False,
@@ -172,6 +175,7 @@ def test_wizard_non_interactive_base_url(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert result.exit_code == 0, f"Expected exit 0, got {result.exit_code}.\n{result.output}"
     data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     assert data["llm"]["base_url"] == "http://localhost:11434/v1"
+    assert data["llm"]["http_read_timeout_s"] == 600
 
 
 # ---------------------------------------------------------------------------

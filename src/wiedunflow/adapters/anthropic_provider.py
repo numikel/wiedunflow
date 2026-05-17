@@ -19,6 +19,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from wiedunflow.adapters._history_compressor import compress_anthropic_history
 from wiedunflow.adapters._plan_parser import parse_plan_response
 from wiedunflow.adapters.llm_prompts import PLAN_SYSTEM_PROMPT
 from wiedunflow.entities.lesson_manifest import LessonManifest
@@ -117,6 +118,8 @@ class AnthropicProvider:
         max_iterations: int = 15,
         max_cost_usd: float = 1.0,
         spend_meter: SpendMeterProto | None = None,
+        prompt_caching: bool = False,
+        max_history_iterations: int = 10,
     ) -> AgentResult:
         """Run a tool-use agent loop against the Anthropic messages API.
 
@@ -127,6 +130,13 @@ class AnthropicProvider:
         The Anthropic message format differs from OpenAI: tool results are sent as
         a ``user`` message with ``tool_result`` content blocks, and assistant turns
         with tool calls are appended as the raw SDK response content list.
+
+        When ``prompt_caching`` is True the system prompt is wrapped in a
+        ``TextBlockParam`` carrying ``cache_control={"type": "ephemeral"}`` and
+        the last tool schema receives the same marker. Anthropic charges the
+        first call at 1.25x input rate to populate the cache; subsequent calls
+        within the 5-minute TTL pay only 10% of the regular input rate for
+        cache hits.
 
         Args:
             system: System prompt for the agent.
@@ -139,12 +149,18 @@ class AnthropicProvider:
                 ``spend_meter``); kept for Protocol conformance.
             spend_meter: Optional spend tracker; loop aborts when
                 ``would_exceed()`` returns True.
+            prompt_caching: Wire ``cache_control: ephemeral`` markers on system
+                + last tool schema. Requires the system prompt to exceed
+                Anthropic's per-model minimum (~1024 tokens) to take effect.
+            max_history_iterations: After this many iterations the middle band
+                of the conversation collapses into one-line summaries to keep
+                input cost growth linear instead of quadratic.
 
         Returns:
             :class:`AgentResult` with the final text, transcript, token totals, and
             a ``stop_reason`` of ``"end_turn"``, ``"max_iterations"``, or ``"max_cost"``.
         """
-        anthropic_tools = [
+        anthropic_tools: list[dict[str, Any]] = [
             {
                 "name": t.name,
                 "description": t.description,
@@ -152,10 +168,32 @@ class AnthropicProvider:
             }
             for t in tools
         ]
+        # Cache the tail of the tools array. Anthropic caches every block up to
+        # and including the one with the marker, so a single cache_control on
+        # the last tool covers the entire tools section for subsequent calls.
+        if prompt_caching and anthropic_tools:
+            anthropic_tools[-1]["cache_control"] = {"type": "ephemeral"}
+
+        # Anthropic accepts ``system`` as either a string or a list of
+        # ``TextBlockParam`` dicts. The list form is required to attach
+        # cache_control; the string form stays the default to preserve the
+        # wire format for callers that have not opted in.
+        system_param: str | list[dict[str, Any]]
+        if prompt_caching:
+            system_param = [
+                {
+                    "type": "text",
+                    "text": system,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
+        else:
+            system_param = system
 
         messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
         transcript: list[AgentTurn] = []
         total_input = total_output = 0
+        total_cache_creation = total_cache_read = 0
         # Capture the meter snapshot at the start so AgentResult.total_cost_usd
         # carries the per-call delta. Cumulative spend stays on the meter.
         cost_at_start = spend_meter.total_cost_usd if spend_meter is not None else 0.0
@@ -164,20 +202,43 @@ class AnthropicProvider:
             return (spend_meter.total_cost_usd - cost_at_start) if spend_meter is not None else 0.0
 
         for iteration in range(max_iterations):
+            messages = compress_anthropic_history(
+                messages,
+                iteration=iteration,
+                max_history_iterations=max_history_iterations,
+            )
             create_kwargs: dict[str, Any] = {
                 "model": model,
                 "max_tokens": self._max_tokens_agent,
-                "system": system,
+                "system": system_param,
                 "messages": messages,
             }
-            if tools:
+            if anthropic_tools:
                 create_kwargs["tools"] = anthropic_tools
 
             response = self._client.messages.create(**create_kwargs)
             in_tok = response.usage.input_tokens
             out_tok = response.usage.output_tokens
+            # The SDK may return ``None`` (no cache activity) or omit the
+            # field entirely on older mock responses; collapse both to 0.
+            cache_creation = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+            cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
             total_input += in_tok
             total_output += out_tok
+            total_cache_creation += cache_creation
+            total_cache_read += cache_read
+
+            logger.info(
+                "agent_iteration",
+                provider="anthropic",
+                model=model,
+                iteration=iteration + 1,
+                message_count=len(messages),
+                input_tokens=in_tok,
+                output_tokens=out_tok,
+                cache_creation_input_tokens=cache_creation,
+                cache_read_input_tokens=cache_read,
+            )
 
             # Extract text and tool_use blocks from the response
             final_text: str | None = None
@@ -205,7 +266,14 @@ class AnthropicProvider:
             )
 
             if spend_meter is not None:
-                spend_meter.charge(model=model, input_tokens=in_tok, output_tokens=out_tok)
+                spend_meter.charge(
+                    model=model,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                    cache_creation_input_tokens=cache_creation,
+                    cache_read_input_tokens=cache_read,
+                    provider="anthropic",
+                )
                 if spend_meter.would_exceed():
                     return AgentResult(
                         final_text=final_text,
@@ -267,6 +335,11 @@ class AnthropicProvider:
 
         Uses exponential backoff with jitter, capped at max_wait_s seconds.
         Logs each backoff via structlog at WARNING level.
+
+        Note: prompt caching is wired only inside ``run_agent``. The single
+        remaining caller of this helper is ``plan()`` whose system prompt is
+        below Anthropic's ~1024-token per-model cache threshold, so attaching
+        ``cache_control`` here would be silently ignored by the API.
         """
 
         @retry(

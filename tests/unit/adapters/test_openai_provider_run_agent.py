@@ -30,8 +30,15 @@ def _mk_chat_response(
     finish_reason: str = "stop",
     prompt_tokens: int = 100,
     completion_tokens: int = 50,
+    cached_tokens: int = 0,
 ) -> MagicMock:
-    """Build a minimal mock ChatCompletion response."""
+    """Build a minimal mock ChatCompletion response.
+
+    ``cached_tokens`` lives at ``usage.prompt_tokens_details.cached_tokens``.
+    The field must be set explicitly because MagicMock auto-attribute proxies
+    return MagicMock objects (truthy, but non-numeric), which silently breaks
+    the spend meter's arithmetic.
+    """
     choice = MagicMock()
     choice.message.content = content
     choice.message.tool_calls = tool_calls
@@ -40,6 +47,7 @@ def _mk_chat_response(
     resp.choices = [choice]
     resp.usage.prompt_tokens = prompt_tokens
     resp.usage.completion_tokens = completion_tokens
+    resp.usage.prompt_tokens_details.cached_tokens = cached_tokens
     return resp
 
 
@@ -291,3 +299,185 @@ def test_run_agent_total_cost_zero_without_spend_meter(
     )
 
     assert result.total_cost_usd == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Cached tokens + prompt_caching kwarg
+# ---------------------------------------------------------------------------
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_cached_tokens_reduce_meter_charge(
+    mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When prompt_tokens_details.cached_tokens > 0 the meter applies the 0.5x cached rate."""
+    provider = _mk_provider(monkeypatch, mock_cls)
+    mock_client = mock_cls.return_value
+    mock_client.chat.completions.create.return_value = _mk_chat_response(
+        content="done",
+        tool_calls=None,
+        finish_reason="stop",
+        prompt_tokens=1_000_000,
+        completion_tokens=0,
+        cached_tokens=1_000_000,
+    )
+
+    meter = SpendMeter(budget_usd=100.0)
+    provider.run_agent(
+        system="sys",
+        user="hi",
+        tools=[],
+        tool_executor=_passthrough_executor,
+        model="gpt-5.4",
+        spend_meter=meter,
+    )
+
+    # Fallback rate $5/MTok input. All 1M prompt tokens were cached → bill at
+    # 0.5x → $2.50. Without the cache fix the meter would charge $5.00.
+    assert meter.total_cost_usd == pytest.approx(2.50, rel=1e-3)
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_no_cached_tokens_uses_full_input_rate(
+    mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When cached_tokens == 0 the meter charges the regular input rate end-to-end."""
+    provider = _mk_provider(monkeypatch, mock_cls)
+    mock_client = mock_cls.return_value
+    mock_client.chat.completions.create.return_value = _mk_chat_response(
+        content="done",
+        tool_calls=None,
+        finish_reason="stop",
+        prompt_tokens=1_000_000,
+        completion_tokens=0,
+        cached_tokens=0,
+    )
+
+    meter = SpendMeter(budget_usd=100.0)
+    provider.run_agent(
+        system="sys",
+        user="hi",
+        tools=[],
+        tool_executor=_passthrough_executor,
+        model="gpt-5.4",
+        spend_meter=meter,
+    )
+
+    assert meter.total_cost_usd == pytest.approx(5.00, rel=1e-3)
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_prompt_caching_true_is_noop_log_only(
+    mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """prompt_caching=True on OpenAI: SDK call is unchanged (no cache_control marker)."""
+    provider = _mk_provider(monkeypatch, mock_cls)
+    mock_client = mock_cls.return_value
+    mock_client.chat.completions.create.return_value = _mk_chat_response(
+        content="done", tool_calls=None, finish_reason="stop"
+    )
+
+    provider.run_agent(
+        system="sys",
+        user="hi",
+        tools=[_simple_tool_spec()],
+        tool_executor=_passthrough_executor,
+        model="gpt-5.4",
+        prompt_caching=True,
+    )
+
+    create_kwargs = mock_client.chat.completions.create.call_args.kwargs
+    # System message stays at messages[0] as a plain dict — no cache_control field.
+    assert create_kwargs["messages"][0]["role"] == "system"
+    assert create_kwargs["messages"][0]["content"] == "sys"
+    # Tools array is unchanged — no cache_control marker.
+    for tool in create_kwargs["tools"]:
+        assert "cache_control" not in tool
+
+
+# ---------------------------------------------------------------------------
+# Sliding-window history
+# ---------------------------------------------------------------------------
+
+
+def _mk_tool_response(call_id: str) -> MagicMock:
+    """Build a ChatCompletion response that requests a tool call with given id."""
+    tc = _mk_tool_call_mock(call_id=call_id, name="get_info", arguments="{}")
+    return _mk_chat_response(content=None, tool_calls=[tc], finish_reason="tool_calls")
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_above_threshold_history_is_compressed(
+    mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """At iteration 12 with threshold 10 the OpenAI history collapses too."""
+    provider = _mk_provider(monkeypatch, mock_cls)
+    mock_client = mock_cls.return_value
+
+    sequence: list[MagicMock] = []
+    for i in range(12):
+        sequence.append(_mk_tool_response(call_id=f"tc-{i:03d}"))
+    sequence.append(_mk_chat_response(content="done", tool_calls=None, finish_reason="stop"))
+    mock_client.chat.completions.create.side_effect = sequence
+
+    provider.run_agent(
+        system="sys",
+        user="hi",
+        tools=[_simple_tool_spec()],
+        tool_executor=_passthrough_executor,
+        model="gpt-5.4",
+        max_iterations=20,
+        max_history_iterations=10,
+    )
+
+    final_msgs = mock_client.chat.completions.create.call_args_list[-1].kwargs["messages"]
+    summary_count = sum(
+        1
+        for m in final_msgs
+        if isinstance(m.get("content"), str) and "Compressed earlier" in m["content"]
+    )
+    assert summary_count == 1, "expected exactly one summary marker"
+
+    # System prompt is always preserved at index 0.
+    assert final_msgs[0]["role"] == "system"
+    assert final_msgs[0]["content"] == "sys"
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_sliding_window_keeps_tool_call_id_pairs(
+    mock_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every surviving tool_call_id has its matching role=tool message and vice versa."""
+    provider = _mk_provider(monkeypatch, mock_cls)
+    mock_client = mock_cls.return_value
+
+    sequence: list[MagicMock] = []
+    for i in range(15):
+        sequence.append(_mk_tool_response(call_id=f"tc-{i:03d}"))
+    sequence.append(_mk_chat_response(content="done", tool_calls=None, finish_reason="stop"))
+    mock_client.chat.completions.create.side_effect = sequence
+
+    provider.run_agent(
+        system="sys",
+        user="hi",
+        tools=[_simple_tool_spec()],
+        tool_executor=_passthrough_executor,
+        model="gpt-5.4",
+        max_iterations=20,
+        max_history_iterations=10,
+    )
+
+    final_msgs = mock_client.chat.completions.create.call_args_list[-1].kwargs["messages"]
+
+    assistant_tool_call_ids: set[str] = set()
+    tool_role_call_ids: set[str] = set()
+    for msg in final_msgs:
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            for tc in msg["tool_calls"]:
+                tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                if tc_id:
+                    assistant_tool_call_ids.add(tc_id)
+        elif msg.get("role") == "tool":
+            tool_role_call_ids.add(str(msg["tool_call_id"]))
+
+    assert assistant_tool_call_ids == tool_role_call_ids

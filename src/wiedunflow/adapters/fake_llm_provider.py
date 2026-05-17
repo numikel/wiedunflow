@@ -113,6 +113,8 @@ class FakeLLMProvider:
         max_iterations: int = 15,
         max_cost_usd: float = 1.0,
         spend_meter: SpendMeterProto | None = None,
+        prompt_caching: bool = False,
+        max_history_iterations: int = 10,
     ) -> AgentResult:
         """Return a deterministic stub AgentResult without calling any LLM.
 
@@ -133,6 +135,10 @@ class FakeLLMProvider:
             max_iterations: Iteration cap (ignored in stub).
             max_cost_usd: Budget cap (ignored in stub).
             spend_meter: Spend tracker (ignored in stub).
+            prompt_caching: Protocol-level kwarg; the stub ignores it because
+                no real provider call is made.
+            max_history_iterations: Protocol-level kwarg; the stub never grows
+                a transcript so the field is moot.
 
         Returns:
             An :class:`AgentResult` with deterministic content, ``stop_reason="end_turn"``,

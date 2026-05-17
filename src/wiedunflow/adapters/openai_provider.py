@@ -25,6 +25,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from wiedunflow.adapters._history_compressor import compress_openai_history
 from wiedunflow.adapters._plan_parser import parse_plan_response
 from wiedunflow.adapters.llm_prompts import PLAN_SYSTEM_PROMPT
 from wiedunflow.entities.lesson_manifest import LessonManifest
@@ -165,12 +166,22 @@ class OpenAIProvider:
         max_iterations: int = 15,
         max_cost_usd: float = 1.0,
         spend_meter: SpendMeterProto | None = None,
+        prompt_caching: bool = False,
+        max_history_iterations: int = 10,
     ) -> AgentResult:
         """Run a tool-use agent loop against the OpenAI chat completions API.
 
         Calls the model repeatedly until it signals ``stop`` (no pending tool calls),
         ``max_iterations`` is reached, or the ``spend_meter`` signals budget exhaustion.
         Tools are executed synchronously via ``tool_executor`` between turns.
+
+        OpenAI provides automatic prefix caching for repeated prompts ≥1024
+        tokens long; there is no API hook to opt in. The ``prompt_caching``
+        kwarg is honored only to satisfy the Protocol — when True it is logged
+        as a no-op since the SDK does not expose a manual cache marker. Cache
+        hits surface through ``response.usage.prompt_tokens_details.cached_tokens``
+        and are forwarded to the spend meter so cost reporting reflects the
+        0.5x cached rate documented by OpenAI.
 
         Args:
             system: System prompt for the agent.
@@ -183,11 +194,24 @@ class OpenAIProvider:
                 ``spend_meter``); kept for Protocol conformance.
             spend_meter: Optional spend tracker; loop aborts when
                 ``would_exceed()`` returns True.
+            prompt_caching: Protocol-level flag. Informational on OpenAI — the
+                SDK does not expose a cache_control marker, so the kwarg is
+                logged once and otherwise ignored.
+            max_history_iterations: After this many iterations the middle band
+                of the conversation is collapsed into summary lines. The
+                system prompt and the most-recent iterations stay verbatim;
+                tool_call_id ↔ tool result pairs are pruned together.
 
         Returns:
             :class:`AgentResult` with the final text, transcript, token totals, and
             a ``stop_reason`` of ``"end_turn"``, ``"max_iterations"``, or ``"max_cost"``.
         """
+        if prompt_caching:
+            logger.info(
+                "openai_prompt_caching_noop",
+                reason="openai_uses_automatic_prefix_caching",
+                model=model,
+            )
         openai_tools = [
             {
                 "type": "function",
@@ -217,6 +241,11 @@ class OpenAIProvider:
             return (spend_meter.total_cost_usd - cost_at_start) if spend_meter is not None else 0.0
 
         for iteration in range(max_iterations):
+            messages = compress_openai_history(
+                messages,
+                iteration=iteration,
+                max_history_iterations=max_history_iterations,
+            )
             kwargs: dict[str, Any] = {
                 "model": model,
                 token_param: self._max_tokens_agent,
@@ -231,8 +260,28 @@ class OpenAIProvider:
             usage = response.usage
             in_tok = usage.prompt_tokens if usage else 0
             out_tok = usage.completion_tokens if usage else 0
+            # prompt_tokens_details is a sub-object — guard both the parent and
+            # the cached_tokens leaf because older SDK responses (and most mocks)
+            # omit it. Cached tokens are already included in prompt_tokens per
+            # OpenAI accounting, so the spend meter subtracts them downstream.
+            cached_tokens = 0
+            if usage is not None:
+                details = getattr(usage, "prompt_tokens_details", None)
+                if details is not None:
+                    cached_tokens = getattr(details, "cached_tokens", 0) or 0
             total_input += in_tok
             total_output += out_tok
+
+            logger.info(
+                "agent_iteration",
+                provider="openai",
+                model=model,
+                iteration=iteration + 1,
+                message_count=len(messages),
+                input_tokens=in_tok,
+                output_tokens=out_tok,
+                cached_tokens=cached_tokens,
+            )
 
             # Collect tool calls from this turn
             turn_calls: list[ToolCall] = []
@@ -257,7 +306,13 @@ class OpenAIProvider:
             )
 
             if spend_meter is not None:
-                spend_meter.charge(model=model, input_tokens=in_tok, output_tokens=out_tok)
+                spend_meter.charge(
+                    model=model,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                    cache_read_input_tokens=cached_tokens,
+                    provider="openai",
+                )
                 if spend_meter.would_exceed():
                     return AgentResult(
                         final_text=msg.content,

@@ -40,6 +40,14 @@ class AgentCardBudgets(BaseModel):
     max_cost_usd: float = 0.50
     prompt_caching: bool = True
     max_retries: int = 1
+    # Threshold for the in-loop sliding-window history compression. When the
+    # transcript reaches this length, the middle iterations (between the first
+    # 5 and the last 5) collapse into a one-line summary so context size grows
+    # roughly linearly with iteration count instead of quadratically. Tool_use
+    # and matching tool_result blocks are pruned as pairs to keep the
+    # Anthropic API contract intact. ``run_agent`` callers may override the
+    # default by reading this field off the compiled card.
+    max_history_iterations: int = 10
 
 
 class AgentCardOutputContract(BaseModel):

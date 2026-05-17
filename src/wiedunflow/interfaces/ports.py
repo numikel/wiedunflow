@@ -106,8 +106,23 @@ class SpendMeterProto(Protocol):
         """Cumulative USD spend across all :meth:`charge` calls so far."""
         ...
 
-    def charge(self, *, model: str, input_tokens: int, output_tokens: int) -> None:
-        """Record token usage for the given model."""
+    def charge(
+        self,
+        *,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_input_tokens: int = 0,
+        cache_read_input_tokens: int = 0,
+        provider: Literal["anthropic", "openai", "auto"] = "auto",
+    ) -> None:
+        """Record token usage for the given model.
+
+        Cache token kwargs are optional (default zero); adapters that observe
+        cache metrics in provider responses (Anthropic ``usage.cache_*_input_tokens``,
+        OpenAI ``usage.prompt_tokens_details.cached_tokens``) forward them so the
+        meter can apply provider-specific cache pricing multipliers.
+        """
         ...
 
     def would_exceed(self) -> bool:
@@ -134,6 +149,8 @@ class LLMProvider(Protocol):
         max_iterations: int = 15,
         max_cost_usd: float = 1.0,
         spend_meter: SpendMeterProto | None = None,
+        prompt_caching: bool = False,
+        max_history_iterations: int = 10,
     ) -> AgentResult:
         """Run an agent loop: call LLM → execute tools → repeat until end_turn or limits.
 
@@ -151,6 +168,19 @@ class LLMProvider(Protocol):
             spend_meter: Optional :class:`SpendMeterProto` that tracks cumulative spend.
                 When provided, :meth:`charge` is called after every LLM response and
                 :meth:`would_exceed` is checked before the next iteration.
+            prompt_caching: When True, providers that support manual cache markers
+                (Anthropic) attach ``cache_control: {"type": "ephemeral"}`` to the
+                system prompt and the last tool schema. Providers with automatic
+                cache (OpenAI) ignore the flag — their cache hits surface through
+                ``cached_tokens`` in ``response.usage`` regardless of this value.
+                The default ``False`` preserves the v0.x.0 wire format for callers
+                that have not opted in.
+            max_history_iterations: Threshold for in-loop sliding-window context
+                compression. When the message history would grow past this many
+                iterations, the middle iterations are replaced with one-line
+                summaries while the system prompt, initial user message, and the
+                most recent iterations stay verbatim. Tool_use ↔ tool_result
+                pairs are pruned together to preserve API validity.
 
         Returns:
             :class:`AgentResult` with the final text, full transcript, token counts,
