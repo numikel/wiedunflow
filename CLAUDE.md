@@ -246,6 +246,35 @@ Playbook for implementing findings from `.ai/reviews/findings-skonsolidowane-pl.
 
 > Linked global rules: `~/.claude/CLAUDE.md` sections `## Planning & Implementation`, `## Subagent coordination`. Related sessions: [[Sesje/2026-05-04-1940-request-interrupted-by-user-for-tool-use|preparatory recon F-062..F-071]] + [[Sesje/2026-05-04-2055-1-breaking-2-usun-3-round-2f-4-wszytskie|v0.9.5 ship]].
 
+## RELEASE_NOTES
+
+Canonical format and process for WiedunFlow GitHub Releases. Binding spec: ADR-0022. Operational layer: `.claude/skills/release/` (user-invocable `/release` skill). On-demand detail: `docs/release-notes-playbook.md`. Format stabilised from v0.11.1 forward; v0.1.0..v0.11.0 preserved as historical record (no backfill per ADR-0022 §D11).
+
+**Triggers**:
+- Prompt mentions "release vX.Y.Z", "ship a release", "release notes", "tag the release", "cut a release"
+- Edits to `.github/release-notes-template.md` or `CHANGELOG.md` `[Unreleased]` promotion
+- User bumps `pyproject.toml` `[project].version` together with a CHANGELOG entry
+
+**Core rules** (non-negotiable bez nowego ADR):
+- **Title shape**: every release MUST be `vX.Y.Z — <one-line theme>`. Bare-tag titles rejected, including chore patches (`v0.11.2 — Chore: dependency bumps`).
+- **Hero / TL;DR**: MANDATORY for MINOR + MAJOR (2-3 bullets OR ≤3-sentence paragraph). PATCH MAY have it.
+- **Breaking changes**: TOP placement, immediately after Install/Usage. Lead with `> [!WARNING]` GFM alert (`> [!CAUTION]` for security). On patches with zero breaking changes, OMIT the section entirely — do NOT print "No breaking changes".
+- **Quality gates**: single canonical name `### Quality gates`, 4-row table (`ruff format` / `ruff check` / `mypy` / `pytest`). Optional for chore patches.
+- **Hard rules**: zero emoji anywhere; absolute tagged URLs `/blob/vX.Y.Z/...`; compare-URL footer `**Full Changelog**: .../compare/vPREV...vNEXT` as LAST line.
+- **Forbidden refs**: no `F-XXX` (`.ai/reviews/` is gitignored). `ADR-XXXX`, `US-XXX`, `CVE-YYYY-NNNNN` are fine.
+- **PATCH template scope**: reduced — maximal section list with "omit-if-empty" rule. Different patches will be different lengths; that is correct.
+
+**Critical anti-patterns**:
+- Bare-tag title on any release type — including chore patches
+- Inline `**breaking:**` Common Changelog prefix — visual hierarchy is GFM alerts only
+- Branch-pinned `/blob/main/...` links — must be tag-pinned `/blob/${RELEASE_TAG}/...`
+- `gh release edit` on v0.11.0 or earlier to retrofit format — backfill is rejected per ADR-0022 §D11
+- `F-XXX` references anywhere in body, title, or tag annotation
+
+> Binding spec: `docs/adr/0022-release-notes-format.md`
+> Detailed checklists + walkthrough: `docs/release-notes-playbook.md`
+> Operational skill: `.claude/skills/release/SKILL.md` (invoke as `/release`)
+
 ## UX
 
 WiedunFlow ma dwie user-facing surfaces: CLI (`wiedunflow init` terminal output) i generated `wiedunflow-<repo>.html` (offline reader). Pełna spec w `.ai/ux-spec.md`; binarne decyzje zakotwiczone w ADR-0011.
@@ -303,3 +332,4 @@ Aktualne architectural decision records (w `docs/adr/`):
 - **ADR-0019** — Brand unification: drop `wiedun-flow`, single canonical `wiedunflow` token everywhere (CLI command, docstrings, prose). `WiedunFlow` CamelCase preserved as proper-noun brand display in prose. Supersedes ADR-0013 §1 (CLI command name) (2026-05-02, v0.9.1 BREAKING — pre-PyPI window, zero user impact).
 - **ADR-0020** — Per-token pricing in `PricingCatalog`: `blended_price_per_mtok` → `prices_per_mtok() -> tuple[float, float] | None` (input, output per 1M tokens). `SpendMeter` applies the two rates separately so live cost reporting matches provider invoices within ~5% (was ~30-60% under-report). `cost_estimator.MODEL_PRICES` values change from `float` to `tuple`; preflight estimator composes blended on demand. Refines ADR-0014 §pricing (2026-05-04, v0.9.5 BREAKING — internal Protocol only, no external implementations).
 - **ADR-0021** — Cache, history, and timeout policy: Anthropic prompt caching wired on system + last tool schema in `run_agent` only (single-shot helpers stay below the 1024-token threshold); cache pricing multipliers live as constants in `SpendMeter` not `PricingCatalog`; BM25 index persisted to SQLite with `(repo_abs, commit_hash, corpus_config_fingerprint)` key + `rank_bm25` version guard; sliding-window compression after 10 iterations with pair-aware tool_use ↔ tool_result pruning; `llm.http_read_timeout_s` first-class config field with auto-bump to 600 s for local-endpoint BYOK. Schema v2 (BM25 table) with real migration. Partially extends ADR-0014 §pricing and ADR-0020 (2026-05-17, v0.11.0 BREAKING — internal Protocols only, no external implementations).
+- **ADR-0022** — Release-notes format and process: zero-emoji + `vX.Y.Z — <theme>` titles + `> [!WARNING]` GFM alerts at top + `### Quality gates` 4-row table + Anthropic-style compare-URL footer as last line; format stabilised from v0.11.1 forward, no historical backfill of v0.1.0..v0.11.0; quadruple-anchor — ADR (binding) + CLAUDE.md `## RELEASE_NOTES` summary (always-loaded) + `docs/release-notes-playbook.md` (on-demand detail) + `.claude/skills/release/` (user-invocable `/release` skill, 8-step end-to-end). `release.yml` envsubst pipeline unchanged. (2026-05-17, no version bump — first post-merge release is the living example).
