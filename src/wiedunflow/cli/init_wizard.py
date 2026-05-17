@@ -47,6 +47,7 @@ def run_init_wizard(
     model_narrate: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    http_read_timeout_s: int | None = None,
     force: bool = False,
 ) -> int:
     """Run the interactive (or non-interactive) first-run wizard.
@@ -64,6 +65,11 @@ def run_init_wizard(
             hidden input.
         base_url: Base URL for ``openai_compatible`` / ``custom`` providers.
             Optional even for those providers.
+        http_read_timeout_s: HTTP read timeout in seconds for LLM calls. Only
+            prompted for ``openai_compatible`` / ``custom`` providers because
+            cloud endpoints respond well within the default 55s. Local
+            inference endpoints (Ollama / LM Studio / vLLM) with 13B+ models
+            on CPU need minutes per planning call — default suggestion 600s.
         force: Overwrite an existing config file without prompting.
 
     Returns:
@@ -114,6 +120,17 @@ def run_init_wizard(
         )
         resolved_base_url = raw.strip() or None
 
+    # --- Step 6: http_read_timeout_s (optional, only for local providers) -
+    # Cloud providers respond well inside the default 55s; only ask local-
+    # endpoint users so the wizard stays short for hosted setups.
+    resolved_timeout: int | None = http_read_timeout_s
+    if resolved_timeout is None and resolved_provider in _LOCAL_PROVIDERS:
+        resolved_timeout = click.prompt(
+            "HTTP read timeout in seconds (Ollama/vLLM may need minutes on CPU)",
+            default=600,
+            type=click.IntRange(1, 3600),
+        )
+
     # Build the nested YAML structure that _load_yaml_flat expects.
     llm_block: dict[str, Any] = {
         "provider": resolved_provider,
@@ -123,6 +140,8 @@ def run_init_wizard(
     }
     if resolved_base_url:
         llm_block["base_url"] = resolved_base_url
+    if resolved_timeout is not None:
+        llm_block["http_read_timeout_s"] = resolved_timeout
 
     yaml_data: dict[str, Any] = {"llm": llm_block}
 

@@ -266,6 +266,50 @@ def test_resolve_api_key_openai_missing_raises(monkeypatch):
         resolve_api_key(cfg)
 
 
+# ---------------------------------------------------------------------------
+# 9. llm_http_read_timeout_s — Pydantic validation + YAML roundtrip
+# ---------------------------------------------------------------------------
+
+
+def test_http_read_timeout_default_is_none(monkeypatch):
+    """Default value is None — the OpenAI provider treats this as auto-detect."""
+    monkeypatch.delenv("WIEDUNFLOW_LLM_HTTP_READ_TIMEOUT_S", raising=False)
+    cfg = WiedunflowConfig()
+    assert cfg.llm_http_read_timeout_s is None
+
+
+def test_http_read_timeout_zero_raises_validation(monkeypatch):
+    """Zero is rejected — a 0s read timeout would never let an LLM respond."""
+    monkeypatch.delenv("WIEDUNFLOW_LLM_HTTP_READ_TIMEOUT_S", raising=False)
+    with pytest.raises(_ValidationError):
+        WiedunflowConfig(llm_http_read_timeout_s=0)
+
+
+def test_http_read_timeout_over_3600_raises_validation(monkeypatch):
+    """Anything above 3600 (1 hour) is rejected — runaway calls signal a deeper bug."""
+    monkeypatch.delenv("WIEDUNFLOW_LLM_HTTP_READ_TIMEOUT_S", raising=False)
+    with pytest.raises(_ValidationError):
+        WiedunflowConfig(llm_http_read_timeout_s=3601)
+
+
+def test_http_read_timeout_yaml_roundtrip(tmp_path, monkeypatch):
+    """llm.http_read_timeout_s in YAML round-trips into the config field."""
+    monkeypatch.delenv("WIEDUNFLOW_LLM_HTTP_READ_TIMEOUT_S", raising=False)
+    cfg_file = tmp_path / "tutorial.config.yaml"
+    _write_yaml(
+        cfg_file,
+        {
+            "llm": {
+                "provider": "openai_compatible",
+                "base_url": "http://localhost:11434/v1",
+                "http_read_timeout_s": 1200,
+            }
+        },
+    )
+    cfg = load_config(cli_config_path=cfg_file)
+    assert cfg.llm_http_read_timeout_s == 1200
+
+
 def test_resolve_api_key_openai_compatible_from_env(monkeypatch):
     """resolve_api_key handles openai_compatible provider the same as openai."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-compat-env")

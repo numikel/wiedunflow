@@ -154,6 +154,12 @@ class WiedunflowConfig(BaseSettings):
     llm_concurrency: int = 10
     llm_max_retries: int = 5
     llm_max_wait_s: int = 60
+    # HTTP read timeout for LLM API calls. None = auto-detect (55s for cloud
+    # providers, 600s when ``llm.base_url`` is set for local inference endpoints
+    # such as Ollama / LM Studio / vLLM where a single Stage 5 planning call on
+    # a CPU-bound 13B+ model can take several minutes). Range 1-3600 seconds.
+    # Override precedence: this field > ``WIEDUNFLOW_HTTP_READ_TIMEOUT`` env var > auto.
+    llm_http_read_timeout_s: int | None = Field(default=None, ge=1, le=3600)
     exclude_patterns: list[str] = Field(default_factory=list)
     include_patterns: list[str] = Field(default_factory=list)
     max_lessons: int = 30
@@ -271,6 +277,7 @@ _LLM_BLOCK_MAP: dict[str, str] = {
     "concurrency": "llm_concurrency",
     "max_retries": "llm_max_retries",
     "max_wait_s": "llm_max_wait_s",
+    "http_read_timeout_s": "llm_http_read_timeout_s",
 }
 
 _PLANNING_BLOCK_MAP: dict[str, str] = {

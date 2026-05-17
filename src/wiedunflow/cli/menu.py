@@ -325,7 +325,14 @@ _INIT_DEFAULTS: dict[str, str] = {
     "model_narrate": "",
     "api_key": "",
     "base_url": "",
+    "http_read_timeout_s": "",
 }
+
+# Mirrors the Pydantic range on ``WiedunflowConfig.llm_http_read_timeout_s``
+# so the interactive wizard rejects out-of-range values before they reach
+# config validation (avoids surfacing Pydantic stack traces to end users).
+_HTTP_TIMEOUT_MIN_S = 1
+_HTTP_TIMEOUT_MAX_S = 3600
 
 
 def _init_step_default(step: str, state: dict[str, str]) -> str:
@@ -378,6 +385,11 @@ def _init_step_prompt(
             "Base URL (e.g. http://localhost:11434/v1):",
             default=state["base_url"],
         )
+    if step == "http_read_timeout_s":
+        return io.text(
+            "HTTP read timeout in seconds (Ollama/vLLM may need minutes on CPU):",
+            default=state["http_read_timeout_s"] or "600",
+        )
     return None  # pragma: no cover — unknown step name is a programming bug
 
 
@@ -391,6 +403,7 @@ def _init_steps_for(provider: str) -> list[str]:
     base = ["provider", "model_plan", "model_narrate", "api_key"]
     if provider in ("openai_compatible", "custom"):
         base.append("base_url")
+        base.append("http_read_timeout_s")
     return base
 
 
@@ -463,6 +476,21 @@ def _run_init_from_menu(
                 print(f"  ! {exc}")
                 continue  # stay on same step (cursor unchanged)
 
+        # Same re-prompt pattern for the timeout field: surface Pydantic's
+        # range/type error without dropping the user back to the menu.
+        if step == "http_read_timeout_s" and result.strip():
+            try:
+                parsed = int(result.strip())
+            except ValueError:
+                print(f"  ! HTTP read timeout must be an integer, got {result!r}")
+                continue
+            if not _HTTP_TIMEOUT_MIN_S <= parsed <= _HTTP_TIMEOUT_MAX_S:
+                print(
+                    f"  ! HTTP read timeout must be between "
+                    f"{_HTTP_TIMEOUT_MIN_S} and {_HTTP_TIMEOUT_MAX_S} seconds, got {parsed}"
+                )
+                continue
+
         state[step] = result
         cursor += 1
 
@@ -478,6 +506,15 @@ def _run_init_from_menu(
     }
     if base_url:
         llm_block["base_url"] = base_url
+    timeout_raw = state["http_read_timeout_s"].strip()
+    if timeout_raw:
+        # Step machine guarantees range; this is defense-in-depth.
+        try:
+            timeout_val = int(timeout_raw)
+        except ValueError:
+            timeout_val = 0
+        if _HTTP_TIMEOUT_MIN_S <= timeout_val <= _HTTP_TIMEOUT_MAX_S:
+            llm_block["http_read_timeout_s"] = timeout_val
 
     try:
         config_path.parent.mkdir(parents=True, exist_ok=True)

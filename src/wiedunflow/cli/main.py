@@ -145,6 +145,18 @@ def cli() -> None:
     help="Base URL for openai_compatible / custom providers (optional).",
 )
 @click.option(
+    "--http-read-timeout-s",
+    "http_read_timeout_s",
+    default=None,
+    type=click.IntRange(1, 3600),
+    metavar="SECONDS",
+    help=(
+        "HTTP read timeout in seconds. Only relevant for openai_compatible / "
+        "custom providers — cloud endpoints stay on the 55s default. "
+        "Suggested 600 for local LLMs (Ollama / LM Studio / vLLM)."
+    ),
+)
+@click.option(
     "--force",
     is_flag=True,
     default=False,
@@ -156,6 +168,7 @@ def init_cmd(
     model_narrate: str | None,
     api_key: str | None,
     base_url: str | None,
+    http_read_timeout_s: int | None,
     force: bool,
 ) -> None:
     """Interactive wizard — write a user-level ``config.yaml`` (US-002).
@@ -170,6 +183,7 @@ def init_cmd(
         model_narrate=model_narrate,
         api_key=api_key,
         base_url=base_url,
+        http_read_timeout_s=http_read_timeout_s,
         force=force,
     )
     sys.exit(exit_code)
@@ -614,6 +628,7 @@ def _build_llm_provider(
             model_writer=config.llm_model_narrate or "gpt-5.4",
             max_retries=config.llm_max_retries,
             max_wait_s=config.llm_max_wait_s,
+            http_read_timeout_s=config.llm_http_read_timeout_s,
         )
 
     if config.llm_provider == "custom":
@@ -642,6 +657,7 @@ def _build_llm_provider(
             model_writer=config.llm_model_narrate or "gpt-5.4",
             max_retries=config.llm_max_retries,
             max_wait_s=config.llm_max_wait_s,
+            http_read_timeout_s=config.llm_http_read_timeout_s,
         )
 
     # Fallback fake — reachable only when tests inject an invalid provider.

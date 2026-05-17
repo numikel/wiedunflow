@@ -68,6 +68,7 @@ class OpenAIProvider:
         max_wait_s: int = 60,
         max_tokens_plan: int = 8000,
         max_tokens_agent: int = 4000,
+        http_read_timeout_s: int | None = None,
     ) -> None:
         resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not resolved_key:
@@ -80,7 +81,26 @@ class OpenAIProvider:
                     "OPENAI_API_KEY is required (pass api_key= or set env var) "
                     "when base_url is not provided"
                 )
-        timeout = httpx.Timeout(60.0, read=55.0, write=10.0, connect=2.0)
+        # Read-timeout precedence: explicit param > env var > base_url-derived auto.
+        # Local inference endpoints (Ollama / LM Studio / vLLM) running 13B+
+        # models on CPU need minutes per Stage 5 planning call; 55s cuts off
+        # the request before the server can stream anything back. Cloud
+        # providers stay on 55s so a hung connection surfaces quickly.
+        env_override = os.environ.get("WIEDUNFLOW_HTTP_READ_TIMEOUT")
+        if http_read_timeout_s is not None:
+            read_timeout = float(http_read_timeout_s)
+        elif env_override is not None:
+            try:
+                read_timeout = float(env_override)
+            except ValueError as exc:
+                raise ValueError(
+                    f"WIEDUNFLOW_HTTP_READ_TIMEOUT must be a number, got {env_override!r}"
+                ) from exc
+        elif base_url is not None:
+            read_timeout = 600.0
+        else:
+            read_timeout = 55.0
+        timeout = httpx.Timeout(60.0, read=read_timeout, write=10.0, connect=2.0)
         self._client = OpenAI(
             api_key=resolved_key,
             base_url=base_url,
@@ -106,6 +126,7 @@ class OpenAIProvider:
             model_writer=model_writer,
             model_reviewer=model_reviewer,
             max_retries=max_retries,
+            http_read_timeout_s=read_timeout,
         )
 
     def plan(self, outline: str) -> LessonManifest:

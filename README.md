@@ -315,6 +315,17 @@ wiedunflow ./my-repo --provider custom --base-url http://localhost:8000/v1
 
 Ollama and other OSS endpoints ignore `api_key`; pass anything (the SDK requires a non-empty string).  Consent is **not** prompted when `--base-url` is set because nothing leaves the machine.
 
+**HTTP read timeout for local LLMs.** Cloud endpoints respond well inside the default 55-second HTTP read timeout, but a 13B+ model running on CPU through Ollama or vLLM can take several minutes to return a single Stage 5 planning response.  When `llm.base_url` is set, WiedunFlow automatically extends the read timeout to 600 seconds.  Override either way through `tutorial.config.yaml`:
+
+```yaml
+llm:
+  provider: openai_compatible
+  base_url: http://localhost:11434/v1
+  http_read_timeout_s: 1200    # 1-3600 seconds (Pydantic-validated)
+```
+
+Or via the env var `WIEDUNFLOW_HTTP_READ_TIMEOUT=1200` when the config field is not set.  Precedence: config field > env var > auto (55s cloud / 600s local).  The interactive `wiedunflow init` wizard prompts for this value when you choose `openai_compatible` or `custom`.
+
 ### File discovery
 
 `.gitignore` is respected by default.  User `--exclude` patterns are ADDITIVE (layered on top of

@@ -138,6 +138,69 @@ def test_init_base_url_forwarded_to_sdk(mock_cls, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Test: __init__ HTTP read timeout (config > env > base_url-derived auto)
+# ---------------------------------------------------------------------------
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_init_default_cloud_timeout_is_55s(mock_cls, monkeypatch):
+    """Without base_url and without overrides, cloud read timeout stays 55s."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.delenv("WIEDUNFLOW_HTTP_READ_TIMEOUT", raising=False)
+    mock_cls.return_value = MagicMock()
+    OpenAIProvider()
+    timeout = mock_cls.call_args.kwargs["timeout"]
+    assert timeout.read == 55.0
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_init_oss_base_url_auto_bumps_timeout_to_600s(mock_cls, monkeypatch):
+    """Setting base_url (Ollama / LM Studio / vLLM) auto-bumps read timeout to 600s.
+
+    Cloud's 55s is fine for hosted APIs but cuts off a Stage 5 planning call
+    against a 13B+ model running on CPU before it can stream anything back.
+    """
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("WIEDUNFLOW_HTTP_READ_TIMEOUT", raising=False)
+    mock_cls.return_value = MagicMock()
+    OpenAIProvider(base_url="http://localhost:11434/v1")
+    timeout = mock_cls.call_args.kwargs["timeout"]
+    assert timeout.read == 600.0
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_init_explicit_param_overrides_auto(mock_cls, monkeypatch):
+    """An explicit http_read_timeout_s wins over both env var and base_url auto-bump."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("WIEDUNFLOW_HTTP_READ_TIMEOUT", "999")
+    mock_cls.return_value = MagicMock()
+    OpenAIProvider(base_url="http://localhost:11434/v1", http_read_timeout_s=120)
+    timeout = mock_cls.call_args.kwargs["timeout"]
+    assert timeout.read == 120.0
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_init_env_var_overrides_auto_when_no_explicit_param(mock_cls, monkeypatch):
+    """The env var overrides auto-detection but loses to an explicit param."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("WIEDUNFLOW_HTTP_READ_TIMEOUT", "200")
+    mock_cls.return_value = MagicMock()
+    OpenAIProvider()  # cloud + env var, no explicit param
+    timeout = mock_cls.call_args.kwargs["timeout"]
+    assert timeout.read == 200.0
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_init_invalid_env_var_raises_value_error(mock_cls, monkeypatch):
+    """A non-numeric WIEDUNFLOW_HTTP_READ_TIMEOUT must surface a clear ValueError."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("WIEDUNFLOW_HTTP_READ_TIMEOUT", "abc")
+    mock_cls.return_value = MagicMock()
+    with pytest.raises(ValueError, match="WIEDUNFLOW_HTTP_READ_TIMEOUT"):
+        OpenAIProvider()
+
+
+# ---------------------------------------------------------------------------
 # Test: LLMProvider protocol
 # ---------------------------------------------------------------------------
 
