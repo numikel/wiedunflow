@@ -6,6 +6,107 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-05-17 — Cache, History, and Timeout Polish
+
+### Highlights
+
+- **Anthropic prompt caching is now wired.** Every agent-loop call attaches
+  `cache_control={"type": "ephemeral"}` to the system prompt and the last
+  tool schema when the compiled agent card sets `prompt_caching: true`
+  (the default for the four shipped roles). Subsequent calls within the
+  5-minute TTL pay only 10% of the regular input rate for cache hits, so
+  a 20-lesson Anthropic BYOK run drops input cost roughly in half.
+- **OpenAI cached tokens flow through to the cost meter.** The SDK has
+  been emitting `prompt_tokens_details.cached_tokens` since late 2024
+  but the adapter was discarding it, over-reporting cost by up to 50%
+  for repeated prompts. The meter now subtracts cached tokens from the
+  input tier and bills them at the documented 0.5× rate.
+- **Persistent BM25 index in SQLite.** Stage 4 used to rebuild the
+  corpus on every run. The index is now pickled to a new `bm25_index`
+  table keyed by `(repo_abs, commit_hash, corpus_config_fingerprint)`,
+  where the fingerprint hashes `exclude` and `include` patterns from
+  `tutorial.config.yaml` so a filter change invalidates the row. The
+  `rank_bm25` package version is stored alongside the BLOB; a library
+  upgrade is treated as a cache miss rather than surfacing as an
+  obscure unpickle error.
+- **Sliding-window agent history.** Long agent loops used to replay the
+  full tool_use/tool_result history on every call, growing input cost
+  quadratically with iteration count. After 10 iterations the middle
+  band collapses into a one-line summary while the first and last
+  five iterations stay verbatim. Tool_use ↔ tool_result pairs are
+  pruned together so Anthropic's Messages API contract stays intact
+  and OpenAI's `tool_call_id` references are never orphaned.
+- **HTTP read timeout is a first-class config field.** OSS endpoint
+  BYOK paths (Ollama / LM Studio / vLLM) with 13B+ models on CPU
+  needed minutes per Stage 5 call but the adapter cut off at 55
+  seconds. `tutorial.config.yaml` now accepts `llm.http_read_timeout_s`
+  (1–3600 seconds, Pydantic-validated). The interactive wizard
+  prompts for it on local-provider setups. Auto-detection falls back
+  to 600 s when `base_url` is set, 55 s otherwise. Override precedence:
+  config field > `WIEDUNFLOW_HTTP_READ_TIMEOUT` env > auto.
+
+### BREAKING
+
+- **`LLMProvider.run_agent` Protocol gains two kwargs.**
+  `prompt_caching: bool = False` and `max_history_iterations: int = 10`
+  are additive — existing callers stay compiling because both default
+  safely. External BYOK adapters that wholesale-mock the port must
+  accept the extra kwargs.
+- **`SpendMeterProto.charge` signature grows.** Three new keyword-only
+  arguments — `cache_creation_input_tokens`, `cache_read_input_tokens`,
+  and `provider` — all default-safe. Callers that already used the
+  required-keyword form (`charge(*, model=..., input_tokens=...)`) need
+  no changes.
+- **`Cache` Protocol gains two required methods.** `get_bm25_index` and
+  `save_bm25_index` must be implemented by any port consumer. Both
+  shipped adapters (`SQLiteCache`, `InMemoryCache`) are updated.
+- **SQLite cache schema bumps to v2.** Old v1 databases get the
+  `bm25_index` table added on next open via a real migration check
+  (`INSERT OR IGNORE INTO schema_version` is no longer sufficient on
+  its own). No user action required.
+- **`AgentCardBudgets` gains `max_history_iterations: int = 10`.** All
+  four in-tree agent cards (orchestrator / researcher / writer /
+  reviewer) inherit the default; out-of-tree cards continue to load.
+
+### Changed
+
+- `SpendMeter` provider routing detects Anthropic / OpenAI from the
+  model prefix (`claude-` vs `gpt-` / `o1` / `o3` / `o4` / `ft:`).
+  Unknown prefixes fall back to the Anthropic-style accounting branch,
+  which at `cache_*=0` is bit-equivalent to the legacy formula so
+  test fixtures with names like "expensive" keep their cost numbers.
+- `OpenAIProvider.__init__` accepts a new keyword `http_read_timeout_s`.
+  When `None` the constructor consults the env override; when both
+  are absent it picks 600 s for `base_url`-set instances and 55 s
+  otherwise. The chosen value lands in the `openai_provider_init`
+  structlog event so runs are self-documenting.
+- Agent loops now emit a per-iteration `agent_iteration` structlog
+  event carrying provider name, iteration index, message count, and
+  per-tier token usage. Useful for verifying that sliding-window
+  compression and cache hits are taking effect.
+- `wiedunflow init` writes `http_read_timeout_s` into the generated
+  YAML when the chosen provider is `openai_compatible` or `custom`.
+  The questionary menu wizard wires the same prompt.
+
+### Internal
+
+- New `adapters/_history_compressor.py` carries the pair-aware sliding
+  window logic for both providers, including idempotent removal of
+  prior synthetic summary markers across iterations.
+- `Bm25Store.dumps()` / `Bm25Store.loads(blob)` provide the pickle
+  roundtrip for cache writes; the latter raises `pickle.UnpicklingError`
+  on corruption so the caller can fall back to a rebuild.
+- `rag_corpus.compute_corpus_config_fingerprint` is the helper for the
+  third component of the BM25 cache key.
+- Existing MagicMock `usage` helpers now set `cache_creation_input_tokens`,
+  `cache_read_input_tokens`, and `prompt_tokens_details.cached_tokens`
+  explicitly to keep arithmetic deterministic. Auto-attribute proxies
+  would otherwise return `MagicMock` objects and silently produce
+  garbage cost values.
+- ADR-0021 records the seven architectural decisions (cache scope, TTL,
+  cost-accounting placement, provider detection, BM25 invalidation,
+  sliding-window policy, timeout precedence).
+
 ## [0.10.1] - 2026-05-17 — Security: mistune 3.2.1 + Vulnerability Allowlist Tracking
 
 ### Security
