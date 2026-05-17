@@ -26,13 +26,7 @@ from tenacity import (
 )
 
 from wiedunflow.adapters._plan_parser import parse_plan_response
-from wiedunflow.adapters.llm_prompts import (
-    DESCRIBE_SYSTEM_PROMPT,
-    NARRATE_SYSTEM_PROMPT,
-    PLAN_SYSTEM_PROMPT,
-)
-from wiedunflow.entities.code_symbol import CodeSymbol
-from wiedunflow.entities.lesson import Lesson
+from wiedunflow.adapters.llm_prompts import PLAN_SYSTEM_PROMPT
 from wiedunflow.entities.lesson_manifest import LessonManifest
 from wiedunflow.interfaces.ports import (
     AgentResult,
@@ -49,9 +43,8 @@ logger = structlog.get_logger(__name__)
 class OpenAIProvider:
     """LLMProvider via OpenAI SDK — supports OpenAI default and OSS endpoints via base_url.
 
-    plan() uses model_plan (default: gpt-5.4).
-    narrate() uses model_narrate (default: gpt-5.4).
-    describe_symbol() uses model_describe (default: gpt-5.4-mini).
+    plan() uses model_plan (default: gpt-5.4). Multi-agent pipeline uses run_agent()
+    with per-call model selection (orchestrator/researcher/writer/reviewer).
     Retries on RateLimitError/APITimeoutError with exponential backoff + jitter (tenacity).
 
     The consent check is intentionally NOT performed here — it belongs in the
@@ -67,8 +60,6 @@ class OpenAIProvider:
         api_key: str | None = None,
         base_url: str | None = None,
         model_plan: str = "gpt-5.4",
-        model_narrate: str = "gpt-5.4",
-        model_describe: str = "gpt-5.4-mini",
         model_orchestrator: str = "gpt-5.4",
         model_researcher: str = "gpt-5.4-mini",
         model_writer: str = "gpt-5.4",
@@ -76,8 +67,6 @@ class OpenAIProvider:
         max_retries: int = 5,
         max_wait_s: int = 60,
         max_tokens_plan: int = 8000,
-        max_tokens_narrate: int = 4000,
-        max_tokens_describe: int = 300,
         max_tokens_agent: int = 4000,
     ) -> None:
         resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
@@ -100,8 +89,6 @@ class OpenAIProvider:
         )
         self._base_url = base_url
         self._model_plan = model_plan
-        self._model_narrate = model_narrate
-        self._model_describe = model_describe
         self._model_orchestrator = model_orchestrator
         self._model_researcher = model_researcher
         self._model_writer = model_writer
@@ -109,15 +96,11 @@ class OpenAIProvider:
         self._max_retries = max_retries
         self._max_wait_s = max_wait_s
         self._max_tokens_plan = max_tokens_plan
-        self._max_tokens_narrate = max_tokens_narrate
-        self._max_tokens_describe = max_tokens_describe
         self._max_tokens_agent = max_tokens_agent
         logger.info(
             "openai_provider_init",
             base_url=base_url or "default(openai)",
             model_plan=model_plan,
-            model_narrate=model_narrate,
-            model_describe=model_describe,
             model_orchestrator=model_orchestrator,
             model_researcher=model_researcher,
             model_writer=model_writer,
@@ -149,67 +132,6 @@ class OpenAIProvider:
             response_format={"type": "json_object"},
         )
         return parse_plan_response(raw)
-
-    def describe_symbol(self, symbol: CodeSymbol, context: str) -> str:
-        """Produce a short natural-language description of a leaf symbol.
-
-        Args:
-            symbol: Target ``CodeSymbol`` (function, class, method, …).
-            context: Surrounding source / docstring / AST metadata used for grounding.
-
-        Returns:
-            Markdown description (~2-4 sentences). No JSON envelope, no fences.
-
-        Raises:
-            openai.RateLimitError: After exhausting all retry attempts.
-        """
-        user_content = _build_describe_user_prompt(symbol=symbol, context=context)
-        raw = self._create_with_retry(
-            model=self._model_describe,
-            max_tokens=self._max_tokens_describe,
-            system=DESCRIBE_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
-        )
-        return raw.strip()
-
-    def narrate(
-        self,
-        spec_json: str,
-        concepts_introduced: tuple[str, ...],
-    ) -> Lesson:
-        """Call the narration model and return a generated Lesson.
-
-        Args:
-            spec_json: JSON-serialised LessonSpec from Stage 5 (planning).
-            concepts_introduced: Concepts already taught — must not be re-taught.
-
-        Returns:
-            A Lesson with markdown narrative from the model.
-
-        Raises:
-            openai.RateLimitError: After exhausting all retry attempts.
-        """
-        concepts_block = ", ".join(concepts_introduced) if concepts_introduced else "<none yet>"
-        system_prompt = NARRATE_SYSTEM_PROMPT.format(concepts_introduced=concepts_block)
-        raw = self._create_with_retry(
-            model=self._model_narrate,
-            max_tokens=self._max_tokens_narrate,
-            system=system_prompt,
-            messages=[{"role": "user", "content": spec_json}],
-        )
-        spec: Any = json.loads(spec_json)
-        # code_refs in spec may be CodeRef dicts or plain strings — extract symbol name.
-        raw_refs: list[Any] = spec.get("code_refs", [])
-        code_ref_symbols: tuple[str, ...] = tuple(
-            str(r["symbol"]) if isinstance(r, dict) else str(r) for r in raw_refs
-        )
-        return Lesson(
-            id=str(spec.get("id", "lesson-unknown")),
-            title=str(spec.get("title", "Untitled")),
-            narrative=raw,
-            code_refs=code_ref_symbols,
-            status="generated",
-        )
 
     def run_agent(
         self,
@@ -444,25 +366,4 @@ def _log_backoff(retry_state: RetryCallState) -> None:
         "openai_backoff",
         attempt=retry_state.attempt_number,
         wait_s=round(retry_state.upcoming_sleep, 2),
-    )
-
-
-def _build_describe_user_prompt(*, symbol: CodeSymbol, context: str) -> str:
-    """Render a user prompt for ``describe_symbol`` combining symbol metadata and context."""
-    docstring = symbol.docstring or "<none>"
-    flags: list[str] = []
-    if symbol.is_dynamic_import:
-        flags.append("dynamic-import")
-    if symbol.is_uncertain:
-        flags.append("uncertain-resolution")
-    flags_line = ", ".join(flags) if flags else "<none>"
-    return (
-        f"Symbol: {symbol.name}\n"
-        f"Kind: {symbol.kind}\n"
-        f"File: {symbol.file_path} (line {symbol.lineno})\n"
-        f"Docstring: {docstring}\n"
-        f"Flags: {flags_line}\n"
-        f"\n"
-        f"Context:\n"
-        f"{context}\n"
     )

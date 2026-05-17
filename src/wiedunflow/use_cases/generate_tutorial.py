@@ -307,13 +307,16 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     pre_narration_estimate: CostEstimate | None = None
     if max_cost_usd is not None or cost_gate_callback is not None:
         plan_model = getattr(providers.llm, "model_plan", None)
-        narrate_model = getattr(providers.llm, "model_narrate", None)
+        llm_models = getattr(providers.llm, "models", {}) or {}
         pre_narration_estimate = _estimate_cost(
             symbols=len(symbols),
             lessons=len(manifest.lessons),
             clusters=1,
             plan_model=plan_model,
-            narrate_model=narrate_model,
+            orchestrator_model=llm_models.get("orchestrator"),
+            researcher_model=llm_models.get("researcher"),
+            writer_model=llm_models.get("writer"),
+            reviewer_model=llm_models.get("reviewer"),
             pricing_catalog=pricing_catalog,  # type: ignore[arg-type]
         )
 
@@ -468,7 +471,7 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     )
     all_lessons: list[Lesson] = generation_result.lessons
     skipped_lessons: list[SkippedLesson] = generation_result.skipped
-    # retry_count is logged by grounding_retry; future RunReport will expose it via Cross-cutting.
+    # writer_retries is captured per-lesson by run_lesson()/run_closing_lesson() and aggregated into RunReport via outcome.writer_retries (ADR-0016 multi-agent pipeline).
     concepts_introduced: tuple[str, ...] = generation_result.concepts_introduced
 
     # v0.3.0 — single closing-lesson decoration pass: attach helper appendix

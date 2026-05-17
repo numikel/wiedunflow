@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 from wiedunflow.entities.cache_entry import FileCacheEntry
 from wiedunflow.entities.call_graph import CallGraph
 from wiedunflow.entities.code_symbol import CodeSymbol
-from wiedunflow.entities.lesson import Lesson
 from wiedunflow.entities.lesson_manifest import LessonManifest
 from wiedunflow.entities.ranked_graph import RankedGraph
 
@@ -118,42 +117,10 @@ class SpendMeterProto(Protocol):
 
 @runtime_checkable
 class LLMProvider(Protocol):
-    """Port for LLM interactions: planning, per-symbol description, per-lesson narration, and agent loops."""
+    """Port for LLM interactions: planning and agent loops."""
 
     def plan(self, outline: str) -> LessonManifest:
         """Produce a structured lesson manifest from a code-graph outline."""
-        ...
-
-    def describe_symbol(self, symbol: CodeSymbol, context: str) -> str:
-        """Generate a short natural-language description for a single leaf symbol.
-
-        Used by Stage 5 before narration: leaf-function descriptions are produced
-        in parallel (default model: Haiku) and later composed into lesson
-        narratives by :meth:`narrate`.
-
-        Args:
-            symbol: The ``CodeSymbol`` to describe (function, class, method, …).
-            context: Surrounding source snippet or docstring/AST metadata that
-                grounds the description.
-
-        Returns:
-            A concise markdown description (~2-4 sentences). Adapters must not
-            return additional fences or JSON envelopes.
-        """
-        ...
-
-    def narrate(
-        self,
-        spec_json: str,
-        concepts_introduced: tuple[str, ...],
-    ) -> Lesson:
-        """Generate narrative text for a single lesson spec.
-
-        Args:
-            spec_json: JSON-serialised LessonSpec.
-            concepts_introduced: Concepts already taught in prior lessons — must
-                not be re-taught, enforcing narrative coherence.
-        """
         ...
 
     def run_agent(

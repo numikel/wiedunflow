@@ -9,7 +9,6 @@ import pytest
 from pydantic import ValidationError
 
 from wiedunflow.entities.code_ref import CodeRef
-from wiedunflow.entities.lesson import Lesson
 from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
     LessonManifestValidationError,
@@ -42,9 +41,6 @@ class StubPlanLLM:
         if isinstance(r, Exception):
             raise r
         return r
-
-    def narrate(self, spec_json: str, concepts_introduced: tuple[str, ...]) -> Lesson:
-        raise NotImplementedError
 
 
 # ---------------------------------------------------------------------------

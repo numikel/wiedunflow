@@ -591,7 +591,7 @@ def _build_llm_provider(
         return AnthropicProvider(
             api_key=resolve_api_key(config),
             model_plan=config.llm_model_plan,
-            model_narrate=config.llm_model_narrate,
+            model_writer=config.llm_model_narrate,
             max_retries=config.llm_max_retries,
             max_wait_s=config.llm_max_wait_s,
         )
@@ -611,7 +611,7 @@ def _build_llm_provider(
             base_url=config.llm_base_url,
             # ADR-0015 (v0.7.0): gpt-5.4 is the project default for OpenAI.
             model_plan=config.llm_model_plan or "gpt-5.4",
-            model_narrate=config.llm_model_narrate or "gpt-5.4",
+            model_writer=config.llm_model_narrate or "gpt-5.4",
             max_retries=config.llm_max_retries,
             max_wait_s=config.llm_max_wait_s,
         )
@@ -634,10 +634,12 @@ def _build_llm_provider(
             base_url=config.llm_base_url,
             # ADR-0015 (v0.7.0): gpt-5.4 is the project default (Ollama / vLLM
             # endpoints may use any model name; this default matters only when
-            # llm.model_plan / model_narrate are unset and the local endpoint
-            # accepts gpt-5.4).
+            # llm.model_plan / model_writer are unset and the local endpoint
+            # accepts gpt-5.4). The legacy ``llm_model_narrate`` config field
+            # is mapped onto ``model_writer`` — writer is the primary narration
+            # role in the multi-agent pipeline.
             model_plan=config.llm_model_plan or "gpt-5.4",
-            model_narrate=config.llm_model_narrate or "gpt-5.4",
+            model_writer=config.llm_model_narrate or "gpt-5.4",
             max_retries=config.llm_max_retries,
             max_wait_s=config.llm_max_wait_s,
         )
@@ -840,8 +842,12 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
     # what the user actually configured (gpt-4.1 / claude-opus-4-7 / etc.)
     # instead of the hardcoded haiku/opus labels (ADR-0013 follow-up bug).
     llm_provider_obj = providers.llm
-    plan_label = str(getattr(llm_provider_obj, "model_plan", "plan"))
-    narrate_label = str(getattr(llm_provider_obj, "model_narrate", "narrate"))
+    plan_label = str(getattr(llm_provider_obj, "model_plan", "gpt-5.4"))
+    _llm_models: dict[str, str] = getattr(llm_provider_obj, "models", {}) or {}
+    orchestrator_label = str(_llm_models.get("orchestrator", "gpt-5.4"))
+    researcher_label = str(_llm_models.get("researcher", "gpt-5.4-mini"))
+    writer_label = str(_llm_models.get("writer", "gpt-5.4"))
+    reviewer_label = str(_llm_models.get("reviewer", "gpt-5.4-mini"))
 
     # ADR-0014: live pricing chain (LiteLLM 24h cache → static fallback)
     # so the cost-gate USD estimate matches the user's actual provider rates.
@@ -866,7 +872,10 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
             prompt_disabled=no_cost_prompt,
             is_tty=is_tty,
             plan_model_label=plan_label,
-            narrate_model_label=narrate_label,
+            orchestrator_model_label=orchestrator_label,
+            researcher_model_label=researcher_label,
+            writer_model_label=writer_label,
+            reviewer_model_label=reviewer_label,
         )
 
     try:

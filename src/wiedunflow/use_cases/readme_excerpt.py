@@ -3,7 +3,7 @@
 """Load a README excerpt for project-level context injection (v0.2.1+).
 
 Used by:
-- Narration prompt enrichment (`use_cases.grounding_retry._spec_to_json`).
+- Narration prompt enrichment (Researcher/Writer prompt builders in the ADR-0016 multi-agent pipeline).
   Every lesson narration receives the project intent so the LLM can tighten
   one-liner descriptions instead of waterring with generic prose.
 - Closing lesson "Project README" appendix (rendered when present).

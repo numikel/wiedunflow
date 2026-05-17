@@ -211,7 +211,11 @@ def test_format_cost_lines_includes_total(tmp_path: Path) -> None:
     estimate = _heuristic_estimate(tmp_path, max_lessons=30)
     rows, total = _format_cost_lines(estimate)
 
-    assert {label for label, _ in rows} == {"haiku", "opus"}
+    # v0.10.0 — multi-agent pipeline emits one row per role (Planning, Orchestrator,
+    # Researcher, Writer, Reviewer). Default model labels follow ``agent_orchestrator
+    # ._DEFAULT_MODELS`` (gpt-5.4 / gpt-5.4-mini) when no per-role override is passed.
+    assert len(rows) == 5
+    assert {label for label, _ in rows} == {"gpt-5.4", "gpt-5.4-mini"}
     assert total[0] == "TOTAL"
     assert "$" in total[1]
 

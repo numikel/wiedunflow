@@ -10,10 +10,11 @@ __all__ = ["SkippedLesson"]
 class SkippedLesson(BaseModel):
     """Marker type for a lesson that failed grounding retry and becomes a placeholder in HTML.
 
-    A ``SkippedLesson`` is produced by :func:`narrate_with_grounding_retry` when
-    both the initial narration attempt and the single reinforcement retry fail
-    grounding validation or word-count validation.  It is rendered as a
-    dashed-border placeholder block in the HTML output (US-031).
+    A ``SkippedLesson`` is produced by :func:`run_lesson` or :func:`run_closing_lesson` when
+    the Reviewer issues a fatal verdict (e.g. unresolvable grounding hallucination) and the
+    lesson cannot meet the grounding invariant after the configured retries. The skipped lesson
+    carries the reason and metadata so the closing lesson can fold it into the helper appendix.
+    It is rendered as a dashed-border placeholder block in the HTML output (US-031).
 
     Attributes:
         lesson_id: The ``LessonSpec.id`` of the failed lesson.
@@ -28,4 +29,4 @@ class SkippedLesson(BaseModel):
     lesson_id: str
     title: str
     missing_symbols: tuple[str, ...]  # symbols that did not pass grounding
-    reason: str = "grounding_retry_exhausted"
+    reason: str = "reviewer_fatal_verdict"

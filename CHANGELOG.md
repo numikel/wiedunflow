@@ -6,6 +6,85 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-05-17 — Architecture: Multi-Agent Cost Model + ADR-0016 Cleanup Completion
+
+### BREAKING
+
+- **`LLMProvider` Protocol shrunk to `plan()` + `run_agent()`.** Methods
+  `narrate()` and `describe_symbol()` removed from the port and from all
+  three shipped adapters (`AnthropicProvider`, `OpenAIProvider`,
+  `FakeLLMProvider`). The narration pipeline since v0.9.0 drives generation
+  through `run_agent` exclusively — the two removed methods were no longer
+  called from any code path. External BYOK adapters must drop their
+  implementations; structural subtyping (`runtime_checkable`) now matches
+  on the two surviving methods.
+- **Adapter constructors no longer accept `model_narrate`,
+  `model_describe`, `max_tokens_narrate`, `max_tokens_describe`.** The
+  per-role multi-agent kwargs (`model_orchestrator`, `model_researcher`,
+  `model_writer`, `model_reviewer`) introduced earlier are now the only
+  way to override role models. The legacy `--model-narrate` CLI flag and
+  `llm_model_narrate` config field continue to work — they map onto the
+  Writer role (primary narration agent) so existing user configs and
+  scripts keep functioning unchanged.
+- **`CostEstimate` dataclass restructured.** The flat
+  `haiku_tokens`/`haiku_cost_usd`/`sonnet_tokens`/`sonnet_cost_usd` fields
+  are gone, replaced by five `RoleCost` sub-objects (`planning`,
+  `orchestrator`, `researcher`, `writer`, `reviewer`) plus
+  `total_tokens` / `total_cost_usd`. Any code that introspected the old
+  fields directly must be updated to read the new shape — the cost-gate
+  prompt and the in-app menu Summary panel both consume the new fields
+  and ship updated rendering.
+
+### Changed
+
+- **Cost estimator rewritten for the v0.9.0+ multi-agent pipeline.** The
+  previous v0.7.0 formula (`symbols × 500 + lessons × 8000`) modelled a
+  single narration call per lesson and under-estimated real runs by
+  ~15× ($1.82 vs ~$28.90 for a 200-symbol / 20-lesson tutorial). The new
+  model has per-role token ceilings derived from the agent cards
+  (Orchestrator, Researcher × N, Writer, Reviewer) and applies per-role
+  pricing via `MODEL_PRICES` / `PricingCatalog` (ADR-0020 per-token-class).
+  Expect realistic cost-gate values for medium repos to land in the
+  $15–$30 range rather than the prior ~$1.
+- **Cost-gate prompt now renders one row per pipeline role.** The
+  table grew from two stage-grouped rows (`stages 1-4` / `stages 5-6`)
+  to five role-grouped rows (Planning, Orchestrator, Researcher × N,
+  Writer, Reviewer), each showing the configured model and its
+  per-role estimated cost. The in-app "Estimate cost" Summary panel
+  in the interactive menu received the same breakdown.
+
+### Removed
+
+- **`use_cases/grounding_retry.py` (438 lines).** Replaced by the
+  multi-agent Orchestrator → Researcher → Writer → Reviewer loop in
+  v0.9.0; the file became unreachable when `generate_tutorial.py`
+  stopped calling `narrate_with_grounding_retry()`.
+- **`use_cases/snippet_validator.py` (155 lines).** Only ever called
+  from `grounding_retry`; the Reviewer rubric in the new pipeline
+  performs the equivalent check on the Writer's `submit_lesson_draft`.
+- **Adapter system prompts `NARRATE_SYSTEM_PROMPT` and
+  `DESCRIBE_SYSTEM_PROMPT`** from `adapters/llm_prompts.py`. Only
+  `PLAN_SYSTEM_PROMPT` remains — the multi-agent prompts live in
+  `use_cases/agents/*.md` agent cards.
+- **Test files `tests/unit/use_cases/test_grounding_retry.py` (275
+  lines) and `tests/unit/use_cases/test_snippet_validator.py` (188
+  lines)** along with the per-method test blocks for the removed
+  adapter methods (~30 cases removed across the three adapter test
+  suites).
+
+### Fixed
+
+- **Stale comment in `use_cases/generate_tutorial.py`** that claimed
+  `grounding_retry` logs the per-lesson retry counter — the multi-agent
+  pipeline tracks Writer retries directly on the `_OrchestratorState`
+  result and aggregates them into `RunReport.outcome.writer_retries`.
+- **Stale docstring in `entities/skipped_lesson.py`** that referenced
+  `narrate_with_grounding_retry`. Also fixed the matching default
+  `reason` field value (was the literal string
+  `"grounding_retry_exhausted"`, now `"reviewer_fatal_verdict"`).
+- **Stale docstring in `tests/integration/test_sprint4_e2e.py`** on
+  `_DegradedFakeLLM` describing the v0.2-0.3 single-shot pipeline.
+
 ## [0.9.8] - 2026-05-05 — Security: Repo-Code Consent Guard, Pricing Integrity, Windows Consent Visibility
 
 ### Added

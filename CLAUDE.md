@@ -36,6 +36,7 @@ WiedunFlow is a Python CLI that turns a local Git repository into a single, self
 - Type hints are **mandatory** on public APIs of pipeline modules; prefer `from __future__ import annotations`
 - Lint + format: `ruff` (lint + format) as the single source of truth; `mypy --strict` on `src/wiedunflow/**`
 - Before finishing any coding task, always run a full quality check in this exact order: `uv run ruff format .` -> `uv run ruff check .` -> `uv run mypy src/wiedunflow` -> `uv run pytest`.
+- **Integration gate runs in main context, never delegated.** Subagents working on parallel tracks routinely report "all green locally" while missing scope drift visible only at the repo level (cross-track imports, top-level `__init__` exports, full-suite test failures). After any parallel-track sprint, re-run the four-step quality check from main context before committing — do not trust per-track green signals.
 - Use `pathlib.Path`, never raw `os.path` strings
 - Use async only where it genuinely pays off (concurrent LLM calls in the generation stage) — keep the rest synchronous
 - Structured logs (`structlog` or stdlib `logging` with a JSON formatter), never `print()` inside the pipeline
@@ -224,6 +225,27 @@ The generator has 7 ordered stages; conventional-commit scopes mirror them 1:1:
 - Never log full source bodies at `INFO` level; structured logs include symbol names and file hashes, not verbatim code.
 - Treat `tutorial.config.yaml` and env vars as the only legitimate places for API keys — never read from shell history, dotfiles, or OS keychains in MVP.
 
+## SECURITY_REVIEW_BATCH
+
+Playbook for implementing findings from `.ai/reviews/findings-skonsolidowane-pl.md` (W1/W2/W3 batches, `F-XXX` IDs). Applies the global rules from `~/.claude/CLAUDE.md` (`## Planning & Implementation` + `## Subagent coordination`) to the specific security-review context.
+
+**Triggers**: prompt references `.ai/reviews/`, lists `F-XXX` findings, or contains phrases like "implement ŚR/H/W priority", "round X security batch".
+
+**Core workflow** (in order):
+1. **Scope-first for ≥5 findings** — when the prompt contains ≥5 `F-XXX` IDs or a whole wave (W2 mid, W3 hardening), ask **one** meta-question first: "how many of these are batched into a single release? what cut: BREAKING vs PATCH? which priorities?" BEFORE spawning parallel recon. Trade-off: one round-trip vs wasted recon on out-of-scope findings. For ≤4 explicit findings — skip scope-first, go recon-first.
+2. **Recon via parallel Explore agents** (per the global `Workflow order: Explore → Plan → AskUserQuestion`). Each track = strict file-scope separation (Track A → `adapters/`, B → `use_cases/`, C → `entities/`). A track must NOT touch files owned by another track — this guarantees merge-conflict-free integration.
+3. **Socratic** — ask only about BUSINESS/architectural decisions (BREAKING boundary, deprecation timeline, migration shim) and decisions unresolvable from recon alone (e.g. "F-063 fix changes the Protocol — break v0.9 BYOK API or semver-major?"). Do NOT ask about trivialities (formatting, naming).
+4. **Plan in `~/.claude/plans/<slug>.md`** with explicit tracks, per-track file scope, and an ADR delta if a boundary changes.
+5. **Implement**: parallel tracks → main-context **integration gate** (`uv run ruff format . && uv run ruff check . && uv run mypy src/wiedunflow && uv run pytest`) → one commit per logical change → CHANGELOG/ADR/release notes WITHOUT review IDs (per auto-memory `feedback_no_findings_refs_in_code.md`).
+
+**Critical anti-patterns**:
+- Jumping from `/planning-header` with 7 findings straight to `Plan` without recon (recon-first violated)
+- Recon-first for ≥5 findings without a scope check (3× parallel × out-of-scope work = waste)
+- `F-XXX` in commits / CHANGELOG / ADR — `.ai/reviews/` is gitignored; code-review tracking IDs must not leak to user-facing surfaces (ADR-XXXX and US-XXX are fine)
+- Cross-track file writes (e.g. Track A edits `use_cases/spend_meter.py` which is Track B's scope) — guaranteed merge conflict
+
+> Linked global rules: `~/.claude/CLAUDE.md` sections `## Planning & Implementation`, `## Subagent coordination`. Related sessions: [[Sesje/2026-05-04-1940-request-interrupted-by-user-for-tool-use|preparatory recon F-062..F-071]] + [[Sesje/2026-05-04-2055-1-breaking-2-usun-3-round-2f-4-wszytskie|v0.9.5 ship]].
+
 ## UX
 
 WiedunFlow ma dwie user-facing surfaces: CLI (`wiedunflow init` terminal output) i generated `wiedunflow-<repo>.html` (offline reader). Pełna spec w `.ai/ux-spec.md`; binarne decyzje zakotwiczone w ADR-0011.
@@ -275,7 +297,7 @@ Aktualne architectural decision records (w `docs/adr/`):
 - **ADR-0013** — Interactive menu-driven TUI ("centrum dowodzenia"): hybrid CLI/menu, questionary 2.x, three-sink rule, modal pipeline, `MenuIO` Protocol, 5-section Generate sub-wizard, dynamic `ModelCatalog` port (anthropic/openai SDK fetch + `ft:*` filter + 24h cache), `target_audience` 5-level enum (BREAKING + migration shim), `gpt-4.1` as OpenAI default. Partially supersedes ADR-0011 D#1 (2026-04-25, v0.4.0).
 - **ADR-0014** — Dynamic pricing catalog: `PricingCatalog` port + 4 adapters (Static/LiteLLM/Cached/Chained), httpx as explicit hard dep (NIE optional — tautologia po projektowych dyskusjach), three-sink rule extension dla httpx (2026-04-26, v0.5.0).
 - **ADR-0015** — Default LLM provider switch from Anthropic to OpenAI (gpt-5.4 + gpt-5.4-mini). Anthropic stays as 100% supported BYOK alternative via config `llm.provider: anthropic` (2026-04-26, v0.7.0).
-- **ADR-0016** — Multi-agent narration pipeline (Orchestrator → Researcher × N → Writer → Reviewer): replaces single-shot narrate() with per-lesson agentic loop, structured output via tool calls, filesystem-mediated workspace, sequential per-lesson invariant for concepts_introduced coherence (2026-05-02, v0.9.0 BREAKING).
+- **ADR-0016** — Multi-agent narration pipeline (Orchestrator → Researcher × N → Writer → Reviewer): replaces single-shot narrate() with per-lesson agentic loop, structured output via tool calls, filesystem-mediated workspace, sequential per-lesson invariant for concepts_introduced coherence (2026-05-02, v0.9.0 BREAKING; amended 2026-05-17 with cleanup completion — `narrate()`/`describe_symbol()` actually removed from `LLMProvider` Protocol, dead `grounding_retry.py`/`snippet_validator.py` deleted, cost estimator rewritten with per-role multi-agent token model + per-role `RoleCost` breakdown surfaced in cost-gate 5-row table, v0.10.0).
 - **ADR-0017** — Cost reporting wire-through: SpendMeter created in _run_pipeline, propagated through generate_tutorial → run_lesson → llm.run_agent. Adapter providers charge per-call. RunReport.total_cost_usd and CLI banner now show real cost (2026-05-02, v0.9.0).
 - **ADR-0018** — Jedi heuristic call graph fallback: when infer() returns empty, last-component name match in AST symbol_by_name. Single match → resolved_heuristic; ambiguous → uncertain + candidates; zero → unresolved. Tier 1 venv detection layered above (`.venv/` > `venv/` > `env/`) (2026-05-02, v0.9.0).
 - **ADR-0019** — Brand unification: drop `wiedun-flow`, single canonical `wiedunflow` token everywhere (CLI command, docstrings, prose). `WiedunFlow` CamelCase preserved as proper-noun brand display in prose. Supersedes ADR-0013 §1 (CLI command name) (2026-05-02, v0.9.1 BREAKING — pre-PyPI window, zero user impact).

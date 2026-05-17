@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -17,7 +16,6 @@ from wiedunflow.adapters.openai_provider import (
     OpenAIProvider,
     _uses_max_completion_tokens,
 )
-from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.lesson_manifest import LessonManifest
 from wiedunflow.interfaces.ports import LLMProvider
 
@@ -71,25 +69,6 @@ def _fake_timeout_error() -> openai.APITimeoutError:
     """Construct a minimal APITimeoutError."""
     fake_request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
     return openai.APITimeoutError(request=fake_request)
-
-
-def _mk_symbol(
-    name: str = "calculator.add",
-    kind: str = "function",
-    docstring: str | None = "Add two integers.",
-    is_dynamic_import: bool = False,
-    is_uncertain: bool = False,
-) -> CodeSymbol:
-    """Build a CodeSymbol for describe_symbol tests."""
-    return CodeSymbol(
-        name=name,
-        kind=kind,  # type: ignore[arg-type]
-        file_path=Path("calculator.py"),
-        lineno=1,
-        docstring=docstring,
-        is_dynamic_import=is_dynamic_import,
-        is_uncertain=is_uncertain,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -226,178 +205,6 @@ def test_plan_invalid_json_raises(mock_cls, monkeypatch):
     provider = OpenAIProvider()
     with pytest.raises((pydantic.ValidationError, ValueError)):
         provider.plan("outline")
-
-
-# ---------------------------------------------------------------------------
-# Test: describe_symbol()
-# ---------------------------------------------------------------------------
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_describe_symbol_uses_model_describe(mock_cls, monkeypatch):
-    """describe_symbol() calls chat.completions.create with model_describe and tight max_tokens."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response(
-        "A simple addition helper for two integers."
-    )
-    mock_cls.return_value = mock_client
-
-    provider = OpenAIProvider()
-    description = provider.describe_symbol(_mk_symbol(), context="def add(a, b): return a + b")
-
-    assert mock_client.chat.completions.create.call_count == 1
-    kwargs = mock_client.chat.completions.create.call_args.kwargs
-    assert kwargs["model"] == "gpt-5.4-mini"
-    # gpt-5.4-mini is a newer OpenAI family → uses max_completion_tokens, not max_tokens
-    assert kwargs["max_completion_tokens"] == 300
-    assert description == "A simple addition helper for two integers."
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_describe_symbol_no_response_format(mock_cls, monkeypatch):
-    """describe_symbol() does NOT pass response_format (plain prose, not JSON)."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response("desc")
-    mock_cls.return_value = mock_client
-
-    provider = OpenAIProvider()
-    provider.describe_symbol(_mk_symbol(), context="ctx")
-
-    kwargs = mock_client.chat.completions.create.call_args.kwargs
-    assert "response_format" not in kwargs
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_describe_symbol_prompt_includes_symbol_metadata(mock_cls, monkeypatch):
-    """describe_symbol() user prompt embeds symbol name, kind, file, docstring."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response("desc")
-    mock_cls.return_value = mock_client
-
-    symbol = _mk_symbol(name="pkg.mod.foo", kind="function", docstring="Does foo.")
-    provider = OpenAIProvider()
-    provider.describe_symbol(symbol, context="<source snippet>")
-
-    user_messages = [
-        m
-        for m in mock_client.chat.completions.create.call_args.kwargs["messages"]
-        if m["role"] == "user"
-    ]
-    assert len(user_messages) == 1
-    prompt = user_messages[0]["content"]
-    assert "pkg.mod.foo" in prompt
-    assert "function" in prompt
-    assert "Does foo." in prompt
-    assert "<source snippet>" in prompt
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_describe_symbol_flags_dynamic_and_uncertain(mock_cls, monkeypatch):
-    """describe_symbol() surfaces is_dynamic_import / is_uncertain flags in the prompt."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response("desc")
-    mock_cls.return_value = mock_client
-
-    symbol = _mk_symbol(is_dynamic_import=True, is_uncertain=True)
-    provider = OpenAIProvider()
-    provider.describe_symbol(symbol, context="ctx")
-
-    user_messages = [
-        m
-        for m in mock_client.chat.completions.create.call_args.kwargs["messages"]
-        if m["role"] == "user"
-    ]
-    prompt = user_messages[0]["content"]
-    assert "dynamic-import" in prompt
-    assert "uncertain-resolution" in prompt
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_describe_symbol_strips_whitespace(mock_cls, monkeypatch):
-    """Leading/trailing whitespace in the model response is stripped."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response("\n\n  actual text  \n\n")
-    mock_cls.return_value = mock_client
-
-    provider = OpenAIProvider()
-    description = provider.describe_symbol(_mk_symbol(), context="ctx")
-
-    assert description == "actual text"
-
-
-# ---------------------------------------------------------------------------
-# Test: narrate()
-# ---------------------------------------------------------------------------
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_narrate_uses_model_narrate(mock_cls, monkeypatch):
-    """narrate() calls chat.completions.create with model_narrate and correct max_tokens."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response("## Lesson narrative here")
-    mock_cls.return_value = mock_client
-
-    spec = json.dumps({"id": "lesson-001", "title": "Test Lesson", "code_refs": ["module.func"]})
-    provider = OpenAIProvider()
-    lesson = provider.narrate(spec, concepts_introduced=("concept_a",))
-
-    kwargs = mock_client.chat.completions.create.call_args.kwargs
-    assert kwargs["model"] == "gpt-5.4"
-    # gpt-5.4 is a newer OpenAI family → uses max_completion_tokens, not max_tokens
-    assert kwargs["max_completion_tokens"] == 4000
-    assert lesson.id == "lesson-001"
-    assert lesson.title == "Test Lesson"
-    assert lesson.narrative == "## Lesson narrative here"
-    assert "module.func" in lesson.code_refs
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_narrate_system_prompt_includes_concepts(mock_cls, monkeypatch):
-    """narrate() injects concepts_introduced into the system prompt."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response("## narrative")
-    mock_cls.return_value = mock_client
-
-    spec = json.dumps({"id": "l-1", "title": "T", "code_refs": []})
-    provider = OpenAIProvider()
-    provider.narrate(spec, concepts_introduced=("alpha", "beta"))
-
-    system_messages = [
-        m
-        for m in mock_client.chat.completions.create.call_args.kwargs["messages"]
-        if m["role"] == "system"
-    ]
-    system_prompt = system_messages[0]["content"]
-    assert "alpha" in system_prompt
-    assert "beta" in system_prompt
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_narrate_no_concepts_uses_placeholder(mock_cls, monkeypatch):
-    """narrate() with empty concepts_introduced uses '<none yet>' placeholder."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response("## narrative")
-    mock_cls.return_value = mock_client
-
-    spec = json.dumps({"id": "l-1", "title": "T", "code_refs": []})
-    provider = OpenAIProvider()
-    provider.narrate(spec, concepts_introduced=())
-
-    system_messages = [
-        m
-        for m in mock_client.chat.completions.create.call_args.kwargs["messages"]
-        if m["role"] == "system"
-    ]
-    system_prompt = system_messages[0]["content"]
-    assert "<none yet>" in system_prompt
 
 
 # ---------------------------------------------------------------------------
@@ -543,39 +350,4 @@ def test_plan_gpt5_uses_max_completion_tokens(mock_cls, monkeypatch):
     kwargs = mock_client.chat.completions.create.call_args.kwargs
     assert "max_completion_tokens" in kwargs
     assert kwargs["max_completion_tokens"] == 8000
-    assert "max_tokens" not in kwargs
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_describe_o1_uses_max_completion_tokens(mock_cls, monkeypatch):
-    """describe_symbol() with o-series reasoning model uses max_completion_tokens."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response("desc")
-    mock_cls.return_value = mock_client
-
-    provider = OpenAIProvider(model_describe="o1-mini")
-    provider.describe_symbol(_mk_symbol(), context="ctx")
-
-    kwargs = mock_client.chat.completions.create.call_args.kwargs
-    assert "max_completion_tokens" in kwargs
-    assert kwargs["max_completion_tokens"] == 300
-    assert "max_tokens" not in kwargs
-
-
-@patch("wiedunflow.adapters.openai_provider.OpenAI")
-def test_narrate_gpt5_uses_max_completion_tokens(mock_cls, monkeypatch):
-    """narrate() with gpt-5* uses max_completion_tokens."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.return_value = _mk_response("## narrative")
-    mock_cls.return_value = mock_client
-
-    spec = json.dumps({"id": "l-1", "title": "T", "code_refs": []})
-    provider = OpenAIProvider(model_narrate="gpt-5.4")
-    provider.narrate(spec, concepts_introduced=())
-
-    kwargs = mock_client.chat.completions.create.call_args.kwargs
-    assert "max_completion_tokens" in kwargs
-    assert kwargs["max_completion_tokens"] == 4000
     assert "max_tokens" not in kwargs

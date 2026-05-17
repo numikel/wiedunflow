@@ -116,12 +116,7 @@ def _load_report(repo: Path) -> dict[str, Any]:
 
 
 class _DegradedFakeLLM:
-    """Narrates every lesson with a hallucinated symbol + sub-150-word body.
-
-    Drives :func:`grounding_retry.narrate_with_grounding_retry` into the
-    ``skip + placeholder`` branch for every regular lesson, producing a
-    100 %-skipped run → ``degraded_ratio == 1.0`` → exit 2.
-    """
+    """Routes every Researcher/Writer call to a hallucinated symbol response and an undersized narrative body, driving :func:`run_lesson` into the skip+placeholder branch via a Reviewer fatal verdict. Exercises the degraded-status end-to-end exit code 2 path."""
 
     def __init__(self) -> None:
         self._delegate = FakeLLMProvider()

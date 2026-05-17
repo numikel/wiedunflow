@@ -168,12 +168,6 @@ class _ScriptedLLM:
     def plan(self, outline: str) -> Any:  # type: ignore[return]
         raise NotImplementedError
 
-    def describe_symbol(self, symbol: Any, context: str) -> str:
-        raise NotImplementedError
-
-    def narrate(self, spec_json: str, concepts_introduced: tuple[str, ...]) -> Any:  # type: ignore[return]
-        raise NotImplementedError
-
 
 def _mk_result(
     final_text: str,

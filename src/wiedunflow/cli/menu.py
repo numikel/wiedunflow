@@ -848,7 +848,6 @@ def _run_estimate_from_menu(io: MenuIO) -> None:
         repo_path,
         max_lessons=max_lessons,
         plan_model=plan_model,
-        narrate_model=narrate_model,
         pricing_catalog=pricing,
     )
 
@@ -868,17 +867,34 @@ def _run_estimate_from_menu(io: MenuIO) -> None:
     )
 
     console = init_console()
+    # v0.10.0 — multi-agent narration breakdown (Planning + Orchestrator + Researcher
+    # + Writer + Reviewer). The legacy ``llm_model_narrate`` config field maps onto
+    # the Writer role (primary narration model in the multi-agent pipeline) and is
+    # used as the representative ``narrate_label`` for the panel header row.
+    planning_total = estimate_obj.planning.input_tokens + estimate_obj.planning.output_tokens
+    orchestrator_total = (
+        estimate_obj.orchestrator.input_tokens + estimate_obj.orchestrator.output_tokens
+    )
+    researcher_total = estimate_obj.researcher.input_tokens + estimate_obj.researcher.output_tokens
+    writer_total = estimate_obj.writer.input_tokens + estimate_obj.writer.output_tokens
+    reviewer_total = estimate_obj.reviewer.input_tokens + estimate_obj.reviewer.output_tokens
     lines = [
         ("Provider", provider),
         ("Plan model", f"{plan_label} · {plan_price_str}"),
-        ("Narrate model", f"{narrate_label} · {narrate_price_str}"),
+        ("Writer model", f"{narrate_label} · {narrate_price_str}"),
         ("Files (.py)", str(_count_python_files(repo_path))),
         ("Estimated symbols", str(estimate_obj.symbols)),
         ("Estimated lessons", str(estimate_obj.lessons)),
-        (f"{plan_label} tokens", f"~{estimate_obj.haiku_tokens:,}"),
-        (f"{narrate_label} tokens", f"~{estimate_obj.sonnet_tokens:,}"),
-        (f"{plan_label} cost", f"${estimate_obj.haiku_cost_usd:.2f}"),
-        (f"{narrate_label} cost", f"${estimate_obj.sonnet_cost_usd:.2f}"),
+        ("Planning tokens", f"~{planning_total:,}"),
+        ("Planning cost", f"${estimate_obj.planning.cost_usd:.2f}"),
+        ("Orchestrator tokens", f"~{orchestrator_total:,}"),
+        ("Orchestrator cost", f"${estimate_obj.orchestrator.cost_usd:.2f}"),
+        ("Researcher tokens", f"~{researcher_total:,}"),
+        ("Researcher cost", f"${estimate_obj.researcher.cost_usd:.2f}"),
+        ("Writer tokens", f"~{writer_total:,}"),
+        ("Writer cost", f"${estimate_obj.writer.cost_usd:.2f}"),
+        ("Reviewer tokens", f"~{reviewer_total:,}"),
+        ("Reviewer cost", f"${estimate_obj.reviewer.cost_usd:.2f}"),
         ("TOTAL cost", f"${estimate_obj.total_cost_usd:.2f}"),
         (
             "Runtime",
@@ -1713,7 +1729,10 @@ def _heuristic_estimate(
     max_lessons: int,
     *,
     plan_model: str | None = None,
-    narrate_model: str | None = None,
+    orchestrator_model: str | None = None,
+    researcher_model: str | None = None,
+    writer_model: str | None = None,
+    reviewer_model: str | None = None,
     pricing_catalog: Any | None = None,
 ) -> Any:
     """Build a ``CostEstimate`` from a file-count heuristic (no LLM calls).
@@ -1741,7 +1760,10 @@ def _heuristic_estimate(
         lessons=lessons,
         clusters=clusters,
         plan_model=plan_model,
-        narrate_model=narrate_model,
+        orchestrator_model=orchestrator_model,
+        researcher_model=researcher_model,
+        writer_model=writer_model,
+        reviewer_model=reviewer_model,
         pricing_catalog=pricing_catalog,
     )
 
@@ -1770,23 +1792,43 @@ def _format_summary_lines(payload: dict[str, Any]) -> list[tuple[str, str]]:
 def _format_cost_lines(
     estimate_obj: Any,
     *,
-    plan_model: str = "haiku",
-    narrate_model: str = "opus",
+    plan_model: str = "gpt-5.4",
+    orchestrator_model: str = "gpt-5.4",
+    researcher_model: str = "gpt-5.4-mini",
+    writer_model: str = "gpt-5.4",
+    reviewer_model: str = "gpt-5.4-mini",
 ) -> tuple[list[tuple[str, str]], tuple[str, str]]:
-    """Return (per-model rows, total row) for the summary cost section.
+    """Return (per-role rows, total row) for the summary cost section.
 
-    ``plan_model`` and ``narrate_model`` are the actual configured model ids
-    so the panel matches the user's reality (e.g. ``gpt-4.1`` instead of
-    ``haiku`` for OpenAI). Defaults preserve the legacy Anthropic labels.
+    Model labels are the actual configured model ids so the panel matches
+    the user's reality (e.g. ``gpt-5.4`` for OpenAI defaults). Displays
+    all five multi-agent pipeline roles (ADR-0016).
     """
+    planning = estimate_obj.planning
+    orchestrator = estimate_obj.orchestrator
+    researcher = estimate_obj.researcher
+    writer = estimate_obj.writer
+    reviewer = estimate_obj.reviewer
     rows = [
         (
             plan_model,
-            f"~{estimate_obj.haiku_tokens:,} tokens · ${estimate_obj.haiku_cost_usd:.2f}",
+            f"~{planning.input_tokens + planning.output_tokens:,} tokens · ${planning.cost_usd:.2f}",
         ),
         (
-            narrate_model,
-            f"~{estimate_obj.sonnet_tokens:,} tokens · ${estimate_obj.sonnet_cost_usd:.2f}",
+            orchestrator_model,
+            f"~{orchestrator.input_tokens + orchestrator.output_tokens:,} tokens · ${orchestrator.cost_usd:.2f}",
+        ),
+        (
+            researcher_model,
+            f"~{researcher.input_tokens + researcher.output_tokens:,} tokens · ${researcher.cost_usd:.2f}",
+        ),
+        (
+            writer_model,
+            f"~{writer.input_tokens + writer.output_tokens:,} tokens · ${writer.cost_usd:.2f}",
+        ),
+        (
+            reviewer_model,
+            f"~{reviewer.input_tokens + reviewer.output_tokens:,} tokens · ${reviewer.cost_usd:.2f}",
         ),
     ]
     total = (
@@ -1812,16 +1854,23 @@ def _subwizard_summary_and_launch(io: MenuIO, payload: dict[str, Any]) -> None:
     from wiedunflow.cli.output import init_console, render_generate_summary
 
     console = init_console()
+    _llm_models_payload: dict[str, str] = payload.get("llm_models") or {}
     estimate_obj = _heuristic_estimate(
         payload["repo_path"],
         payload["max_lessons"],
         plan_model=payload.get("llm_model_plan"),
-        narrate_model=payload.get("llm_model_narrate"),
+        orchestrator_model=_llm_models_payload.get("orchestrator"),
+        researcher_model=_llm_models_payload.get("researcher"),
+        writer_model=_llm_models_payload.get("writer"),
+        reviewer_model=_llm_models_payload.get("reviewer"),
     )
     cost_rows, cost_total = _format_cost_lines(
         estimate_obj,
-        plan_model=str(payload.get("llm_model_plan") or "haiku"),
-        narrate_model=str(payload.get("llm_model_narrate") or "opus"),
+        plan_model=str(payload.get("llm_model_plan") or "gpt-5.4"),
+        orchestrator_model=str(_llm_models_payload.get("orchestrator") or "gpt-5.4"),
+        researcher_model=str(_llm_models_payload.get("researcher") or "gpt-5.4-mini"),
+        writer_model=str(_llm_models_payload.get("writer") or "gpt-5.4"),
+        reviewer_model=str(_llm_models_payload.get("reviewer") or "gpt-5.4-mini"),
     )
 
     render_generate_summary(
