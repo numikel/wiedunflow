@@ -12,6 +12,7 @@ recommended for general-purpose code-search corpora in the BM25 literature).
 
 from __future__ import annotations
 
+import pickle
 import re
 
 from rank_bm25 import BM25Okapi
@@ -195,3 +196,38 @@ class Bm25Store:
             reverse=True,
         )
         return ranked[:k]
+
+    # ------------------------------------------------------------------
+    # Persistence — pickle a complete store for the SQLite cache
+    # ------------------------------------------------------------------
+
+    def dumps(self) -> bytes:
+        """Serialize the indexed state as a pickle BLOB suitable for cache storage.
+
+        The BLOB encodes a tuple ``(_doc_ids, _doc_texts, _bm25)``. Pickle is
+        used because ``BM25Okapi`` already keeps all of its state in plain
+        Python primitives and numpy arrays — both safe to pickle within a
+        user-local cache directory. The complementary :meth:`loads` reverses
+        the operation. Library-version mismatches are caught upstream by the
+        cache adapter (it stores ``rank_bm25.__version__`` alongside the BLOB).
+        """
+        return pickle.dumps(
+            (self._doc_ids, self._doc_texts, self._bm25),
+            protocol=pickle.HIGHEST_PROTOCOL,
+        )
+
+    @classmethod
+    def loads(cls, blob: bytes) -> Bm25Store:
+        """Reconstruct a :class:`Bm25Store` from a pickle BLOB produced by :meth:`dumps`.
+
+        Raises:
+            pickle.UnpicklingError: When *blob* is corrupted or was written by
+                an incompatible ``rank_bm25`` version. Callers should treat
+                this as a cache miss and rebuild the corpus.
+        """
+        doc_ids, doc_texts, bm25 = pickle.loads(blob)
+        store = cls()
+        store._doc_ids = doc_ids
+        store._doc_texts = doc_texts
+        store._bm25 = bm25
+        return store

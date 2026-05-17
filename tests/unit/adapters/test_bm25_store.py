@@ -102,3 +102,36 @@ def test_search_k_limits_results() -> None:
     )
     results = store.search("retrieval index", k=2)
     assert len(results) <= 2
+
+
+# ---------------------------------------------------------------------------
+# dumps/loads — persistence roundtrip
+# ---------------------------------------------------------------------------
+
+
+def test_dumps_loads_roundtrip_preserves_search_results() -> None:
+    """A restored store reproduces identical ranked results for the same query."""
+    original = Bm25Store()
+    docs = [
+        ("readme", "Install wiedunflow with pip"),
+        ("intro", "wiedunflow generates offline tutorial HTML from a repo"),
+        ("api", "the run_agent loop drives the model"),
+    ]
+    original.index(docs)
+    expected = original.search("wiedunflow install", k=3)
+
+    blob = original.dumps()
+    restored = Bm25Store.loads(blob)
+
+    actual = restored.search("wiedunflow install", k=3)
+    assert [(d, t, round(s, 6)) for d, t, s in actual] == [
+        (d, t, round(s, 6)) for d, t, s in expected
+    ]
+
+
+def test_loads_corrupted_blob_raises() -> None:
+    """An invalid pickle BLOB surfaces as UnpicklingError so the caller can rebuild."""
+    import pickle
+
+    with pytest.raises((pickle.UnpicklingError, EOFError, AttributeError, TypeError)):
+        Bm25Store.loads(b"not-a-pickle")

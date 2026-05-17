@@ -13,6 +13,7 @@ import pytest
 
 from wiedunflow.adapters.sqlite_cache import SQLiteCache, _default_db_path
 from wiedunflow.entities.cache_entry import (
+    Bm25IndexEntry,
     CheckpointEntry,
     FileCacheEntry,
     PageRankSnapshot,
@@ -81,16 +82,19 @@ def test_us_020_init_creates_all_tables(tmp_path: Path) -> None:
         "plan_cache",
         "file_cache",
         "pagerank_snapshots",
+        "bm25_index",
     }
     assert expected.issubset(tables)
 
 
-def test_us_020_schema_version_is_1(tmp_path: Path) -> None:
-    """Schema version table contains version 1."""
+def test_us_020_schema_version_matches_current(tmp_path: Path) -> None:
+    """Schema version row reflects the in-code constant after fresh init."""
+    from wiedunflow.adapters.sqlite_cache import _SCHEMA_VERSION
+
     cache = SQLiteCache(path=tmp_path / "cache.db")
     row = cache._conn.execute("SELECT version FROM schema_version").fetchone()
     assert row is not None
-    assert row[0] == 1
+    assert row[0] == _SCHEMA_VERSION
 
 
 def test_us_020_explicit_cache_path_creates_file(tmp_path: Path) -> None:
@@ -390,3 +394,88 @@ def test_us_025_cache_key_includes_repo_and_commit() -> None:
     # Neither key should be 'none' or 'empty'
     assert len(key_lesson) == 64
     assert len(key_plan) == 64
+
+
+# ---------------------------------------------------------------------------
+# BM25 index cache
+# ---------------------------------------------------------------------------
+
+
+def _bm25_entry(
+    *,
+    repo: str = "/repo",
+    commit: str = "abc123def456",
+    fingerprint: str = "fp001",
+    lib_version: str = "0.2.2",
+    blob: bytes = b"pickled-bm25-bytes",
+) -> Bm25IndexEntry:
+    return Bm25IndexEntry(
+        repo_abs=repo,
+        commit_hash=commit,
+        corpus_config_fingerprint=fingerprint,
+        bm25_lib_version=lib_version,
+        blob=blob,
+        created_at=datetime(2026, 5, 17, tzinfo=UTC),
+    )
+
+
+def test_bm25_index_save_and_load_roundtrip(cache: SQLiteCache, tmp_path: Path) -> None:
+    """save then get round-trips identically when the lookup key matches the stored row."""
+    # Use tmp_path so str(Path(...)) normalization stays consistent across OS
+    # (Windows turns ``Path("/repo")`` into ``\\repo`` which would never match a
+    # row saved as the forward-slash string).
+    entry = _bm25_entry(repo=str(tmp_path))
+    cache.save_bm25_index(entry)
+    loaded = cache.get_bm25_index(tmp_path, entry.commit_hash, entry.corpus_config_fingerprint)
+    assert loaded is not None
+    assert loaded.blob == entry.blob
+    assert loaded.bm25_lib_version == entry.bm25_lib_version
+
+
+def test_bm25_index_miss_returns_none(cache: SQLiteCache, tmp_path: Path) -> None:
+    assert cache.get_bm25_index(tmp_path / "no-such", "00", "fp") is None
+
+
+def test_bm25_index_different_fingerprint_misses(cache: SQLiteCache, tmp_path: Path) -> None:
+    """Changing exclude/include patterns must invalidate the cache row."""
+    cache.save_bm25_index(_bm25_entry(repo=str(tmp_path), fingerprint="fp-old"))
+    miss = cache.get_bm25_index(tmp_path, "abc123def456", "fp-new")
+    assert miss is None
+
+
+def test_bm25_index_same_key_replaces_blob(cache: SQLiteCache, tmp_path: Path) -> None:
+    """save_bm25_index uses INSERT OR REPLACE — repeated saves update in place."""
+    cache.save_bm25_index(_bm25_entry(repo=str(tmp_path), blob=b"v1"))
+    cache.save_bm25_index(_bm25_entry(repo=str(tmp_path), blob=b"v2"))
+    loaded = cache.get_bm25_index(tmp_path, "abc123def456", "fp001")
+    assert loaded is not None
+    assert loaded.blob == b"v2"
+
+
+def test_schema_migration_v1_db_picks_up_bm25_table(tmp_path: Path) -> None:
+    """Opening a database written under schema_version=1 must add bm25_index and bump version."""
+    import sqlite3
+
+    db_path = tmp_path / "legacy.db"
+    # Hand-write the legacy v1 layout (no bm25_index table, version row at 1).
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        CREATE TABLE schema_version (version INTEGER PRIMARY KEY);
+        INSERT INTO schema_version VALUES (1);
+        CREATE TABLE generic_kv (key TEXT PRIMARY KEY, value TEXT NOT NULL, created_at TEXT NOT NULL);
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    cache = SQLiteCache(path=db_path)
+    # Migration must surface the new bm25_index table.
+    tables = {
+        r[0]
+        for r in cache._conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+    }
+    assert "bm25_index" in tables
+    # And bump schema_version row.
+    row = cache._conn.execute("SELECT version FROM schema_version").fetchone()
+    assert row[0] == 2

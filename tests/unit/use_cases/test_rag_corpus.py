@@ -9,7 +9,11 @@ from unittest.mock import MagicMock
 
 from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.ingestion_result import IngestionResult
-from wiedunflow.use_cases.rag_corpus import build_and_index, build_corpus
+from wiedunflow.use_cases.rag_corpus import (
+    build_and_index,
+    build_corpus,
+    compute_corpus_config_fingerprint,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -125,3 +129,36 @@ def test_build_corpus_non_git_dir_no_crash(tmp_path: Path) -> None:
     assert not any(did.startswith("commit:") for did in doc_ids)
     # Symbol doc still present
     assert "symbol:mod.func" in doc_ids
+
+
+# ---------------------------------------------------------------------------
+# corpus_config_fingerprint — cache key composition
+# ---------------------------------------------------------------------------
+
+
+def test_fingerprint_stable_across_pattern_order() -> None:
+    """Reordering exclude or include lists must not change the fingerprint."""
+    a = compute_corpus_config_fingerprint(["a", "b", "c"], ["x", "y"])
+    b = compute_corpus_config_fingerprint(["c", "a", "b"], ["y", "x"])
+    assert a == b
+
+
+def test_fingerprint_changes_when_exclude_changes() -> None:
+    """Adding an exclude pattern must invalidate the prior fingerprint."""
+    base = compute_corpus_config_fingerprint(["a"], [])
+    extended = compute_corpus_config_fingerprint(["a", "b"], [])
+    assert base != extended
+
+
+def test_fingerprint_changes_when_include_changes() -> None:
+    """Same exclude, different include → different fingerprint."""
+    a = compute_corpus_config_fingerprint(["a"], ["x"])
+    b = compute_corpus_config_fingerprint(["a"], ["y"])
+    assert a != b
+
+
+def test_fingerprint_short_hex_string() -> None:
+    """The fingerprint is a 16-character hex prefix suitable for an SQLite key."""
+    fp = compute_corpus_config_fingerprint([], [])
+    assert len(fp) == 16
+    int(fp, 16)  # hex parses

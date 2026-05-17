@@ -2,7 +2,9 @@
 # Copyright 2026 Michał Kamiński
 from __future__ import annotations
 
-from wiedunflow.entities.cache_entry import FileCacheEntry
+from pathlib import Path
+
+from wiedunflow.entities.cache_entry import Bm25IndexEntry, FileCacheEntry
 
 
 class InMemoryCache:
@@ -17,6 +19,9 @@ class InMemoryCache:
     def __init__(self) -> None:
         self._store: dict[str, object] = {}
         self._file_cache: dict[str, FileCacheEntry] = {}
+        # Keyed by (repo_abs, commit_hash, corpus_config_fingerprint) to mirror
+        # the SQLite schema's composite primary key.
+        self._bm25_cache: dict[tuple[str, str, str], Bm25IndexEntry] = {}
 
     def get(self, key: str) -> object | None:
         """Return the cached value for key, or None if absent.
@@ -45,3 +50,15 @@ class InMemoryCache:
     def save_file_cache(self, entry: FileCacheEntry) -> None:
         """Persist the file-analysis payload keyed by its content SHA-256."""
         self._file_cache[entry.sha256] = entry
+
+    def get_bm25_index(
+        self, repo_abs: Path, commit: str, fingerprint: str
+    ) -> Bm25IndexEntry | None:
+        """Return the cached BM25 index payload or ``None`` on miss."""
+        return self._bm25_cache.get((str(repo_abs), commit, fingerprint))
+
+    def save_bm25_index(self, entry: Bm25IndexEntry) -> None:
+        """Persist a BM25 cache entry."""
+        self._bm25_cache[(entry.repo_abs, entry.commit_hash, entry.corpus_config_fingerprint)] = (
+            entry
+        )

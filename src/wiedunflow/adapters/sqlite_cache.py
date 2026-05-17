@@ -28,6 +28,7 @@ import platformdirs
 import structlog
 
 from wiedunflow.entities.cache_entry import (
+    Bm25IndexEntry,
     CheckpointEntry,
     FileCacheEntry,
     PageRankSnapshot,
@@ -37,8 +38,10 @@ from wiedunflow.entities.cache_key import build_plan_key
 
 log = structlog.get_logger(__name__)
 
-# Schema version — bump when forward-incompatible changes are made.
-_SCHEMA_VERSION = 1
+# Schema version — bump when forward-incompatible changes are made. v2 added
+# the ``bm25_index`` table; older databases pick up the new table through
+# the migration path in :meth:`_init_schema`.
+_SCHEMA_VERSION = 2
 
 _DDL = f"""
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -399,6 +402,79 @@ class SQLiteCache:
         )
 
     # ------------------------------------------------------------------
+    # BM25 index methods — persistent corpus index keyed by repo+commit+config
+    # ------------------------------------------------------------------
+
+    def save_bm25_index(self, entry: Bm25IndexEntry) -> None:
+        """Persist a serialized BM25 corpus index.
+
+        Args:
+            entry: BM25 cache payload (see :class:`Bm25IndexEntry`).
+        """
+        with self._lock, self._conn:
+            self._conn.execute(
+                """INSERT OR REPLACE INTO bm25_index
+                       (repo_abs, commit_hash, corpus_config_fingerprint,
+                        bm25_lib_version, blob, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    entry.repo_abs,
+                    entry.commit_hash,
+                    entry.corpus_config_fingerprint,
+                    entry.bm25_lib_version,
+                    entry.blob,
+                    entry.created_at.isoformat(),
+                ),
+            )
+        log.info(
+            "bm25_index.saved",
+            repo=entry.repo_abs,
+            commit=entry.commit_hash[:8],
+            fingerprint=entry.corpus_config_fingerprint,
+            lib_version=entry.bm25_lib_version,
+            blob_bytes=len(entry.blob),
+        )
+
+    def get_bm25_index(
+        self, repo_abs: Path, commit: str, fingerprint: str
+    ) -> Bm25IndexEntry | None:
+        """Return the cached BM25 index entry or ``None`` on miss.
+
+        The adapter does **not** check ``rank_bm25.__version__`` itself — the
+        caller (Stage 4 RAG) decides what to do on version mismatch (typically:
+        treat as a miss and rebuild). Returning the entry lets the caller log
+        the specific mismatch in a single place.
+        """
+        row = self._conn.execute(
+            """SELECT * FROM bm25_index
+                   WHERE repo_abs = ? AND commit_hash = ?
+                     AND corpus_config_fingerprint = ?""",
+            (str(repo_abs), commit, fingerprint),
+        ).fetchone()
+        if row is None:
+            log.debug(
+                "bm25_index.miss",
+                repo=str(repo_abs),
+                commit=commit[:8],
+                fingerprint=fingerprint,
+            )
+            return None
+        log.debug(
+            "bm25_index.hit",
+            repo=str(repo_abs),
+            commit=commit[:8],
+            fingerprint=fingerprint,
+        )
+        return Bm25IndexEntry(
+            repo_abs=row["repo_abs"],
+            commit_hash=row["commit_hash"],
+            corpus_config_fingerprint=row["corpus_config_fingerprint"],
+            bm25_lib_version=row["bm25_lib_version"],
+            blob=row["blob"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    # ------------------------------------------------------------------
     # PageRank snapshot methods (US-024 diff threshold)
     # ------------------------------------------------------------------
 
@@ -450,7 +526,13 @@ class SQLiteCache:
     # ------------------------------------------------------------------
 
     def _init_schema(self) -> None:
-        """Execute the DDL statements to create tables and indexes."""
+        """Execute the DDL statements to create tables and indexes.
+
+        Handles forward-only migration. ``INSERT OR IGNORE`` cannot bump an
+        existing ``schema_version`` row, so the migration path explicitly
+        reads the current value and only inserts/updates when the on-disk
+        schema is older than :data:`_SCHEMA_VERSION`.
+        """
         # Execute each statement individually to avoid issues with executescript
         # dropping WAL mode on some SQLite builds.
         with self._lock, self._conn:
@@ -465,7 +547,6 @@ class SQLiteCache:
             self._conn.execute(
                 "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
             )
-            self._conn.execute(f"INSERT OR IGNORE INTO schema_version VALUES ({_SCHEMA_VERSION})")
             self._conn.execute(
                 """CREATE TABLE IF NOT EXISTS checkpoints (
                         cache_key          TEXT PRIMARY KEY,
@@ -515,6 +596,35 @@ class SQLiteCache:
                         PRIMARY KEY (repo_abs, commit_hash)
                     )"""
             )
+            # v2 — persistent BM25 corpus index keyed by (repo, commit, fingerprint).
+            self._conn.execute(
+                """CREATE TABLE IF NOT EXISTS bm25_index (
+                        repo_abs                   TEXT NOT NULL,
+                        commit_hash                TEXT NOT NULL,
+                        corpus_config_fingerprint  TEXT NOT NULL,
+                        bm25_lib_version           TEXT NOT NULL,
+                        blob                       BLOB NOT NULL,
+                        created_at                 TEXT NOT NULL,
+                        PRIMARY KEY (repo_abs, commit_hash, corpus_config_fingerprint)
+                    )"""
+            )
+
+            # Forward-only migration: read the persisted version row (if any)
+            # and bump it when our code knows about a newer schema. New
+            # databases get a fresh row inserted at the current version.
+            row = self._conn.execute("SELECT version FROM schema_version").fetchone()
+            current = int(row["version"]) if row is not None else 0
+            if current == 0:
+                self._conn.execute(
+                    "INSERT INTO schema_version(version) VALUES (?)", (_SCHEMA_VERSION,)
+                )
+            elif current < _SCHEMA_VERSION:
+                self._conn.execute("UPDATE schema_version SET version = ?", (_SCHEMA_VERSION,))
+                log.info(
+                    "sqlite_cache.schema_migrated",
+                    from_version=current,
+                    to_version=_SCHEMA_VERSION,
+                )
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""

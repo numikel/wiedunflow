@@ -9,7 +9,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
-from wiedunflow.entities.cache_entry import FileCacheEntry
+from wiedunflow.entities.cache_entry import Bm25IndexEntry, FileCacheEntry
 from wiedunflow.entities.call_graph import CallGraph
 from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.lesson_manifest import LessonManifest
@@ -296,6 +296,22 @@ class Cache(Protocol):
 
     def save_file_cache(self, entry: FileCacheEntry) -> None:
         """Persist file-level analysis payload keyed by its content SHA-256."""
+        ...
+
+    def get_bm25_index(
+        self, repo_abs: Path, commit: str, fingerprint: str
+    ) -> Bm25IndexEntry | None:
+        """Return the cached BM25 index for ``(repo_abs, commit, fingerprint)`` or ``None``.
+
+        Implementations must also check ``rank_bm25.__version__`` against the
+        stored ``bm25_lib_version`` and treat a mismatch as a miss — a
+        library upgrade that changes the ``BM25Okapi`` class layout would
+        otherwise yield an obscure unpickle error.
+        """
+        ...
+
+    def save_bm25_index(self, entry: Bm25IndexEntry) -> None:
+        """Persist a serialized BM25 index payload."""
         ...
 
 

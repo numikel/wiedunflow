@@ -13,7 +13,9 @@ In S3 the BM25Okapi index treats all documents equally — weight is metadata-on
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
 
 import structlog
@@ -24,6 +26,21 @@ from wiedunflow.entities.ingestion_result import IngestionResult
 from wiedunflow.interfaces.ports import VectorStore
 
 logger = structlog.get_logger(__name__)
+
+
+def compute_corpus_config_fingerprint(
+    exclude_patterns: Iterable[str], include_patterns: Iterable[str]
+) -> str:
+    """Hash filter patterns so a config change invalidates the cached BM25 index.
+
+    Without this, two runs on the same commit but different ``exclude`` /
+    ``include`` settings would share a single cache row — the second run
+    would silently load the wrong corpus and skew RAG retrieval downstream.
+    The hash is stable across pattern reordering (lists are sorted before
+    hashing) and trimmed to 16 hex characters for compact SQLite keys.
+    """
+    payload = "\n".join(sorted(exclude_patterns)) + "|" + "\n".join(sorted(include_patterns))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def build_corpus(

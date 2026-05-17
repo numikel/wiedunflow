@@ -2,8 +2,12 @@
 # Copyright 2026 Michał Kamiński
 from __future__ import annotations
 
+import pickle
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,6 +15,7 @@ import structlog
 from pydantic import BaseModel, ConfigDict
 
 from wiedunflow import __version__ as _wiedunflow_version
+from wiedunflow.adapters.bm25_store import Bm25Store
 from wiedunflow.adapters.fs_boundary import DefaultFsBoundary
 from wiedunflow.adapters.jinja_renderer import JinjaRenderer, _markdown_to_html
 from wiedunflow.adapters.pygments_highlighter import highlight_python as _highlight_python
@@ -18,6 +23,7 @@ from wiedunflow.cli.cost_estimator import CostEstimate
 from wiedunflow.cli.cost_estimator import estimate as _estimate_cost
 from wiedunflow.cli.editor_resolver import open_in_editor as _open_in_editor
 from wiedunflow.cli.stage_reporter import NoOpReporter, StageReporter
+from wiedunflow.entities.cache_entry import Bm25IndexEntry
 from wiedunflow.entities.lesson import HelperAppendixEntry, Lesson
 from wiedunflow.entities.lesson_manifest import (
     LessonManifest,
@@ -36,7 +42,7 @@ from wiedunflow.use_cases.inject_source_excerpts import inject_source_excerpts
 from wiedunflow.use_cases.offline_linter import validate_offline_invariant
 from wiedunflow.use_cases.outline_builder import build_outline
 from wiedunflow.use_cases.plan_lesson_manifest import PlanningFatalError, plan_with_retry
-from wiedunflow.use_cases.rag_corpus import build_and_index
+from wiedunflow.use_cases.rag_corpus import build_and_index, compute_corpus_config_fingerprint
 from wiedunflow.use_cases.readme_excerpt import load_readme_excerpt
 from wiedunflow.use_cases.skip_trivial import filter_trivial_helpers
 from wiedunflow.use_cases.workspace import allocate_workspace, clean_old_runs, generate_run_id
@@ -243,9 +249,26 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     # Stage 4 — RAG
     progress.stage_start(4)
     logger.info("stage_start", stage=4, name="RAG")
-    build_and_index(repo_path, ingestion, symbols, providers.vector_store)
+    fingerprint = compute_corpus_config_fingerprint(excludes, includes)
+    rag_loaded_from_cache = _try_load_bm25_cache(
+        providers.cache,
+        providers.vector_store,
+        repo_abs=repo_path,
+        commit=ingestion.commit_hash,
+        fingerprint=fingerprint,
+    )
+    if not rag_loaded_from_cache:
+        build_and_index(repo_path, ingestion, symbols, providers.vector_store)
+        _try_save_bm25_cache(
+            providers.cache,
+            providers.vector_store,
+            repo_abs=repo_path,
+            commit=ingestion.commit_hash,
+            fingerprint=fingerprint,
+        )
     doc_coverage = compute_doc_coverage(symbols)
-    progress.stage_done(f"BM25 index built · doc coverage {doc_coverage.ratio * 100:.0f}%")
+    rag_status = "loaded from cache" if rag_loaded_from_cache else "built"
+    progress.stage_done(f"BM25 index {rag_status} · doc coverage {doc_coverage.ratio * 100:.0f}%")
 
     # Stage 5 — Planning  (renumbered in log vs. old code; stage numbering follows CLAUDE.md)
     progress.stage_start(5)
@@ -921,3 +944,97 @@ def _stage_build(
     )
     validate_offline_invariant(html)
     return html
+
+
+def _rank_bm25_version() -> str:
+    """Return the installed ``rank_bm25`` version, or ``"unknown"`` if not detectable.
+
+    ``rank_bm25`` does not expose a ``__version__`` attribute, so we query the
+    package metadata. Falling back to ``"unknown"`` keeps the cache write path
+    working — it only weakens the version guard on subsequent reads, which is
+    fine because cache hits with ``bm25_lib_version="unknown"`` are still
+    rebuilt on any real version change.
+    """
+    try:
+        return _pkg_version("rank_bm25")
+    except PackageNotFoundError:  # pragma: no cover — package always installed in our build
+        return "unknown"
+
+
+def _try_load_bm25_cache(
+    cache: object,
+    vector_store: object,
+    *,
+    repo_abs: Path,
+    commit: str,
+    fingerprint: str,
+) -> bool:
+    """Restore a cached BM25 index into ``vector_store`` when one matches.
+
+    Returns ``True`` on a successful restore so the caller can skip the
+    corpus build. Any failure (missing methods, version mismatch, corrupted
+    pickle, vector store that is not a Bm25Store) falls back to a full
+    rebuild via ``return False`` and a structlog event — never raises.
+    """
+    get = getattr(cache, "get_bm25_index", None)
+    if get is None or not isinstance(vector_store, Bm25Store):
+        return False
+
+    entry = get(repo_abs, commit, fingerprint)
+    if entry is None:
+        logger.info("rag_cache_miss", reason="no_entry", commit=commit[:8])
+        return False
+    if entry.bm25_lib_version != _rank_bm25_version():
+        logger.info(
+            "rag_cache_miss",
+            reason="lib_version_mismatch",
+            cached=entry.bm25_lib_version,
+            current=_rank_bm25_version(),
+        )
+        return False
+
+    try:
+        restored = Bm25Store.loads(entry.blob)
+    except (pickle.UnpicklingError, EOFError, AttributeError, TypeError) as exc:
+        logger.warning("rag_cache_miss", reason="unpickle_failed", error=str(exc))
+        return False
+
+    vector_store._doc_ids = restored._doc_ids
+    vector_store._doc_texts = restored._doc_texts
+    vector_store._bm25 = restored._bm25
+    logger.info(
+        "rag_cache_hit",
+        commit=commit[:8],
+        fingerprint=fingerprint,
+        doc_count=len(restored._doc_ids),
+    )
+    return True
+
+
+def _try_save_bm25_cache(
+    cache: object,
+    vector_store: object,
+    *,
+    repo_abs: Path,
+    commit: str,
+    fingerprint: str,
+) -> None:
+    """Best-effort save of the freshly-built BM25 index to the cache.
+
+    Silently skips when the cache does not implement ``save_bm25_index`` or
+    the vector store is not a serializable :class:`Bm25Store`. Cache misses
+    on the next run will rebuild the index, so a failed save is non-fatal.
+    """
+    save = getattr(cache, "save_bm25_index", None)
+    if save is None or not isinstance(vector_store, Bm25Store):
+        return
+
+    entry = Bm25IndexEntry(
+        repo_abs=str(repo_abs),
+        commit_hash=commit,
+        corpus_config_fingerprint=fingerprint,
+        bm25_lib_version=_rank_bm25_version(),
+        blob=vector_store.dumps(),
+        created_at=datetime.now(tz=UTC),
+    )
+    save(entry)

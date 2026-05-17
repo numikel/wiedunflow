@@ -89,6 +89,40 @@ class FileCacheEntry(BaseModel):
     """UTC timestamp of initial insertion."""
 
 
+class Bm25IndexEntry(BaseModel):
+    """Persisted BM25 corpus index keyed by repo + commit + config fingerprint.
+
+    The cached payload is a pickled tuple of ``(_doc_ids, _doc_texts, BM25Okapi)``
+    so subsequent runs on the same commit can skip the corpus build entirely.
+    The library version is stored alongside the BLOB so a ``rank_bm25`` upgrade
+    that changes the ``BM25Okapi`` class layout triggers a clean rebuild
+    rather than an obscure unpickle error.
+
+    Cache key composition:
+    - ``repo_abs`` keeps two checkouts of the same commit on different paths
+      independent (path-derived doc_ids would collide otherwise).
+    - ``commit_hash`` invalidates the cache when source changes.
+    - ``corpus_config_fingerprint`` hashes the ``exclude_patterns`` and
+      ``include_patterns`` from ``tutorial.config.yaml`` so a filter change
+      forces a rebuild even when the commit stayed the same.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    repo_abs: str
+    """Absolute path to the repository root (stringified for stable hashing)."""
+    commit_hash: str
+    """Git commit hash current when the index was built."""
+    corpus_config_fingerprint: str
+    """SHA-256 of ``exclude_patterns + include_patterns``, 16-char prefix."""
+    bm25_lib_version: str
+    """``rank_bm25.__version__`` at the time of pickling — mismatch = miss."""
+    blob: bytes
+    """``pickle.dumps((doc_ids, doc_texts, bm25_okapi))`` from :class:`Bm25Store`."""
+    created_at: datetime
+    """UTC timestamp of when this index was persisted."""
+
+
 class PageRankSnapshot(BaseModel):
     """Lightweight snapshot of the top-N PageRank results for diff computation.
 
