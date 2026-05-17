@@ -368,3 +368,88 @@ def test_charge_explicit_provider_overrides_prefix_detection() -> None:
     )
     # OpenAI: 0 regular + 1M * 10 * 0.5 = $5.0 (NOT Anthropic's $1.0).
     assert meter.total_cost_usd == pytest.approx(5.00, rel=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Per-lesson budget window (begin_lesson / end_lesson lifecycle)
+# ---------------------------------------------------------------------------
+
+
+def test_begin_lesson_rejects_non_positive_cap() -> None:
+    meter = SpendMeter(budget_usd=10.0)
+    with pytest.raises(ValueError):
+        meter.begin_lesson(cap_usd=0.0)
+    with pytest.raises(ValueError):
+        meter.begin_lesson(cap_usd=-1.0)
+
+
+def test_per_lesson_window_aborts_when_lesson_cap_exceeded() -> None:
+    """would_exceed must trigger when a single lesson burns past its cap,
+    even though the global budget is nowhere near exhausted.
+    """
+    pricing = _FixedPricing(input_rate=1.0, output_rate=4.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+    # Pre-spend $5 unrelated to any lesson — sets baseline drift for the
+    # window snapshot.
+    meter.charge(model="gpt-4o", input_tokens=1_000_000, output_tokens=1_000_000)
+    assert meter.total_cost_usd == pytest.approx(5.0, rel=1e-6)
+
+    # Open per-lesson window with a tight $1 cap.
+    meter.begin_lesson(cap_usd=1.0)
+    assert meter.would_exceed() is False  # nothing spent inside the window yet
+
+    # Spend $0.50 inside the window — still under the cap (+10% buffer).
+    meter.charge(model="gpt-4o", input_tokens=100_000, output_tokens=100_000)
+    assert meter.would_exceed() is False
+
+    # Spend another $1.50 inside the window — now over $1 * 1.1 buffer.
+    meter.charge(model="gpt-4o", input_tokens=300_000, output_tokens=300_000)
+    assert meter.would_exceed() is True
+    # Global budget ($100) is nowhere near exhausted — the trigger is
+    # specifically the per-lesson cap.
+    assert meter.total_cost_usd < meter.budget_usd
+
+
+def test_end_lesson_reverts_to_global_only_checks() -> None:
+    """After end_lesson the meter must not consider the per-lesson cap anymore."""
+    pricing = _FixedPricing(input_rate=1.0, output_rate=4.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+
+    meter.begin_lesson(cap_usd=0.50)
+    meter.charge(model="gpt-4o", input_tokens=300_000, output_tokens=300_000)
+    assert meter.would_exceed() is True  # over the lesson cap
+
+    meter.end_lesson()
+    assert meter.would_exceed() is False  # window closed, only global matters
+    assert meter.total_cost_usd < meter.budget_usd
+
+
+def test_begin_lesson_can_be_called_repeatedly_to_reset_baseline() -> None:
+    """Opening a new window without an explicit end resets the baseline
+    snapshot — supports the orchestrator-retries-same-lesson scenario.
+    """
+    pricing = _FixedPricing(input_rate=1.0, output_rate=4.0)
+    meter = SpendMeter(budget_usd=100.0, pricing=pricing)
+
+    meter.begin_lesson(cap_usd=2.0)
+    meter.charge(model="gpt-4o", input_tokens=200_000, output_tokens=200_000)  # $1.0
+    assert meter.would_exceed() is False
+
+    # Re-open with a fresh $1 cap — baseline is "now", so the next charge
+    # is measured from zero again.
+    meter.begin_lesson(cap_usd=1.0)
+    assert meter.would_exceed() is False  # fresh window, nothing in it yet
+    meter.charge(model="gpt-4o", input_tokens=200_000, output_tokens=200_000)  # $1.0
+    # $1.0 in this window is exactly at the cap (no 10% buffer breach yet).
+    assert meter.would_exceed() is False
+
+
+def test_end_lesson_is_idempotent_without_matching_begin() -> None:
+    """end_lesson must be safe to call without a prior begin_lesson — supports
+    try/finally idioms in the orchestrator.
+    """
+    meter = SpendMeter(budget_usd=10.0)
+    # No exception:
+    meter.end_lesson()
+    meter.end_lesson()
+    assert meter.would_exceed() is False

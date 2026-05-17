@@ -127,7 +127,13 @@ class _ScriptedLLM:
         prompt_caching: bool = False,
         max_history_iterations: int = 10,
     ) -> AgentResult:
-        self.calls.append({"system_prefix": system[:80], "model": model})
+        self.calls.append(
+            {
+                "system_prefix": system[:80],
+                "model": model,
+                "max_cost_usd": max_cost_usd,
+            }
+        )
         transcript: list[AgentTurn] = []
         total_in = total_out = 0
         last_text: str | None = None
@@ -1429,3 +1435,150 @@ class TestStructuredWriterOutput:
         # Warning must have been emitted
         warning_msgs = [r.message for r in caplog.records if r.levelno == logging.WARNING]
         assert any("writer_no_structured_output" in str(m) for m in warning_msgs)
+
+
+# ---------------------------------------------------------------------------
+# Per-call budget wiring — agent-card max_cost_usd is now a real cap
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSpendMeter:
+    """Minimal SpendMeter stub recording lifecycle calls for orchestrator tests."""
+
+    def __init__(self) -> None:
+        self.begin_calls: list[float] = []
+        self.end_calls: int = 0
+        self._cost = 0.0
+
+    @property
+    def total_cost_usd(self) -> float:
+        return self._cost
+
+    def charge(self, **_kwargs: Any) -> None:
+        self._cost += 0.001
+
+    def would_exceed(self) -> bool:
+        return False
+
+    def begin_lesson(self, cap_usd: float) -> None:
+        self.begin_calls.append(cap_usd)
+
+    def end_lesson(self) -> None:
+        self.end_calls += 1
+
+
+class TestBudgetWiring:
+    """Per-role agent-card budgets now actually constrain run_agent calls."""
+
+    def test_orchestrator_run_caps_max_cost_usd_to_min_of_card_and_remaining(
+        self,
+        workspace: RunWorkspace,
+        simple_spec: LessonSpec,
+        tool_registry: dict[str, Any],
+    ) -> None:
+        """When remaining budget > card cap → effective cap is the card cap.
+
+        Orchestrator card ships with ``max_cost_usd=0.80`` (per
+        ``orchestrator.md`` frontmatter). With a $5 lesson remaining, MIN
+        is the card cap → reviewer/researcher/writer cannot blow their share
+        on a stuck loop even when the lesson has plenty of headroom.
+        """
+        llm = _ScriptedLLM(
+            [
+                _mk_result(
+                    "Done.",
+                    tool_calls=[
+                        _tc(
+                            "tc-done",
+                            "mark_lesson_done",
+                            {
+                                "lesson_id": "lesson-001",
+                                "final_narrative": "Closing it out fast.",
+                            },
+                        )
+                    ],
+                ),
+            ]
+        )
+        run_lesson(
+            simple_spec,
+            workspace=workspace,
+            llm=llm,  # type: ignore[arg-type]
+            tool_registry=tool_registry,
+            budget_remaining_usd=5.0,
+        )
+        # Orchestrator card cap is 0.80 → expected cap (min with 5.0) = 0.80.
+        orch_calls = [c for c in llm.calls if "orchestrator" in c["system_prefix"].lower()]
+        assert orch_calls, "Orchestrator run_agent call not recorded"
+        assert orch_calls[0]["max_cost_usd"] == pytest.approx(0.80, rel=1e-6)
+
+    def test_orchestrator_run_caps_max_cost_usd_to_min_when_remaining_tighter(
+        self,
+        workspace: RunWorkspace,
+        simple_spec: LessonSpec,
+        tool_registry: dict[str, Any],
+    ) -> None:
+        """When remaining budget < card cap → effective cap is the remaining.
+
+        A near-exhausted global budget overrides the card cap so the
+        orchestrator never spends more than the global headroom allows.
+        """
+        llm = _ScriptedLLM(
+            [
+                _mk_result(
+                    "Done.",
+                    tool_calls=[
+                        _tc(
+                            "tc-done",
+                            "mark_lesson_done",
+                            {"lesson_id": "lesson-001", "final_narrative": "x"},
+                        )
+                    ],
+                ),
+            ]
+        )
+        run_lesson(
+            simple_spec,
+            workspace=workspace,
+            llm=llm,  # type: ignore[arg-type]
+            tool_registry=tool_registry,
+            budget_remaining_usd=0.05,  # tighter than card cap 0.80
+        )
+        orch_calls = [c for c in llm.calls if "orchestrator" in c["system_prefix"].lower()]
+        assert orch_calls, "Orchestrator run_agent call not recorded"
+        assert orch_calls[0]["max_cost_usd"] == pytest.approx(0.05, rel=1e-6)
+
+    def test_run_lesson_opens_and_closes_spend_meter_window(
+        self,
+        workspace: RunWorkspace,
+        simple_spec: LessonSpec,
+        tool_registry: dict[str, Any],
+    ) -> None:
+        """run_lesson wraps Stage 5/6 work in begin_lesson / end_lesson so
+        the meter can isolate per-lesson spend even on the unhappy path.
+        """
+        llm = _ScriptedLLM(
+            [
+                _mk_result(
+                    "Done.",
+                    tool_calls=[
+                        _tc(
+                            "tc-done",
+                            "mark_lesson_done",
+                            {"lesson_id": "lesson-001", "final_narrative": "x"},
+                        )
+                    ],
+                ),
+            ]
+        )
+        meter = _RecordingSpendMeter()
+        run_lesson(
+            simple_spec,
+            workspace=workspace,
+            llm=llm,  # type: ignore[arg-type]
+            tool_registry=tool_registry,
+            budget_remaining_usd=4.0,
+            spend_meter=meter,  # type: ignore[arg-type]
+        )
+        assert meter.begin_calls == [pytest.approx(4.0, rel=1e-6)]
+        assert meter.end_calls == 1

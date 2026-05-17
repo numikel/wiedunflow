@@ -6,6 +6,74 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-05-17 — W4 Performance and Cost Guards Completion
+
+### Performance
+
+- **Font base64 is encoded once per process, not per first render.** The
+  ~164 KB of WOFF2 data referenced by `tokens.css` is now substituted at
+  module import time into a `_TOKENS_CSS_INLINED` module-level constant; the
+  class-level cache on `JinjaRenderer` is preserved as an opt-in escape hatch
+  for tests that want to inject custom CSS. The first call into
+  `JinjaRenderer.render()` no longer pays the encode latency.
+- **Dynamic-import detection walks the AST once per file, not twice.** A new
+  `detect_import_markers(source) -> tuple[bool, bool]` does both the dynamic
+  flag and the strict-uncertainty flag in a single `ast.walk()` pass.
+  `detect_dynamic_imports` and `detect_strict_uncertainty` remain as thin
+  wrappers for back-compat, and `JediResolver._propagate_dynamic_markers`
+  switches to the combined entry point.
+
+### Reliability
+
+- **LiteLLM pricing catalog backs off after a fetch failure.** A failed
+  `_ensure_loaded` no longer memoises an empty dict for the life of the
+  process. The catalog now stamps a monotonic timestamp on every failure
+  path (network, JSON parse, integrity validation) and skips re-fetching
+  until `_RETRY_AFTER_S = 60.0` seconds elapse; the next call after the
+  window retries from scratch. A successful load clears the timer.
+  `ChainedPricingCatalog`'s static fallback semantics are unchanged.
+- **Concurrent `wiedunflow generate` runs no longer wipe each other's
+  workspace.** `allocate_workspace` now drops an empty `.alive` sentinel
+  into `~/.wiedunflow/runs/<run_id>/`; the Stage 5/6 loop refreshes it on
+  every lesson via `touch_alive`, and a successful generation removes it via
+  `finalize_workspace`. `clean_old_runs` consults the sentinel's mtime: a
+  fresh sentinel (within the last 30 minutes) keeps the directory off the
+  delete list even when its own directory mtime predates the cutoff. Dirs
+  without a sentinel (legacy pre-v0.12.1 workspaces) still go through the
+  mtime-only path so existing run history is preserved.
+
+### Correctness
+
+- **OpenAI `max_completion_tokens` / `max_tokens` detection self-heals.**
+  The prefix list (`o1` / `o3` / `o4` / `gpt-5`) stays as a fast path, but a
+  new module-level `_KNOWN_USES_MAX_COMPLETION_TOKENS` cache records the
+  correct parameter name whenever the upstream returns a `BadRequestError`
+  naming the other parameter. Both `_create_with_retry` and
+  `_create_with_retry_raw` now retry the call once with the swapped parameter
+  and persist the decision in cache, so every subsequent call for that model
+  uses the right name immediately. A brand-new OpenAI family no longer
+  requires a code change to stop emitting 400s.
+
+### Cost guard
+
+- **Per-lesson budget cap is enforced, not just informational.** `SpendMeter`
+  gained `begin_lesson(cap_usd)` / `end_lesson()` lifecycle methods (also
+  added to `SpendMeterProto`). The orchestrator wraps each `run_lesson` call
+  in a `try` / `finally` so `SpendMeter.would_exceed()` aborts the loop both
+  when the global budget is exhausted *and* when this single lesson burns
+  through its allocated share — protecting the rest of the run when one
+  lesson goes haywire. The existing `budget_remaining_usd` argument is the
+  source of the per-lesson cap; no new config field is introduced.
+- **Agent-card `max_cost_usd` per role is now a real hard cap.** Every
+  `llm.run_agent(...)` invocation in `agent_orchestrator` passes
+  `max_cost_usd=min(card.budgets.max_cost_usd, budget_remaining_usd)` so the
+  per-role limits in `orchestrator.md` (0.80), `researcher.md` (0.30),
+  `writer.md` (0.40), and `reviewer.md` (0.20) cap a single call even when
+  the global remaining budget has headroom. Both `AnthropicProvider.run_agent`
+  and `OpenAIProvider.run_agent` enforce the cap with an explicit
+  `_delta_cost() > max_cost_usd` check after every charge, returning a
+  `stop_reason="max_cost"` result instead of looping further.
+
 ## [0.12.0] - 2026-05-17 — Performance and Cost Tuning Wave
 
 ### Highlights

@@ -16,6 +16,7 @@ matching, so the user's ``llm_model_plan = "gpt-4.1"`` finds either form.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import httpx
@@ -26,6 +27,14 @@ logger = structlog.get_logger(__name__)
 LITELLM_PRICING_URL = (
     "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
 )
+
+# Cool-down between repeated fetch attempts within a single process after a
+# previous failure. Without this, every model-price lookup re-hammers the
+# upstream when the network is down. ChainedPricingCatalog already falls back
+# to StaticPricingCatalog for the empty case, so the cool-down's only job is
+# "should we try again at all". 60 s strikes the balance between fast recovery
+# from a transient network blip and not pegging upstream during a long outage.
+_RETRY_AFTER_S = 60.0
 
 
 def _provider_strip(model_id: str) -> str:
@@ -128,11 +137,24 @@ class LiteLLMPricingCatalog:
         self._url = url
         self._timeout_s = timeout_s
         self._cache: dict[str, tuple[float, float]] | None = None
+        # Monotonic timestamp of the last failed fetch attempt, used to gate
+        # retry attempts until ``_RETRY_AFTER_S`` has elapsed. ``None`` means
+        # "no prior failure" (cold start or successful load).
+        self._last_failure_monotonic: float | None = None
 
     def _ensure_loaded(self) -> dict[str, tuple[float, float]]:
         """Lazily fetch + parse the JSON. Empty on any failure (never raises)."""
         if self._cache is not None:
             return self._cache
+
+        # Cool-down gate — if a recent attempt failed, skip the fetch and let
+        # the caller fall back to StaticPricingCatalog. The ``_cache is None``
+        # sentinel (set on failure paths below) ensures the next call after
+        # cool-down expiry retries from scratch.
+        if self._last_failure_monotonic is not None:
+            elapsed = time.monotonic() - self._last_failure_monotonic
+            if elapsed < _RETRY_AFTER_S:
+                return {}
 
         try:
             response = httpx.get(self._url, timeout=self._timeout_s)
@@ -144,13 +166,13 @@ class LiteLLMPricingCatalog:
                 error=type(exc).__name__,
                 message=str(exc)[:200],
             )
-            self._cache = {}
-            return self._cache
+            self._last_failure_monotonic = time.monotonic()
+            return {}
 
         if not isinstance(payload, dict):
             logger.warning("litellm_pricing_unexpected_shape", got=type(payload).__name__)
-            self._cache = {}
-            return self._cache
+            self._last_failure_monotonic = time.monotonic()
+            return {}
 
         parsed = _parse_pricing_payload(payload)
         if not _validate_pricing_map(parsed):
@@ -163,9 +185,10 @@ class LiteLLMPricingCatalog:
                     "Falling back to static pricing catalog."
                 ),
             )
-            self._cache = {}
-            return self._cache
+            self._last_failure_monotonic = time.monotonic()
+            return {}
         self._cache = parsed
+        self._last_failure_monotonic = None
         return self._cache
 
     def prices_per_mtok(self, model_id: str) -> tuple[float, float] | None:

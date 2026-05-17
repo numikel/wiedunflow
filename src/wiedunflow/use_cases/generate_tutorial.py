@@ -47,7 +47,13 @@ from wiedunflow.use_cases.plan_lesson_manifest import PlanningFatalError, plan_w
 from wiedunflow.use_cases.rag_corpus import build_and_index, compute_corpus_config_fingerprint
 from wiedunflow.use_cases.readme_excerpt import load_readme_excerpt
 from wiedunflow.use_cases.skip_trivial import filter_trivial_helpers
-from wiedunflow.use_cases.workspace import allocate_workspace, clean_old_runs, generate_run_id
+from wiedunflow.use_cases.workspace import (
+    allocate_workspace,
+    clean_old_runs,
+    finalize_workspace,
+    generate_run_id,
+    touch_alive,
+)
 
 # v0.3.0 Fix (P0 from rubber-duck code review): markdown→HTML for the
 # standalone Project README lesson reuses jinja_renderer._markdown_to_html so
@@ -852,6 +858,10 @@ def _stage_generation(
     for idx, spec in enumerate(manifest.lessons, start=1):
         if should_abort is not None and should_abort():
             raise KeyboardInterrupt("SIGINT received during generation stage")
+        # Refresh the workspace ``.alive`` sentinel so a concurrent cleanup
+        # pass treats this run as in-progress (per-lesson cadence is plenty;
+        # the 30-min staleness threshold tolerates much longer gaps).
+        touch_alive(workspace)
         progress.lesson_event(idx, total_lessons, spec.title)
         outcome = run_lesson(
             spec,
@@ -916,6 +926,11 @@ def _stage_generation(
     # mock meters in tests must implement the property to be type-correct.
     if spend_meter is not None:
         output.total_cost_usd = spend_meter.total_cost_usd
+
+    # Remove the ``.alive`` sentinel now that Stage 6 is done; cleanup may
+    # GC this dir at its normal age. A crash leaves the sentinel in place
+    # and the staleness threshold reclaims the dir on the next cleanup pass.
+    finalize_workspace(workspace)
 
     return output
 

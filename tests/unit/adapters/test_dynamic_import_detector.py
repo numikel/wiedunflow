@@ -6,6 +6,7 @@ import pytest
 
 from wiedunflow.adapters.dynamic_import_detector import (
     detect_dynamic_imports,
+    detect_import_markers,
     detect_strict_uncertainty,
 )
 
@@ -153,3 +154,54 @@ class TestDetectStrictUncertainty:
 
     def test_syntax_error_is_not_strict(self) -> None:
         assert detect_strict_uncertainty("def (broken:") is False
+
+
+# ---------------------------------------------------------------------------
+# detect_import_markers — combined single-walk helper that returns both flags
+# ---------------------------------------------------------------------------
+
+
+class TestDetectImportMarkers:
+    """Combined helper produces the same (dynamic, strict) split as the wrappers."""
+
+    def test_importlib_sets_both_flags(self) -> None:
+        source = "import importlib\nmod = importlib.import_module('os')\n"
+        assert detect_import_markers(source) == (True, True)
+
+    def test_dunder_import_sets_both_flags(self) -> None:
+        source = "mod = __import__('sys')\n"
+        assert detect_import_markers(source) == (True, True)
+
+    def test_getattr_sets_only_dynamic(self) -> None:
+        source = "import os\nfn = getattr(os, 'getcwd')\n"
+        assert detect_import_markers(source) == (True, False)
+
+    def test_globals_subscript_sets_only_dynamic(self) -> None:
+        source = "fn = globals()['my_func']\n"
+        assert detect_import_markers(source) == (True, False)
+
+    def test_locals_subscript_sets_only_dynamic(self) -> None:
+        source = "fn = locals()['helper']\n"
+        assert detect_import_markers(source) == (True, False)
+
+    def test_static_code_sets_neither_flag(self) -> None:
+        source = "import os\nfrom pathlib import Path\nresult = os.getcwd()\n"
+        assert detect_import_markers(source) == (False, False)
+
+    def test_empty_source_returns_double_false(self) -> None:
+        assert detect_import_markers("") == (False, False)
+
+    def test_syntax_error_returns_double_false(self) -> None:
+        assert detect_import_markers("def (broken:") == (False, False)
+
+    def test_mixed_patterns_short_circuit_when_both_true(self) -> None:
+        """Once both flags are True the walk may exit early — verify final result is correct."""
+        source = "import importlib\nfn = getattr(os, 'x')\nmod = importlib.import_module('json')\n"
+        assert detect_import_markers(source) == (True, True)
+
+    def test_consistency_with_thin_wrappers(self) -> None:
+        """Wrappers must agree with the combined helper across positive + negative corpus."""
+        for _, src in _POSITIVE_CASES + _NEGATIVE_CASES:
+            dyn, strict = detect_import_markers(src)
+            assert detect_dynamic_imports(src) is dyn
+            assert detect_strict_uncertainty(src) is strict

@@ -269,7 +269,7 @@ def _run_researcher(
         tool_executor=executor,
         model=model,
         max_iterations=card.budgets.max_iterations,
-        max_cost_usd=budget_usd,
+        max_cost_usd=min(card.budgets.max_cost_usd, budget_usd),
         spend_meter=spend_meter,
         prompt_caching=card.budgets.prompt_caching,
         max_history_iterations=card.budgets.max_history_iterations,
@@ -497,7 +497,7 @@ def _run_writer(
         tool_executor=executor,
         model=model,
         max_iterations=card.budgets.max_iterations,
-        max_cost_usd=budget_usd,
+        max_cost_usd=min(card.budgets.max_cost_usd, budget_usd),
         spend_meter=spend_meter,
         prompt_caching=card.budgets.prompt_caching,
         max_history_iterations=card.budgets.max_history_iterations,
@@ -651,7 +651,7 @@ def _run_reviewer(
         tool_executor=executor,
         model=model,
         max_iterations=card.budgets.max_iterations,
-        max_cost_usd=budget_usd,
+        max_cost_usd=min(card.budgets.max_cost_usd, budget_usd),
         spend_meter=spend_meter,
         prompt_caching=card.budgets.prompt_caching,
         max_history_iterations=card.budgets.max_history_iterations,
@@ -965,7 +965,7 @@ def run_closing_lesson(
         tool_executor=lambda tc: ToolResult(tool_call_id=tc.id, content="no tools", is_error=True),
         model=resolved_models["writer"],
         max_iterations=1,
-        max_cost_usd=budget_remaining_usd,
+        max_cost_usd=min(card.budgets.max_cost_usd, budget_remaining_usd),
         spend_meter=spend_meter,
         prompt_caching=card.budgets.prompt_caching,
         max_history_iterations=card.budgets.max_history_iterations,
@@ -1098,24 +1098,37 @@ def run_lesson(
     tool_specs = [_tool_spec_from_schema(s) for s in orchestrator_card.tools]
     orch_executor = _make_tool_executor(dispatch)
 
-    orch_result: AgentResult = llm.run_agent(
-        system=orchestrator_card.system_prompt,
-        user=(
-            f"Run the research-write-review pipeline for lesson `{lesson_id}`: {spec.title}.\n"
-            f"Teaching: {spec.teaches}\n"
-            f"Primary symbol: `{primary_symbol}`\n"
-            f"Budget: ${budget_remaining_usd:.2f} USD\n"
-            f"Begin by dispatching at least one Researcher, then Writer, then Reviewer."
-        ),
-        tools=tool_specs,
-        tool_executor=orch_executor,
-        model=resolved_models["orchestrator"],
-        max_iterations=orchestrator_card.budgets.max_iterations,
-        max_cost_usd=budget_remaining_usd,
-        spend_meter=spend_meter,
-        prompt_caching=orchestrator_card.budgets.prompt_caching,
-        max_history_iterations=orchestrator_card.budgets.max_history_iterations,
-    )
+    # Open a per-lesson budget window so SpendMeter.would_exceed() aborts the
+    # orchestrator loop both when the global budget is exhausted AND when this
+    # lesson alone runs through its allocation — protects the rest of the run
+    # when a single lesson goes haywire (agent loops, hallucinated tool retries).
+    # The card budget is the per-role hard cap; the per-call max_cost_usd is
+    # MIN(card, budget_remaining) so a tight remaining budget overrides cards.
+    if spend_meter is not None:
+        spend_meter.begin_lesson(cap_usd=budget_remaining_usd)
+    try:
+        orch_result: AgentResult = llm.run_agent(
+            system=orchestrator_card.system_prompt,
+            user=(
+                f"Run the research-write-review pipeline for lesson `{lesson_id}`: "
+                f"{spec.title}.\n"
+                f"Teaching: {spec.teaches}\n"
+                f"Primary symbol: `{primary_symbol}`\n"
+                f"Budget: ${budget_remaining_usd:.2f} USD\n"
+                f"Begin by dispatching at least one Researcher, then Writer, then Reviewer."
+            ),
+            tools=tool_specs,
+            tool_executor=orch_executor,
+            model=resolved_models["orchestrator"],
+            max_iterations=orchestrator_card.budgets.max_iterations,
+            max_cost_usd=min(orchestrator_card.budgets.max_cost_usd, budget_remaining_usd),
+            spend_meter=spend_meter,
+            prompt_caching=orchestrator_card.budgets.prompt_caching,
+            max_history_iterations=orchestrator_card.budgets.max_history_iterations,
+        )
+    finally:
+        if spend_meter is not None:
+            spend_meter.end_lesson()
 
     if state.result is not None:
         return RunLessonOutcome(result=state.result, writer_retries=state.writer_retries)

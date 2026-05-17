@@ -88,6 +88,13 @@ class SpendMeter:
         self._pricing = pricing
         self._total_cost_usd: float = 0.0
         self._calls: int = 0
+        # Per-lesson tracking window. ``_lesson_cap_usd is None`` means no
+        # window is active (would_exceed reverts to checking the global budget
+        # only). The snapshot at ``begin_lesson`` is subtracted from current
+        # ``_total_cost_usd`` to derive lesson-local spend without needing a
+        # separate accumulator.
+        self._lesson_cap_usd: float | None = None
+        self._lesson_start_total_usd: float = 0.0
 
     # ------------------------------------------------------------------
     # Public API
@@ -176,8 +183,47 @@ class SpendMeter:
         )
 
     def would_exceed(self) -> bool:
-        """Return ``True`` when ``actual_cost > budget_usd * abort_factor`` (10% buffer above budget)."""
-        return self._total_cost_usd > self._budget_usd * self._abort_factor
+        """Return ``True`` when the global OR per-lesson cap has been crossed.
+
+        Global trigger: ``actual_cost > budget_usd * abort_factor`` (10% buffer
+        above budget by default).
+
+        Per-lesson trigger (only when a window is active): the delta between
+        ``total_cost_usd`` and the snapshot at :meth:`begin_lesson` exceeds the
+        per-lesson cap. The buffer is the same ``abort_factor`` so the
+        semantics match the global cap — a single lesson is allowed to
+        overshoot its share by the same 10% margin before the loop aborts.
+        """
+        if self._total_cost_usd > self._budget_usd * self._abort_factor:
+            return True
+        if self._lesson_cap_usd is not None:
+            lesson_spent = self._total_cost_usd - self._lesson_start_total_usd
+            if lesson_spent > self._lesson_cap_usd * self._abort_factor:
+                return True
+        return False
+
+    def begin_lesson(self, cap_usd: float) -> None:
+        """Open a per-lesson tracking window with the given USD cap.
+
+        Captures the current cumulative spend as the lesson baseline so
+        ``would_exceed`` can isolate lesson-local cost. Calling this while a
+        previous window is still open is allowed — it simply resets the
+        baseline (use case: orchestrator retries the same lesson after a
+        partial failure and wants a fresh budget envelope).
+        """
+        if cap_usd <= 0:
+            raise ValueError(f"cap_usd must be positive, got {cap_usd}")
+        self._lesson_cap_usd = cap_usd
+        self._lesson_start_total_usd = self._total_cost_usd
+
+    def end_lesson(self) -> None:
+        """Close the per-lesson tracking window.
+
+        Safe to call without a matching ``begin_lesson`` — clears state
+        unconditionally so callers can use it in a ``finally`` block.
+        """
+        self._lesson_cap_usd = None
+        self._lesson_start_total_usd = 0.0
 
     def assert_within_budget(self) -> None:
         """Raise ``RuntimeError`` when :meth:`would_exceed` is ``True``.

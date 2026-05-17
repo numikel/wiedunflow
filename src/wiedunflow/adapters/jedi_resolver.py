@@ -9,10 +9,7 @@ from typing import Any, Literal, NamedTuple
 import jedi
 import structlog
 
-from wiedunflow.adapters.dynamic_import_detector import (
-    detect_dynamic_imports,
-    detect_strict_uncertainty,
-)
+from wiedunflow.adapters.dynamic_import_detector import detect_import_markers
 from wiedunflow.entities.call_graph import CallGraph
 from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.resolution_stats import ResolutionStats
@@ -342,13 +339,16 @@ def _propagate_dynamic_markers(
     for sym in symbols:
         sym_path = sym.file_path if sym.file_path.is_absolute() else repo_root / sym.file_path
         source = _read_source(sym_path, source_cache)
-        if source is not None and detect_dynamic_imports(source):
-            # is_uncertain only when the *module itself* is dynamic (importlib/
-            # __import__).  Plain getattr() usage keeps is_uncertain=False so
-            # the symbol stays in allowed_symbols for the planning grounding set.
-            is_uncertain = detect_strict_uncertainty(source)
+        if source is None:
+            updated.append(sym)
+            continue
+        # Single AST walk yields both flags. is_uncertain only when the *module
+        # itself* is dynamic (importlib / __import__); plain getattr() keeps
+        # is_uncertain=False so the symbol stays in allowed_symbols.
+        has_dynamic, has_strict = detect_import_markers(source)
+        if has_dynamic:
             updated.append(
-                sym.model_copy(update={"is_dynamic_import": True, "is_uncertain": is_uncertain})
+                sym.model_copy(update={"is_dynamic_import": True, "is_uncertain": has_strict})
             )
         else:
             updated.append(sym)

@@ -74,3 +74,49 @@ def test_notice_references_fonts() -> None:
     notice = Path("NOTICE").read_text(encoding="utf-8")
     assert "Inter" in notice and "SIL OFL" in notice
     assert "JetBrains Mono" in notice
+
+
+def test_tokens_css_inlined_constant_pre_encodes_fonts() -> None:
+    """Module-level _TOKENS_CSS_INLINED must hold the fully base64-encoded CSS.
+
+    Renderer is hot-path on Stage 7; the fonts (~164 KB) should be base64-encoded
+    exactly once per process at import time, not per render call.
+    """
+    from wiedunflow.adapters.jinja_renderer import _TOKENS_CSS_INLINED
+
+    assert isinstance(_TOKENS_CSS_INLINED, str)
+    assert 'url("data:font/woff2;base64,' in _TOKENS_CSS_INLINED
+    # All 7 WOFF2 inline-references must be substituted (none of the original
+    # ``url("../fonts/X.woff2")`` references should leak through).
+    assert "../fonts/" not in _TOKENS_CSS_INLINED
+
+
+def test_jinja_renderer_tokens_css_returns_pre_inlined_constant() -> None:
+    """JinjaRenderer._tokens_css() must reuse the module-level constant.
+
+    Guarantees that calling _tokens_css() twice returns the identical string
+    object (same id) — confirming the cache short-circuit and that production
+    flows never re-encode fonts.
+    """
+    from wiedunflow.adapters.jinja_renderer import _TOKENS_CSS_INLINED, JinjaRenderer
+
+    first = JinjaRenderer._tokens_css()
+    second = JinjaRenderer._tokens_css()
+    assert first is second
+    assert first is _TOKENS_CSS_INLINED
+
+
+def test_jinja_renderer_tokens_css_test_injection_override() -> None:
+    """Setting JinjaRenderer._tokens_css_cache shadows the module-level constant.
+
+    Documented escape hatch for tests that need to inject custom CSS without
+    rebuilding the renderer module.
+    """
+    from wiedunflow.adapters.jinja_renderer import JinjaRenderer
+
+    sentinel = "/* test-injected tokens */"
+    try:
+        JinjaRenderer._tokens_css_cache = sentinel
+        assert JinjaRenderer._tokens_css() == sentinel
+    finally:
+        JinjaRenderer._tokens_css_cache = None

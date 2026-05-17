@@ -129,6 +129,27 @@ class SpendMeterProto(Protocol):
         """Return True if the accumulated spend already exceeds the budget."""
         ...
 
+    def begin_lesson(self, cap_usd: float) -> None:
+        """Start a per-lesson tracking window with the given USD cap.
+
+        The orchestrator wraps each :func:`run_lesson` invocation with
+        ``begin_lesson`` / :meth:`end_lesson` so :meth:`would_exceed` aborts the
+        loop both when the global budget is exhausted *and* when a single
+        lesson burns through its share of the remaining budget — protecting
+        the rest of the run when one lesson goes haywire (e.g. an agent loops).
+        ``cap_usd`` is typically the ``budget_remaining_usd`` for that lesson;
+        adapters lacking per-lesson tracking may treat this as a no-op.
+        """
+        ...
+
+    def end_lesson(self) -> None:
+        """Close the per-lesson tracking window opened by :meth:`begin_lesson`.
+
+        After this call :meth:`would_exceed` reverts to checking the global
+        budget only. Idempotent / safe to call without a matching ``begin``.
+        """
+        ...
+
 
 @runtime_checkable
 class LLMProvider(Protocol):

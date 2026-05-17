@@ -189,6 +189,13 @@ def _load_tokens_css_with_inline_fonts() -> str:
     return _FONT_URL_PATTERN.sub(replace, css_text)
 
 
+# Pre-computed at import time so the 7 WOFF2 fonts (~164 KB) are base64-encoded
+# exactly once per process. The class-level cache below remains as a test-injection
+# escape hatch (assigning to ``JinjaRenderer._tokens_css_cache`` shadows this
+# constant).
+_TOKENS_CSS_INLINED: str = _load_tokens_css_with_inline_fonts()
+
+
 def _build_code_snippet(
     lesson: Lesson,
     symbol_lookup: dict[str, CodeSymbol],
@@ -433,9 +440,9 @@ class JinjaRenderer:
 
     @classmethod
     def _tokens_css(cls) -> str:
-        if cls._tokens_css_cache is None:
-            cls._tokens_css_cache = _load_tokens_css_with_inline_fonts()
-        return cls._tokens_css_cache
+        if cls._tokens_css_cache is not None:
+            return cls._tokens_css_cache
+        return _TOKENS_CSS_INLINED
 
     @classmethod
     def _tutorial_css(cls) -> str:

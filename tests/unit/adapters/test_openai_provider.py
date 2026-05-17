@@ -13,7 +13,9 @@ import pydantic
 import pytest
 
 from wiedunflow.adapters.openai_provider import (
+    _KNOWN_USES_MAX_COMPLETION_TOKENS,
     OpenAIProvider,
+    _is_token_param_mismatch,
     _uses_max_completion_tokens,
 )
 from wiedunflow.entities.lesson_manifest import LessonManifest
@@ -417,6 +419,97 @@ def test_plan_gpt5_uses_max_completion_tokens(mock_cls, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Test: BadRequestError auto-learn for the token-param name
+# ---------------------------------------------------------------------------
+
+
+def _fake_bad_request_token_param_error() -> openai.BadRequestError:
+    """Mock the 400 OpenAI returns when the wrong token param is sent."""
+    fake_response = httpx.Response(
+        status_code=400,
+        headers={"x-request-id": "test"},
+        content=(
+            b'{"error": {"type": "invalid_request_error", '
+            b'"message": "Unsupported parameter: '
+            b"'max_tokens' is not supported with this model. "
+            b"Use 'max_completion_tokens' instead.\"}}"
+        ),
+        request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+    )
+    return openai.BadRequestError(
+        message=(
+            "Unsupported parameter: 'max_tokens' is not supported with this model. "
+            "Use 'max_completion_tokens' instead."
+        ),
+        response=fake_response,
+        body={
+            "error": {
+                "type": "invalid_request_error",
+                "message": "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens'.",
+            }
+        },
+    )
+
+
+def test_is_token_param_mismatch_detects_canonical_message() -> None:
+    """Helper must match the canonical OpenAI 400 telling us which param to use."""
+    err = _fake_bad_request_token_param_error()
+    assert _is_token_param_mismatch(err) is True
+
+
+def test_is_token_param_mismatch_rejects_unrelated_400() -> None:
+    """Helper must NOT match unrelated 400 errors (we let those propagate)."""
+    fake_response = httpx.Response(
+        status_code=400,
+        headers={"x-request-id": "test"},
+        content=b'{"error": {"message": "invalid messages format"}}',
+        request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+    )
+    err = openai.BadRequestError(
+        message="invalid messages format",
+        response=fake_response,
+        body={"error": {"message": "invalid messages format"}},
+    )
+    assert _is_token_param_mismatch(err) is False
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_plan_autolearns_token_param_on_bad_request(mock_cls, monkeypatch):
+    """plan() must auto-learn ``uses_max_completion_tokens=True`` after a 400.
+
+    Scenario: a brand-new OpenAI model not matched by the prefix heuristic;
+    first call sends ``max_tokens``, upstream returns 400 directing us to
+    ``max_completion_tokens``, and the retry succeeds.
+    """
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.side_effect = [
+        _fake_bad_request_token_param_error(),
+        _mk_response(_valid_manifest_json()),
+    ]
+    mock_cls.return_value = mock_client
+
+    # Clear the learned cache for this model so the prefix path is exercised.
+    _KNOWN_USES_MAX_COMPLETION_TOKENS.pop("o9-future-model", None)
+
+    provider = OpenAIProvider(model_plan="o9-future-model")
+    try:
+        provider.plan("outline")
+        assert mock_client.chat.completions.create.call_count == 2
+        first_kwargs = mock_client.chat.completions.create.call_args_list[0].kwargs
+        second_kwargs = mock_client.chat.completions.create.call_args_list[1].kwargs
+        # First attempt was based on the prefix heuristic; "o9-" is treated as
+        # legacy so we send max_tokens. The 400 flips the decision.
+        assert "max_tokens" in first_kwargs
+        assert "max_completion_tokens" in second_kwargs
+        # Learned cache now permanently routes this model to max_completion_tokens.
+        assert _KNOWN_USES_MAX_COMPLETION_TOKENS["o9-future-model"] is True
+        assert _uses_max_completion_tokens("o9-future-model") is True
+    finally:
+        _KNOWN_USES_MAX_COMPLETION_TOKENS.pop("o9-future-model", None)
+
+
+# ---------------------------------------------------------------------------
 # Test: run_agent inner-loop retry via _create_with_retry_raw
 # ---------------------------------------------------------------------------
 
@@ -476,6 +569,84 @@ def test_run_agent_retries_rate_limit(mock_cls, monkeypatch):
 
     assert result.stop_reason == "end_turn"
     assert mock_client.chat.completions.create.call_count == 2
+
+
+class _BurningSpendMeter:
+    """Stub meter that surfaces $1 per charge so per-call delta crosses fast."""
+
+    def __init__(self) -> None:
+        self._cost = 0.0
+
+    @property
+    def total_cost_usd(self) -> float:
+        return self._cost
+
+    def charge(self, **_kwargs):  # type: ignore[no-untyped-def]
+        self._cost += 1.0
+
+    def would_exceed(self) -> bool:
+        return False  # never triggers global — isolates per-call enforcement
+
+    def begin_lesson(self, cap_usd: float) -> None:
+        pass
+
+    def end_lesson(self) -> None:
+        pass
+
+
+def _mk_agent_tool_call_response(text: str = "ok") -> MagicMock:
+    """Mock response where the model issues a tool call (loop iteration continues)."""
+    resp = MagicMock()
+    resp.choices = [MagicMock()]
+    resp.choices[0].message.content = text
+    tc = MagicMock()
+    tc.id = "tc-1"
+    tc.function.name = "noop"
+    tc.function.arguments = "{}"
+    resp.choices[0].message.tool_calls = [tc]
+    resp.choices[0].finish_reason = "tool_calls"
+    resp.usage = MagicMock()
+    resp.usage.prompt_tokens = 100
+    resp.usage.completion_tokens = 50
+    resp.usage.prompt_tokens_details = None
+    return resp
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_aborts_when_per_call_max_cost_exceeded(mock_cls, monkeypatch):
+    """max_cost_usd hard cap aborts the loop independently of would_exceed.
+
+    Wiring contract: a tight per-call cap (agent-card max_cost_usd) must
+    abort run_agent even when the SpendMeter's global / per-lesson cap is
+    nowhere near triggered. Without this check the card budgets stay
+    documentation-only.
+    """
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    # First iteration responds with a tool call so the loop would normally
+    # continue. The per-call cap must kick in after charge() bumps delta.
+    mock_client.chat.completions.create.return_value = _mk_agent_tool_call_response("step 1")
+    mock_cls.return_value = mock_client
+
+    from wiedunflow.interfaces.ports import ToolResult
+
+    provider = OpenAIProvider()
+    meter = _BurningSpendMeter()
+
+    result = provider.run_agent(
+        system="sys",
+        user="user",
+        tools=[],
+        tool_executor=lambda tc: ToolResult(tool_call_id=tc.id, content="x", is_error=False),
+        model="gpt-5.4-mini",
+        max_iterations=10,
+        max_cost_usd=0.50,  # $0.50 cap; meter bumps $1 per charge → over after 1 call
+        spend_meter=meter,
+    )
+
+    assert result.stop_reason == "max_cost"
+    # Hard cap fires after the first charge → exactly one create() call.
+    assert mock_client.chat.completions.create.call_count == 1
 
 
 @patch("wiedunflow.adapters.openai_provider.OpenAI")

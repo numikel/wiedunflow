@@ -111,7 +111,7 @@ class AnthropicProvider:
                 parts.append(block.text)
         return parse_plan_response("".join(parts))
 
-    def run_agent(
+    def run_agent(  # noqa: PLR0912 — agent loop has many exit conditions (max_iterations / max_cost from meter / per-call max_cost / end_turn / tool dispatch); collapsing branches into helpers would obscure the control flow that auditors must trace
         self,
         *,
         system: str,
@@ -289,6 +289,20 @@ class AnthropicProvider:
                         stop_reason="max_cost",
                         iterations=iteration + 1,
                     )
+
+            # Per-call hard cap — independent from spend_meter so adapters
+            # without a meter still respect the per-role budget surfaced by
+            # the orchestrator (and by extension the agent-card max_cost_usd).
+            if max_cost_usd > 0 and _delta_cost() > max_cost_usd:
+                return AgentResult(
+                    final_text=final_text,
+                    transcript=transcript,
+                    total_input_tokens=total_input,
+                    total_output_tokens=total_output,
+                    total_cost_usd=_delta_cost(),
+                    stop_reason="max_cost",
+                    iterations=iteration + 1,
+                )
 
             # Stop if the model signalled end_turn or issued no tool calls
             if response.stop_reason == "end_turn" or not turn_calls:

@@ -327,6 +327,20 @@ class OpenAIProvider:
                         iterations=iteration + 1,
                     )
 
+            # Per-call hard cap — independent from spend_meter so adapters
+            # without a meter still respect the per-role budget surfaced by
+            # the orchestrator (and by extension the agent-card max_cost_usd).
+            if max_cost_usd > 0 and _delta_cost() > max_cost_usd:
+                return AgentResult(
+                    final_text=msg.content,
+                    transcript=transcript,
+                    total_input_tokens=total_input,
+                    total_output_tokens=total_output,
+                    total_cost_usd=_delta_cost(),
+                    stop_reason="max_cost",
+                    iterations=iteration + 1,
+                )
+
             # Stop if the model issued no tool calls or signalled stop finish_reason
             if not msg.tool_calls or response.choices[0].finish_reason == "stop":
                 return AgentResult(
@@ -416,7 +430,15 @@ class OpenAIProvider:
             }
             if response_format is not None:
                 kwargs["response_format"] = response_format
-            response = self._client.chat.completions.create(**kwargs)
+            try:
+                response = self._client.chat.completions.create(**kwargs)
+            except openai.BadRequestError as err:
+                # Auto-learn on 400 telling us we picked the wrong token-param
+                # name (new model family the prefix heuristic doesn't know).
+                if not _is_token_param_mismatch(err):
+                    raise
+                retry_kwargs = _handle_token_param_mismatch(model, kwargs)
+                response = self._client.chat.completions.create(**retry_kwargs)
             return response.choices[0].message.content or ""
 
         return _call()
@@ -439,9 +461,23 @@ class OpenAIProvider:
             reraise=True,
         )
         def _call() -> Any:
-            return self._client.chat.completions.create(**kwargs)
+            try:
+                return self._client.chat.completions.create(**kwargs)
+            except openai.BadRequestError as err:
+                if not _is_token_param_mismatch(err):
+                    raise
+                retry_kwargs = _handle_token_param_mismatch(str(kwargs.get("model", "")), kwargs)
+                return self._client.chat.completions.create(**retry_kwargs)
 
         return _call()
+
+
+# Process-wide learned cache of token-param decisions. Populated whenever the
+# upstream rejects our first guess with a BadRequestError naming the other
+# parameter — see ``_handle_token_param_mismatch`` below. Prefix matches are
+# NOT cached so a future model rename (e.g. an o5 family that switches semantics)
+# auto-corrects on its first 400 instead of being locked in by the fast path.
+_KNOWN_USES_MAX_COMPLETION_TOKENS: dict[str, bool] = {}
 
 
 def _uses_max_completion_tokens(model: str) -> bool:
@@ -449,16 +485,68 @@ def _uses_max_completion_tokens(model: str) -> bool:
 
     Reasoning models (o1/o3/o4) and the GPT-5 family require
     ``max_completion_tokens``; older chat models (gpt-4o, gpt-3.5, gpt-4-turbo)
-    still accept ``max_tokens``. Detection is name-prefix based since OpenAI does
-    not expose this capability via the SDK.
+    still accept ``max_tokens``. Detection is a two-step lookup:
+
+    1. ``_KNOWN_USES_MAX_COMPLETION_TOKENS`` learned cache — populated by
+       ``_handle_token_param_mismatch`` when the upstream returns a 400 telling
+       us which parameter to use. Self-heals when OpenAI ships a new family
+       that doesn't match the prefix heuristic.
+    2. Prefix fast path (``o1`` / ``o3`` / ``o4`` / ``gpt-5``). The fast path is
+       intentionally NOT cached so a future SDK change can be observed.
     """
     name = model.strip().lower()
+    cached = _KNOWN_USES_MAX_COMPLETION_TOKENS.get(name)
+    if cached is not None:
+        return cached
     return (
         name.startswith("o1")
         or name.startswith("o3")
         or name.startswith("o4")
         or name.startswith("gpt-5")
     )
+
+
+def _is_token_param_mismatch(err: openai.BadRequestError) -> bool:
+    """Detect the OpenAI 400 that says "use the other token parameter".
+
+    Both forms of the error mention both parameter names ("Unsupported parameter
+    ``max_tokens``... use ``max_completion_tokens``" and vice versa). Matching on
+    presence of both tokens in the message keeps the check robust across small
+    wording variations between SDK versions.
+    """
+    msg = (getattr(err, "message", None) or str(err)).lower()
+    return "max_tokens" in msg and "max_completion_tokens" in msg
+
+
+def _swap_token_param(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Return a shallow-copied kwargs dict with the two token params swapped."""
+    out = dict(kwargs)
+    if "max_tokens" in out:
+        out["max_completion_tokens"] = out.pop("max_tokens")
+    elif "max_completion_tokens" in out:
+        out["max_tokens"] = out.pop("max_completion_tokens")
+    return out
+
+
+def _handle_token_param_mismatch(model: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Record the corrected decision for ``model`` and return swapped kwargs.
+
+    Called by the create-call wrappers when the first attempt failed with a
+    token-param mismatch error. The learned cache now points at the parameter
+    name we are about to use on the retry, so every subsequent call for this
+    model skips the bad guess.
+    """
+    name = model.strip().lower()
+    # If we had sent ``max_tokens``, the model wants ``max_completion_tokens``
+    # (uses_max_completion_tokens = True); and vice versa.
+    uses_new = "max_tokens" in kwargs
+    _KNOWN_USES_MAX_COMPLETION_TOKENS[name] = uses_new
+    logger.warning(
+        "openai_token_param_autolearn",
+        model=model,
+        uses_max_completion_tokens=uses_new,
+    )
+    return _swap_token_param(kwargs)
 
 
 def _log_backoff(retry_state: RetryCallState) -> None:

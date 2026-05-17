@@ -245,6 +245,73 @@ def test_satisfies_pricing_catalog_protocol() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Cool-down semantics after a failed fetch
+# ---------------------------------------------------------------------------
+
+
+def test_cooldown_blocks_immediate_retry_within_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed fetch must not be retried again within the cool-down window."""
+    call_counter = {"n": 0}
+
+    def _raise(*_a: Any, **_k: Any) -> None:
+        call_counter["n"] += 1
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr("wiedunflow.adapters.litellm_pricing_catalog.httpx.get", _raise)
+    cat = LiteLLMPricingCatalog()
+
+    # First call attempts fetch (fails) — call_counter == 1.
+    assert cat.prices_per_mtok("gpt-4.1") is None
+    assert call_counter["n"] == 1
+    # Second call within cool-down window — no extra fetch attempted.
+    assert cat.prices_per_mtok("claude-opus-4-7") is None
+    assert call_counter["n"] == 1
+
+
+def test_cooldown_expires_and_allows_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """After ``_RETRY_AFTER_S`` elapses, the next call retries the fetch."""
+    call_counter = {"n": 0}
+
+    def _raise(*_a: Any, **_k: Any) -> None:
+        call_counter["n"] += 1
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr("wiedunflow.adapters.litellm_pricing_catalog.httpx.get", _raise)
+    cat = LiteLLMPricingCatalog()
+
+    # First failure stamps the timer.
+    assert cat.prices_per_mtok("gpt-4.1") is None
+    assert call_counter["n"] == 1
+
+    # Force the cool-down window to be "expired" by rewinding the failure stamp.
+    assert cat._last_failure_monotonic is not None
+    cat._last_failure_monotonic -= 120.0  # > _RETRY_AFTER_S = 60 s
+
+    # Next call must retry the fetch.
+    assert cat.prices_per_mtok("gpt-4.1") is None
+    assert call_counter["n"] == 2
+
+
+def test_successful_fetch_resets_cooldown_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A successful load clears ``_last_failure_monotonic`` so future failures restart fresh."""
+    payload = _make_valid_payload(n_entries=60)
+    payload["gpt-4.1"] = {
+        "input_cost_per_token": 0.000002,
+        "output_cost_per_token": 0.000008,
+        "mode": "chat",
+    }
+    _patch_httpx(monkeypatch, payload)
+    cat = LiteLLMPricingCatalog()
+
+    # Successful first call.
+    assert cat.prices_per_mtok("gpt-4.1") == pytest.approx((2.0, 8.0))
+    assert cat._last_failure_monotonic is None
+    assert cat._cache is not None
+
+
+# ---------------------------------------------------------------------------
 # Fixture-based tests (litellm_pricing_sample.json)
 # ---------------------------------------------------------------------------
 

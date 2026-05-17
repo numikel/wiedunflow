@@ -11,10 +11,14 @@ from pathlib import Path
 import pytest
 
 from wiedunflow.use_cases.workspace import (
+    _STALE_ALIVE_SECONDS,
+    ALIVE_FILENAME,
     RunWorkspace,
     allocate_workspace,
     clean_old_runs,
+    finalize_workspace,
     generate_run_id,
+    touch_alive,
 )
 
 # ---------------------------------------------------------------------------
@@ -310,3 +314,124 @@ def test_write_atomic_parent_dir_is_user_only(tmp_path: Path) -> None:
     ws.write_atomic(nested, "content")
     mode = os.stat(nested.parent).st_mode & 0o777
     assert mode == 0o700, f"Expected 0o700 for {nested.parent}, got {oct(mode)}"
+
+
+# ---------------------------------------------------------------------------
+# .alive sentinel — concurrent-run safety for clean_old_runs
+# ---------------------------------------------------------------------------
+
+
+def test_allocate_workspace_creates_alive_sentinel(tmp_path: Path) -> None:
+    """Every new workspace drops a ``.alive`` empty file at its root."""
+    ws = allocate_workspace("run-id-x", base_dir=tmp_path)
+    alive = ws.base_dir / ALIVE_FILENAME
+    assert alive.exists()
+    assert alive.is_file()
+    assert alive.stat().st_size == 0
+
+
+def test_allocate_workspace_refreshes_existing_sentinel(tmp_path: Path) -> None:
+    """Re-allocating (resume) bumps the sentinel mtime so cleanup keeps it."""
+    ws = allocate_workspace("run-id-x", base_dir=tmp_path)
+    alive = ws.base_dir / ALIVE_FILENAME
+    old_mtime = time.time() - 10 * 60  # 10 min ago
+    os.utime(alive, (old_mtime, old_mtime))
+    assert alive.stat().st_mtime == pytest.approx(old_mtime, abs=2.0)
+
+    # Re-allocate same run id — mtime must be refreshed to ~now.
+    allocate_workspace("run-id-x", base_dir=tmp_path)
+    refreshed_mtime = alive.stat().st_mtime
+    assert refreshed_mtime > old_mtime + 60
+
+
+def test_touch_alive_refreshes_mtime(tmp_path: Path) -> None:
+    """touch_alive bumps the sentinel mtime so the run stays "alive" for cleanup."""
+    ws = allocate_workspace("run-id-x", base_dir=tmp_path)
+    alive = ws.base_dir / ALIVE_FILENAME
+    old_mtime = time.time() - 5 * 60
+    os.utime(alive, (old_mtime, old_mtime))
+
+    touch_alive(ws)
+    assert alive.stat().st_mtime > old_mtime + 30
+
+
+def test_touch_alive_recreates_missing_sentinel(tmp_path: Path) -> None:
+    """If the sentinel was manually deleted, touch_alive re-creates it."""
+    ws = allocate_workspace("run-id-x", base_dir=tmp_path)
+    alive = ws.base_dir / ALIVE_FILENAME
+    alive.unlink()
+    assert not alive.exists()
+
+    touch_alive(ws)
+    assert alive.exists()
+
+
+def test_finalize_workspace_removes_sentinel(tmp_path: Path) -> None:
+    """finalize_workspace deletes the ``.alive`` marker on successful completion."""
+    ws = allocate_workspace("run-id-x", base_dir=tmp_path)
+    alive = ws.base_dir / ALIVE_FILENAME
+    assert alive.exists()
+
+    finalize_workspace(ws)
+    assert not alive.exists()
+
+
+def test_finalize_workspace_idempotent(tmp_path: Path) -> None:
+    """finalize_workspace must be safe to call multiple times (and without prior allocate)."""
+    ws = allocate_workspace("run-id-x", base_dir=tmp_path)
+    finalize_workspace(ws)
+    # Second call must not raise even though the sentinel is gone.
+    finalize_workspace(ws)
+    assert not (ws.base_dir / ALIVE_FILENAME).exists()
+
+
+def test_clean_old_runs_skips_dir_with_fresh_alive_sentinel(tmp_path: Path) -> None:
+    """Active run (.alive mtime within window) survives a cleanup pass.
+
+    Even though the run dir's own mtime is older than the cutoff, the
+    in-progress sentinel keeps it out of harm's way — the F-082 concurrent-run
+    race fix.
+    """
+    ws = allocate_workspace("active-run", base_dir=tmp_path)
+    # Make the *directory* look stale, but keep the sentinel fresh.
+    old_mtime = time.time() - 8 * 86400
+    os.utime(ws.base_dir, (old_mtime, old_mtime))
+    # Sentinel mtime = "just now" (fresh).
+    os.utime(ws.base_dir / ALIVE_FILENAME, None)
+
+    removed = clean_old_runs(base_dir=tmp_path, max_age_days=7)
+    assert removed == 0
+    assert ws.base_dir.exists()
+
+
+def test_clean_old_runs_removes_dir_with_stale_alive_sentinel(tmp_path: Path) -> None:
+    """A .alive sentinel older than _STALE_ALIVE_SECONDS is treated as crashed.
+
+    Recovery semantics: after the staleness window the dir is reclaimable
+    even though the sentinel is still on disk — covers the case where the
+    process died without calling finalize_workspace.
+    """
+    ws = allocate_workspace("crashed-run", base_dir=tmp_path)
+    old_dir_mtime = time.time() - 8 * 86400
+    os.utime(ws.base_dir, (old_dir_mtime, old_dir_mtime))
+    # Sentinel is also old (process crashed long ago).
+    stale_alive_mtime = time.time() - (_STALE_ALIVE_SECONDS + 60)
+    os.utime(ws.base_dir / ALIVE_FILENAME, (stale_alive_mtime, stale_alive_mtime))
+
+    removed = clean_old_runs(base_dir=tmp_path, max_age_days=7)
+    assert removed == 1
+    assert not ws.base_dir.exists()
+
+
+def test_clean_old_runs_legacy_compat_no_sentinel(tmp_path: Path) -> None:
+    """Pre-v0.12.1 run dirs (no .alive file) still go through the mtime check."""
+    run_dir = tmp_path / "legacy-run"
+    run_dir.mkdir()
+    # Pretend it's an old workspace from before the sentinel was introduced.
+    old_mtime = time.time() - 8 * 86400
+    os.utime(run_dir, (old_mtime, old_mtime))
+    assert not (run_dir / ALIVE_FILENAME).exists()
+
+    removed = clean_old_runs(base_dir=tmp_path, max_age_days=7)
+    assert removed == 1
+    assert not run_dir.exists()
