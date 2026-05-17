@@ -18,7 +18,9 @@ from wiedunflow import __version__ as _wiedunflow_version
 from wiedunflow.adapters.bm25_store import Bm25Store
 from wiedunflow.adapters.fs_boundary import DefaultFsBoundary
 from wiedunflow.adapters.jinja_renderer import JinjaRenderer, _markdown_to_html
-from wiedunflow.adapters.pygments_highlighter import highlight_python as _highlight_python
+from wiedunflow.adapters.pygments_highlighter import (
+    highlight_python_lines as _highlight_python_lines,
+)
 from wiedunflow.cli.cost_estimator import CostEstimate
 from wiedunflow.cli.cost_estimator import estimate as _estimate_cost
 from wiedunflow.cli.editor_resolver import open_in_editor as _open_in_editor
@@ -84,7 +86,7 @@ _DEGRADED_THRESHOLD = 0.30
 _CLOSING_OMITTED_SYMBOLS_COUNT = 5
 
 # Re-export so callers that import from this module can reach the helper.
-highlight_python = _highlight_python
+highlight_python_lines = _highlight_python_lines
 
 
 @dataclass(frozen=True)
@@ -158,6 +160,21 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     # v0.2.1 quality controls (passed through from WiedunflowConfig):
     planning_entry_point_first: str = "auto",
     planning_skip_trivial_helpers: bool = False,
+    # Cap on the number of call-graph edges injected into the planning prompt
+    # (ADR-0021 amendment).  0 = no cap (v0.11.x back-compat).
+    planning_max_outline_edges: int = 200,
+    # Caps on the concatenated researcher notes injected into Writer/Reviewer
+    # prompts. ``research_notes_cap_kb`` is the hard ceiling that triggers a
+    # FIFO drop of the oldest researcher snapshots; the summarize threshold
+    # routes oversized blobs through a single mini-model summarize call instead.
+    # Both default to the v0.11.x effective ratio (no truncation) only when set
+    # to 0; the v0.12.0 defaults trim ~30% of input tokens on a typical run.
+    research_notes_cap_kb: int = 20,
+    research_notes_summarize_threshold_kb: int = 30,
+    # Model id used by the optional summarize call. Empty string falls back to
+    # the researcher model on the same provider so BYOK users stay on a single
+    # endpoint by default.
+    summarize_model: str = "",
     # ADR-0013 follow-up: pricing catalog for cost gate accuracy.
     pricing_catalog: object | None = None,
     # v0.9.0 cost reporting wire-through.
@@ -274,7 +291,7 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
     progress.stage_start(5)
     logger.info("stage_start", stage=5, name="Planning")
     progress.detail("generating lesson manifest…")
-    outline = build_outline(symbols, resolved_graph, ranked)
+    outline = build_outline(symbols, resolved_graph, ranked, max_edges=planning_max_outline_edges)
     allowed_symbols = _collect_allowed_symbols(ranked, symbols)
 
     # Detect entry points for happy-path ordering (v0.2.1).
@@ -491,6 +508,9 @@ def generate_tutorial(  # noqa: PLR0915, PLR0912 — 7-stage orchestrator is nat
         should_abort=should_abort,
         progress=progress,
         spend_meter=spend_meter,
+        research_notes_cap_kb=research_notes_cap_kb,
+        research_notes_summarize_threshold_kb=research_notes_summarize_threshold_kb,
+        summarize_model=summarize_model,
     )
     all_lessons: list[Lesson] = generation_result.lessons
     skipped_lessons: list[SkippedLesson] = generation_result.skipped
@@ -788,6 +808,9 @@ def _stage_generation(
     should_abort: Callable[[], bool] | None = None,
     progress: StageReporter | NoOpReporter | None = None,
     spend_meter: SpendMeterProto | None = None,
+    research_notes_cap_kb: int = 20,
+    research_notes_summarize_threshold_kb: int = 30,
+    summarize_model: str = "",
 ) -> _StageGenerationOutput:
     """Stage 6: Narrate each lesson via the multi-agent pipeline.
 
@@ -837,6 +860,9 @@ def _stage_generation(
             tool_registry=tool_registry,
             concepts_introduced=output.concepts_introduced,
             spend_meter=spend_meter,
+            research_notes_cap_kb=research_notes_cap_kb,
+            research_notes_summarize_threshold_kb=research_notes_summarize_threshold_kb,
+            summarize_model=summarize_model,
         )
         result = outcome.result
         output.retry_count += outcome.writer_retries

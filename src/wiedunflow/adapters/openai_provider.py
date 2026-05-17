@@ -246,16 +246,19 @@ class OpenAIProvider:
                 iteration=iteration,
                 max_history_iterations=max_history_iterations,
             )
-            kwargs: dict[str, Any] = {
+            agent_call_kwargs: dict[str, Any] = {
                 "model": model,
                 token_param: self._max_tokens_agent,
                 "messages": messages,
             }
             if tools:
-                kwargs["tools"] = openai_tools
-                kwargs["tool_choice"] = "auto"
+                agent_call_kwargs["tools"] = openai_tools
+                agent_call_kwargs["tool_choice"] = "auto"
 
-            response = self._client.chat.completions.create(**kwargs)
+            # Route the inner per-iteration API call through the same retry
+            # wrapper used by plan() so a transient 429 or 500 mid-loop does
+            # not abort the entire lesson.
+            response = self._create_with_retry_raw(agent_call_kwargs)
             msg = response.choices[0].message
             usage = response.usage
             in_tok = usage.prompt_tokens if usage else 0
@@ -415,6 +418,28 @@ class OpenAIProvider:
                 kwargs["response_format"] = response_format
             response = self._client.chat.completions.create(**kwargs)
             return response.choices[0].message.content or ""
+
+        return _call()
+
+    def _create_with_retry_raw(self, kwargs: dict[str, Any]) -> Any:
+        """Wrap a pre-built chat.completions kwargs dict in the tenacity retry policy.
+
+        Used by the ``run_agent`` loop to give per-iteration API calls the same
+        transient-error resilience as the single ``plan()`` call, without
+        duplicating the retry decorator logic.
+        """
+
+        @retry(
+            retry=retry_if_exception_type(
+                (openai.RateLimitError, openai.APITimeoutError, openai.InternalServerError)
+            ),
+            wait=wait_exponential_jitter(initial=2, max=self._max_wait_s, jitter=1),
+            stop=stop_after_attempt(self._max_retries),
+            before_sleep=_log_backoff,
+            reraise=True,
+        )
+        def _call() -> Any:
+            return self._client.chat.completions.create(**kwargs)
 
         return _call()
 

@@ -99,7 +99,11 @@ def plan_with_retry(
             logger.warning("planning_retry", attempt=attempts, error=last_error[:200])
             invalid_symbols: list[str] = getattr(exc, "invalid_symbols", [])
             current_outline = _build_reinforcement(
-                outline, last_error, invalid_symbols, allowed_symbols
+                outline,
+                attempt=attempts,
+                last_error=last_error,
+                invalid_symbols=invalid_symbols,
+                allowed_symbols=allowed_symbols,
             )
 
     raise PlanningFatalError(attempts=attempts, last_error=last_error)
@@ -107,26 +111,47 @@ def plan_with_retry(
 
 def _build_reinforcement(
     original_outline: str,
-    error_msg: str,
+    *,
+    attempt: int,
+    last_error: str,
     invalid_symbols: list[str],
     allowed_symbols: frozenset[str],
 ) -> str:
-    """Construct the retry prompt by appending grounding-reinforcement instructions.
+    """Construct the retry prompt for planning.
 
-    Keeps the original outline intact and appends a clearly delimited section
-    that names the failing symbols and the allowed subset, so the LLM can self-
-    correct without re-processing the full codebase context.
+    First attempt (attempt == 1): returns the full outline with an error block
+    appended — gives the model maximum context on the first retry.
+
+    Subsequent attempts (attempt >= 2): returns a slim reinforcement message
+    *without* the full outline so the prompt does not balloon with redundant
+    context on the second and third retries.  The model already received the
+    outline on the initial call; re-sending it wastes ~50% of tokens on retries
+    where the guidance block is what matters.
     """
-    allowed_preview = ", ".join(sorted(allowed_symbols)[:30])
-    invalid_preview = ", ".join(invalid_symbols[:20]) if invalid_symbols else "(validation error)"
+    top_allowed = sorted(allowed_symbols)[:20]
+    allowed_preview = ", ".join(top_allowed)
+    invalid_preview = ", ".join(invalid_symbols[:10]) if invalid_symbols else "(validation error)"
+
+    if attempt <= 1:
+        # First retry — keep the full outline; append a grounding block.
+        full_allowed = ", ".join(sorted(allowed_symbols)[:30])
+        return (
+            f"{original_outline}\n\n"
+            f"--- PREVIOUS ATTEMPT FAILED ---\n"
+            f"Error: {last_error[:500]}\n"
+            f"Invalid symbols from last response: {invalid_preview}\n"
+            f"You MUST use ONLY these allowed symbols "
+            f"(top 30 shown, total={len(allowed_symbols)}): {full_allowed}\n"
+            f"Retry with corrected JSON output."
+        )
+
+    # Slim reinforcement for attempts 2+ — omit the full outline to reduce
+    # token cost and focus the model exclusively on the correction task.
     return (
-        f"{original_outline}\n\n"
-        f"--- PREVIOUS ATTEMPT FAILED ---\n"
-        f"Error: {error_msg[:500]}\n"
-        f"Invalid symbols from last response: {invalid_preview}\n"
-        f"You MUST use ONLY these allowed symbols "
-        f"(top 30 shown, total={len(allowed_symbols)}): {allowed_preview}\n"
-        f"Retry with corrected JSON output."
+        f"PREVIOUS ATTEMPT FAILED ({attempt}/3): {last_error[:500]}\n"
+        f"Invalid symbols cited: {invalid_preview}\n"
+        f"Allowed symbols (top by PageRank): {allowed_preview}\n"
+        "Retry with valid symbols only."
     )
 
 

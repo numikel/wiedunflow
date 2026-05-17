@@ -149,6 +149,17 @@ class SQLiteCache:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
+        # WAL + NORMAL is durable enough for regenerable cache data — if we
+        # crash between a WAL frame write and the checkpoint the worst outcome
+        # is a cache miss on the next run, not data corruption.
+        self._conn.execute("PRAGMA synchronous=NORMAL")
+        # 32 MB page cache: the working set of lesson_payload TEXT blobs fits
+        # in RAM for typical medium repos, eliminating repeated page reads when
+        # the OS page cache is cold.
+        self._conn.execute("PRAGMA cache_size=-32000")
+        # Sort/join scratch lives in memory instead of a temp file — avoids
+        # disk I/O on ORDER BY / DISTINCT for the small result sets we use.
+        self._conn.execute("PRAGMA temp_store=MEMORY")
         self._init_schema()
         log.info("sqlite_cache.opened", path=str(db_path))
 

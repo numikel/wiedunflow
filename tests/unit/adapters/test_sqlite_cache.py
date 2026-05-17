@@ -479,3 +479,46 @@ def test_schema_migration_v1_db_picks_up_bm25_table(tmp_path: Path) -> None:
     # And bump schema_version row.
     row = cache._conn.execute("SELECT version FROM schema_version").fetchone()
     assert row[0] == 2
+
+
+# ---------------------------------------------------------------------------
+# PRAGMA tuning assertions
+# ---------------------------------------------------------------------------
+
+
+def test_sqlite_cache_synchronous_normal(tmp_path: Path) -> None:
+    """PRAGMA synchronous must be 1 (NORMAL) after init.
+
+    NORMAL is durable for regenerable cache data under WAL mode: a crash
+    between a WAL frame write and the checkpoint yields a cache miss, not
+    data corruption.  SQLite encodes NORMAL as integer 1.
+    """
+    cache = SQLiteCache(path=tmp_path / "cache.db")
+    row = cache._conn.execute("PRAGMA synchronous").fetchone()
+    assert row is not None
+    assert row[0] == 1, f"Expected synchronous=1 (NORMAL), got {row[0]}"
+
+
+def test_sqlite_cache_cache_size_32mb(tmp_path: Path) -> None:
+    """PRAGMA cache_size must be -32000 (32 MB) after init.
+
+    Negative values are kilobytes; -32000 = 32 MB page cache so that the
+    working set of lesson_payload TEXT blobs stays in RAM for medium repos.
+    """
+    cache = SQLiteCache(path=tmp_path / "cache.db")
+    row = cache._conn.execute("PRAGMA cache_size").fetchone()
+    assert row is not None
+    assert row[0] == -32000, f"Expected cache_size=-32000, got {row[0]}"
+
+
+def test_sqlite_cache_temp_store_memory(tmp_path: Path) -> None:
+    """PRAGMA temp_store must be 2 (MEMORY) after init.
+
+    Storing sort/join scratch in memory avoids disk I/O on ORDER BY /
+    DISTINCT operations on the small result sets used by this cache.
+    SQLite encodes MEMORY as integer 2.
+    """
+    cache = SQLiteCache(path=tmp_path / "cache.db")
+    row = cache._conn.execute("PRAGMA temp_store").fetchone()
+    assert row is not None
+    assert row[0] == 2, f"Expected temp_store=2 (MEMORY), got {row[0]}"

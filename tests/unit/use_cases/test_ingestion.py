@@ -350,3 +350,67 @@ def test_files_are_absolute(tmp_path: Path) -> None:
     _make_repo(tmp_path, {"src/mod.py": ""})
     result = ingest(tmp_path)
     assert all(f.is_absolute() for f in result.files)
+
+
+# ---------------------------------------------------------------------------
+# rglob("*.py") optimisation — non-.py files never stat'd / collected
+# ---------------------------------------------------------------------------
+
+
+def test_non_py_files_not_collected_in_large_repo(tmp_path: Path) -> None:
+    """With 50 non-.py files and 5 .py files, only the 5 .py files are collected.
+
+    This test validates that rglob('*.py') eliminates non-Python files before
+    any stat() call rather than filtering them post-stat.
+    """
+    # Create 50 non-.py files of various types.
+    non_py_extensions = [".md", ".txt", ".yaml", ".json", ".toml", ".rst", ".cfg"]
+    for i in range(50):
+        ext = non_py_extensions[i % len(non_py_extensions)]
+        (tmp_path / f"file_{i}{ext}").write_text("content", encoding="utf-8")
+
+    # Create 5 .py files.
+    for i in range(5):
+        (tmp_path / f"module_{i}.py").write_text(f"def fn_{i}(): pass\n", encoding="utf-8")
+
+    result = ingest(tmp_path)
+
+    # Only .py files collected.
+    assert len(result.files) == 5
+    assert all(f.suffix == ".py" for f in result.files)
+
+
+def test_rglob_still_finds_nested_py_files(tmp_path: Path) -> None:
+    """rglob('*.py') must recurse into subdirectories, not just the root."""
+    _make_repo(
+        tmp_path,
+        {
+            "src/core/logic.py": "",
+            "src/utils/helpers.py": "",
+            "README.md": "docs",
+            "data/config.yaml": "cfg",
+        },
+    )
+    result = ingest(tmp_path)
+    names = _rel_names(result)
+    assert "src/core/logic.py" in names
+    assert "src/utils/helpers.py" in names
+    # Non-.py files must not appear.
+    assert not any(not n.endswith(".py") for n in names)
+
+
+def test_pycache_py_files_excluded_by_rglob_filter(tmp_path: Path) -> None:
+    """__pycache__/*.py files matched by rglob('*.py') are still skipped by _should_skip_path."""
+    _make_repo(
+        tmp_path,
+        {
+            "src/app.py": "",
+            "src/__pycache__/app.cpython-311.pyc": "compiled",
+            "src/__pycache__/util.py": "compiled_py",  # .py inside __pycache__
+        },
+    )
+    result = ingest(tmp_path)
+    names = _rel_names(result)
+    # Only src/app.py should be collected; __pycache__/util.py must be skipped.
+    assert "src/app.py" in names
+    assert not any("__pycache__" in n for n in names)

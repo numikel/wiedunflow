@@ -22,7 +22,7 @@ import mistune
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from wiedunflow import __version__ as _wiedunflow_version
-from wiedunflow.adapters.pygments_highlighter import highlight_python
+from wiedunflow.adapters.pygments_highlighter import highlight_python_lines
 
 # ── Server-side HTML sanitisation for mistune block_html / inline_html ────────
 # These patterns strip dangerous raw-HTML injected via LLM output or attacker-
@@ -236,9 +236,9 @@ def _build_code_snippet(
             first_visible = max(1, min(highlight_range) - _CODE_SNIPPET_CONTEXT)
             last_visible = min(len(all_lines), max(highlight_range) + _CODE_SNIPPET_CONTEXT)
         kept_slice = all_lines[first_visible - 1 : last_visible]
-        highlighted_lines = [
-            highlight_python(line) if lang == "python" else line for line in kept_slice
-        ]
+        highlighted_lines = (
+            highlight_python_lines(list(kept_slice)) if lang == "python" else list(kept_slice)
+        )
         return {
             "file": str(symbol.file_path).replace("\\", "/"),
             "lang": lang,
@@ -262,10 +262,11 @@ def _lesson_to_payload(
             entry["code_ref"] = {
                 "file": seg.code_ref.file,
                 "lang": seg.code_ref.lang,
-                "lines": [
-                    highlight_python(line) if seg.code_ref.lang == "python" else line
-                    for line in seg.code_ref.lines
-                ],
+                "lines": (
+                    highlight_python_lines(list(seg.code_ref.lines))
+                    if seg.code_ref.lang == "python"
+                    else list(seg.code_ref.lines)
+                ),
                 "highlight": list(seg.code_ref.highlight),
             }
         segments.append(entry)

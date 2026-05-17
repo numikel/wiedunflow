@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 from wiedunflow.adapters.jinja_renderer import (
     JinjaRenderer,
@@ -254,6 +255,58 @@ class TestXssViaJinjaRenderer:
         assert "default-src 'none'" in html
         assert "base-uri 'none'" in html
         assert "form-action 'none'" in html
+
+
+# ---------------------------------------------------------------------------
+# highlight_python_lines API integration — post-refactor smoke tests
+# ---------------------------------------------------------------------------
+
+
+class TestPygmentsApiIntegration:
+    """Verify that the jinja_renderer works correctly after switching from
+    the old per-line highlight_python() call to the batch highlight_python_lines()
+    API.  These tests do not check exact HTML but assert that known Python tokens
+    produce correct tok-* classes in the payload."""
+
+    def test_jinja_renderer_pygments_integration(self, tmp_path: Path) -> None:
+        """Renderer must produce tok-* HTML classes for Python code snippets.
+
+        Verifies that after the API change (_build_code_snippet now calls
+        highlight_python_lines), the rendered payload still embeds highlighted
+        Python source with the expected tok-* span classes.
+        """
+        from wiedunflow.adapters.jinja_renderer import _build_code_snippet
+        from wiedunflow.entities.code_symbol import CodeSymbol
+
+        # Write a small Python file so _build_code_snippet can read it.
+        src_file = tmp_path / "greet.py"
+        src_file.write_text("def greet():\n    return 'hello'\n", encoding="utf-8")
+
+        sym = CodeSymbol(
+            name="greet",
+            kind="function",
+            file_path=Path("greet.py"),
+            lineno=1,
+            end_lineno=2,
+            docstring=None,
+        )
+
+        lesson = Lesson(
+            id="lesson-001",
+            title="Greet",
+            narrative="A greeting function.",
+            code_refs=("greet",),
+        )
+
+        snippet = _build_code_snippet(lesson, {"greet": sym}, tmp_path)
+        assert snippet is not None, "Expected a snippet dict"
+        lines = snippet["lines"]
+        assert isinstance(lines, list), "lines must be a list"
+        assert len(lines) >= 1
+        # At least the 'def' keyword line must have tok-kw class.
+        assert any("tok-kw" in line for line in lines), (
+            f"No tok-kw class found in any line. Lines: {lines}"
+        )
 
 
 def test_only_expected_templates_shipped() -> None:

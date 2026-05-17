@@ -414,3 +414,92 @@ def test_plan_gpt5_uses_max_completion_tokens(mock_cls, monkeypatch):
     assert "max_completion_tokens" in kwargs
     assert kwargs["max_completion_tokens"] == 8000
     assert "max_tokens" not in kwargs
+
+
+# ---------------------------------------------------------------------------
+# Test: run_agent inner-loop retry via _create_with_retry_raw
+# ---------------------------------------------------------------------------
+
+
+def _fake_internal_server_error() -> openai.InternalServerError:
+    """Construct a minimal InternalServerError without a real HTTP response."""
+    fake_response = httpx.Response(
+        status_code=500,
+        headers={"x-request-id": "test"},
+        content=b'{"error": {"type": "server_error", "message": "internal server error"}}',
+        request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+    )
+    return openai.InternalServerError(
+        message="internal server error",
+        response=fake_response,
+        body={"error": {"type": "server_error", "message": "internal server error"}},
+    )
+
+
+def _mk_agent_response(text: str = "ok") -> MagicMock:
+    """Build a minimal mock ChatCompletion for run_agent loop iteration."""
+    resp = MagicMock()
+    resp.choices = [MagicMock()]
+    resp.choices[0].message.content = text
+    resp.choices[0].message.tool_calls = None
+    resp.choices[0].finish_reason = "stop"
+    resp.usage = MagicMock()
+    resp.usage.prompt_tokens = 10
+    resp.usage.completion_tokens = 5
+    resp.usage.prompt_tokens_details = None
+    return resp
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_retries_rate_limit(mock_cls, monkeypatch):
+    """RateLimitError mid-run_agent iteration → retried transparently without re-raise."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    err = _fake_rate_limit_error()
+    # First call raises 429, second call succeeds.
+    mock_client.chat.completions.create.side_effect = [err, _mk_agent_response("done")]
+    mock_cls.return_value = mock_client
+
+    from wiedunflow.interfaces.ports import ToolResult
+
+    provider = OpenAIProvider(max_retries=3, max_wait_s=1)
+
+    with patch("wiedunflow.adapters.openai_provider._log_backoff"):
+        result = provider.run_agent(
+            system="sys",
+            user="user",
+            tools=[],
+            tool_executor=lambda tc: ToolResult(tool_call_id=tc.id, content="x", is_error=False),
+            model="gpt-5.4-mini",
+            max_iterations=5,
+        )
+
+    assert result.stop_reason == "end_turn"
+    assert mock_client.chat.completions.create.call_count == 2
+
+
+@patch("wiedunflow.adapters.openai_provider.OpenAI")
+def test_run_agent_retries_internal_server_error(mock_cls, monkeypatch):
+    """InternalServerError mid-run_agent iteration → retried transparently."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    err = _fake_internal_server_error()
+    mock_client.chat.completions.create.side_effect = [err, _mk_agent_response("done")]
+    mock_cls.return_value = mock_client
+
+    from wiedunflow.interfaces.ports import ToolResult
+
+    provider = OpenAIProvider(max_retries=3, max_wait_s=1)
+
+    with patch("wiedunflow.adapters.openai_provider._log_backoff"):
+        result = provider.run_agent(
+            system="sys",
+            user="user",
+            tools=[],
+            tool_executor=lambda tc: ToolResult(tool_call_id=tc.id, content="x", is_error=False),
+            model="gpt-5.4-mini",
+            max_iterations=5,
+        )
+
+    assert result.stop_reason == "end_turn"
+    assert mock_client.chat.completions.create.call_count == 2

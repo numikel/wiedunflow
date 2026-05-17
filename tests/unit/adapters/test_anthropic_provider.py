@@ -223,3 +223,99 @@ def test_multiple_text_blocks_concatenated(mock_cls, monkeypatch):
     manifest = provider.plan("outline")
     assert isinstance(manifest, LessonManifest)
     assert manifest.lessons == ()
+
+
+# ---------------------------------------------------------------------------
+# Test: run_agent inner-loop retry via _create_with_retry
+# ---------------------------------------------------------------------------
+
+
+def _fake_internal_server_error() -> anthropic.InternalServerError:
+    """Construct a minimal InternalServerError without a real HTTP response."""
+    fake_response = httpx.Response(
+        status_code=500,
+        headers={"x-request-id": "test"},
+        content=b'{"error": {"type": "api_error", "message": "internal server error"}}',
+        request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+    )
+    return anthropic.InternalServerError(
+        message="internal server error",
+        response=fake_response,
+        body={"error": {"type": "api_error", "message": "internal server error"}},
+    )
+
+
+def _fake_connection_error() -> anthropic.APIConnectionError:
+    """Construct a minimal APIConnectionError without a real HTTP response."""
+    fake_request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    return anthropic.APIConnectionError(request=fake_request)
+
+
+def _mk_agent_response(text: str = "ok") -> MagicMock:
+    """Build a minimal mock anthropic.Message for run_agent loop iteration."""
+    from anthropic.types import TextBlock
+
+    resp = MagicMock()
+    resp.content = [TextBlock(type="text", text=text)]
+    resp.stop_reason = "end_turn"
+    resp.usage = MagicMock()
+    resp.usage.input_tokens = 10
+    resp.usage.output_tokens = 5
+    resp.usage.cache_creation_input_tokens = 0
+    resp.usage.cache_read_input_tokens = 0
+    return resp
+
+
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
+def test_run_agent_retries_internal_server_error(mock_cls, monkeypatch):
+    """InternalServerError mid-run_agent iteration → retried transparently."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    err = _fake_internal_server_error()
+    # First call raises 500, second succeeds.
+    mock_client.messages.create.side_effect = [err, _mk_agent_response("done")]
+    mock_cls.return_value = mock_client
+
+    from wiedunflow.interfaces.ports import ToolResult
+
+    provider = AnthropicProvider(max_retries=3, max_wait_s=1)
+
+    with patch("wiedunflow.adapters.anthropic_provider._log_backoff"):
+        result = provider.run_agent(
+            system="sys",
+            user="user",
+            tools=[],
+            tool_executor=lambda tc: ToolResult(tool_call_id=tc.id, content="x", is_error=False),
+            model="claude-haiku-4-5",
+            max_iterations=5,
+        )
+
+    assert result.stop_reason == "end_turn"
+    assert mock_client.messages.create.call_count == 2
+
+
+@patch("wiedunflow.adapters.anthropic_provider.anthropic.Anthropic")
+def test_run_agent_retries_connection_error(mock_cls, monkeypatch):
+    """APIConnectionError mid-run_agent iteration → retried transparently."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    mock_client = MagicMock()
+    err = _fake_connection_error()
+    mock_client.messages.create.side_effect = [err, _mk_agent_response("done")]
+    mock_cls.return_value = mock_client
+
+    from wiedunflow.interfaces.ports import ToolResult
+
+    provider = AnthropicProvider(max_retries=3, max_wait_s=1)
+
+    with patch("wiedunflow.adapters.anthropic_provider._log_backoff"):
+        result = provider.run_agent(
+            system="sys",
+            user="user",
+            tools=[],
+            tool_executor=lambda tc: ToolResult(tool_call_id=tc.id, content="x", is_error=False),
+            model="claude-haiku-4-5",
+            max_iterations=5,
+        )
+
+    assert result.stop_reason == "end_turn"
+    assert mock_client.messages.create.call_count == 2

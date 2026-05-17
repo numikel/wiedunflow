@@ -99,13 +99,17 @@ class AnthropicProvider:
             pydantic.ValidationError: If the LLM returns malformed JSON.
             anthropic.RateLimitError: After exhausting all retry attempts.
         """
-        raw = self._create_with_retry(
+        response = self._create_with_retry(
             model=self._model_plan,
             max_tokens=self._max_tokens_plan,
             system=PLAN_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": outline}],
         )
-        return parse_plan_response(raw)
+        parts: list[str] = []
+        for block in response.content:
+            if isinstance(block, TextBlock):
+                parts.append(block.text)
+        return parse_plan_response("".join(parts))
 
     def run_agent(
         self,
@@ -207,16 +211,17 @@ class AnthropicProvider:
                 iteration=iteration,
                 max_history_iterations=max_history_iterations,
             )
-            create_kwargs: dict[str, Any] = {
-                "model": model,
-                "max_tokens": self._max_tokens_agent,
-                "system": system_param,
-                "messages": messages,
-            }
+            extra: dict[str, Any] = {}
             if anthropic_tools:
-                create_kwargs["tools"] = anthropic_tools
+                extra["tools"] = anthropic_tools
 
-            response = self._client.messages.create(**create_kwargs)
+            response = self._create_with_retry(
+                model=model,
+                max_tokens=self._max_tokens_agent,
+                system=system_param,
+                messages=messages,
+                extra_kwargs=extra,
+            )
             in_tok = response.usage.input_tokens
             out_tok = response.usage.output_tokens
             # The SDK may return ``None`` (no cache activity) or omit the
@@ -328,39 +333,47 @@ class AnthropicProvider:
         *,
         model: str,
         max_tokens: int,
-        system: str,
-        messages: list[dict[str, str]],
-    ) -> str:
-        """Call messages.create with tenacity retry on 429 RateLimitError.
+        system: str | list[dict[str, Any]],
+        messages: list[dict[str, Any]],
+        extra_kwargs: dict[str, Any] | None = None,
+    ) -> Any:
+        """Call messages.create with tenacity retry on transient API errors.
+
+        Retries on rate-limit (429), internal server errors (500), and
+        connection-level failures so that a single dropped TCP connection does
+        not abort an entire lesson.
 
         Uses exponential backoff with jitter, capped at max_wait_s seconds.
         Logs each backoff via structlog at WARNING level.
 
         Note: prompt caching is wired only inside ``run_agent``. The single
-        remaining caller of this helper is ``plan()`` whose system prompt is
-        below Anthropic's ~1024-token per-model cache threshold, so attaching
-        ``cache_control`` here would be silently ignored by the API.
+        remaining caller of this helper via ``plan()`` passes a plain string
+        system prompt whose token count is below Anthropic's ~1024-token cache
+        threshold, so the cache_control path is a no-op there.
         """
+        _extra = extra_kwargs or {}
 
         @retry(
-            retry=retry_if_exception_type(anthropic.RateLimitError),
+            retry=retry_if_exception_type(
+                (
+                    anthropic.RateLimitError,
+                    anthropic.InternalServerError,
+                    anthropic.APIConnectionError,
+                )
+            ),
             wait=wait_exponential_jitter(initial=2, max=self._max_wait_s, jitter=1),
             stop=stop_after_attempt(self._max_retries),
             before_sleep=_log_backoff,
             reraise=True,
         )
-        def _call() -> str:
-            response = self._client.messages.create(
+        def _call() -> Any:
+            return self._client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
-                system=system,
+                system=system,  # type: ignore[arg-type]
                 messages=messages,  # type: ignore[arg-type]
+                **_extra,
             )
-            parts: list[str] = []
-            for block in response.content:
-                if isinstance(block, TextBlock):
-                    parts.append(block.text)
-            return "".join(parts)
 
         return _call()
 

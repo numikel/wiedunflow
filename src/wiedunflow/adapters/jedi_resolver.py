@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import platform
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, NamedTuple
 
 import jedi
 import structlog
@@ -18,6 +18,27 @@ from wiedunflow.entities.code_symbol import CodeSymbol
 from wiedunflow.entities.resolution_stats import ResolutionStats
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+
+class _ResolveOutcome(NamedTuple):
+    """Result of a single Jedi Script resolution attempt.
+
+    Using a NamedTuple ensures a single ``jedi.Script`` construction covers
+    both the infer step and the downstream heuristic classification — the
+    callee names list is threaded forward without re-instantiating Script.
+
+    Attributes:
+        state: One of ``"resolved"``, ``"resolved_heuristic"``, ``"uncertain"``,
+            ``"unresolved"``, or ``"empty"`` (caller sym / source missing).
+        names: Jedi Name objects when ``state`` is ``"resolved"``; the resolved
+            target symbol name (``str``) for ``"resolved_heuristic"``; the
+            matched callee name for ``"resolved"``; ``None`` otherwise.
+        resolved_edge: The ``(caller, callee)`` pair when state is
+            ``"resolved"`` or ``"resolved_heuristic"``, else ``None``.
+    """
+
+    state: Literal["resolved", "resolved_heuristic", "uncertain", "unresolved", "empty"]
+    resolved_edge: tuple[str, str] | None
 
 
 def _detect_python_path(repo_root: Path, override: Path | None = None) -> Path | None:
@@ -92,24 +113,41 @@ def _read_source(path: Path, cache: dict[Path, str]) -> str | None:
     return cache[path]
 
 
-def _resolve_single_edge(
+def _resolve_single_edge(  # noqa: PLR0911 — each outcome branch returns a distinct state
     caller_name: str,
     callee_text: str,
     symbol_by_name: dict[str, CodeSymbol],
     source_cache: dict[Path, str],
     project: Any,
     repo_root: Path,
-) -> tuple[str, str] | None:
-    """Attempt to resolve one raw edge.
+) -> _ResolveOutcome:
+    """Attempt to resolve one raw edge using a SINGLE ``jedi.Script`` instantiation.
+
+    Constructing ``jedi.Script`` is expensive (cold-start ~50 ms per unique
+    file because Jedi builds its own module cache).  The previous design
+    created a second Script inside ``_classify_edge`` when the first one
+    returned no match — doubling cold-start cost for ~60% of edges that miss
+    Tier 1.  This function folds both steps into one Script call and returns a
+    richer ``_ResolveOutcome`` so ``_classify_edge`` only dispatches the result.
+
+    Resolution order (all from one Script):
+    1. Tier 1 strict: ``infer()`` returns a Name whose ``full_name`` maps to a
+       known symbol → ``"resolved"``.
+    2. Tier 1 uncertain: ``infer()`` returned results but none matched a known
+       symbol → ``"uncertain"``.
+    3. Tier 2 heuristic fallback: ``infer()`` returned ``[]`` → run
+       ``_heuristic_name_match``; unique match → ``"resolved_heuristic"``,
+       multiple → ``"uncertain"``, none → ``"unresolved"``.
+    4. Caller symbol missing or source unreadable → ``"empty"``
+       (treated as unresolved by the caller).
 
     Returns:
-        ``(caller_name, resolved_callee_name)`` when resolved,
-        ``None`` for uncertain/unresolved edges (caller is responsible for
-        counting in the appropriate bucket).
+        A :class:`_ResolveOutcome` whose ``resolved_edge`` is set for
+        ``"resolved"`` and ``"resolved_heuristic"`` states, ``None`` otherwise.
     """
     caller_sym = symbol_by_name.get(caller_name)
     if caller_sym is None:
-        return None
+        return _ResolveOutcome(state="empty", resolved_edge=None)
 
     caller_path = (
         caller_sym.file_path
@@ -118,22 +156,66 @@ def _resolve_single_edge(
     )
     source = _read_source(caller_path, source_cache)
     if source is None:
-        return None
+        return _ResolveOutcome(state="empty", resolved_edge=None)
 
     try:
+        # Single Script construction for this (caller_path, source) pair.
+        # The source_cache already deduplicates I/O; Script construction itself
+        # is the bottleneck — do it exactly once per edge.
         script: Any = jedi.Script(code=source, path=str(caller_path.absolute()), project=project)
         references: list[Any] = script.get_names(
             all_scopes=True, references=True, definitions=False
         )
     except Exception:
         # Jedi can raise on malformed source or edge cases; treat as unresolved.
-        return None
+        return _ResolveOutcome(state="unresolved", resolved_edge=None)
 
     matching = [r for r in references if r.name == callee_text]
-    if not matching:
-        return None
 
-    return _infer_resolved_target(caller_name, matching, symbol_by_name)
+    # --- Tier 1: try strict infer() resolution ---
+    if matching:
+        strict_result = _infer_resolved_target(caller_name, matching, symbol_by_name)
+        if strict_result is not None:
+            return _ResolveOutcome(state="resolved", resolved_edge=strict_result)
+
+        # Tier 1 uncertain: Jedi gave back results but no full_name matched a
+        # known symbol.  Check whether infer() returned anything at all.
+        any_inferred = False
+        for ref in matching:
+            try:
+                inferred: list[Any] = ref.infer()
+            except Exception:
+                continue
+            if inferred:
+                any_inferred = True
+                break
+
+        if any_inferred:
+            return _ResolveOutcome(state="uncertain", resolved_edge=None)
+
+    # --- Tier 2: heuristic name-based fallback when infer() returned [] ---
+    candidates = _heuristic_name_match(callee_text, symbol_by_name)
+    if len(candidates) == 1:
+        logger.debug(
+            "heuristic_resolved_edge",
+            caller=caller_name,
+            callee_text=callee_text,
+            resolved_to=candidates[0],
+        )
+        return _ResolveOutcome(
+            state="resolved_heuristic",
+            resolved_edge=(caller_name, candidates[0]),
+        )
+    if len(candidates) > 1:
+        logger.debug(
+            "heuristic_ambiguous_edge",
+            caller=caller_name,
+            callee_text=callee_text,
+            candidates=candidates,
+        )
+        return _ResolveOutcome(state="uncertain", resolved_edge=None)
+
+    return _ResolveOutcome(state="unresolved", resolved_edge=None)
 
 
 def _match_full_name(full_name: str, symbol_by_name: dict[str, CodeSymbol]) -> str | None:
@@ -228,88 +310,26 @@ def _classify_edge(
 ) -> None:
     """Classify one edge and mutate *counts* / *resolved_edges* in place.
 
-    Resolution order:
-    1. Tier 1 (strict Jedi): ``infer()`` returns a ``Name`` with ``full_name``
-       matching a known symbol → ``resolved``.
-    2. Tier 1 uncertain: ``infer()`` returned results but no ``full_name`` matched
-       → ``uncertain``.
-    3. Tier 2 (heuristic fallback): Jedi returned empty AND caller_sym found AND
-       source readable.  Name-based lookup in ``symbol_by_name``:
-       - exactly 1 match → ``resolved_heuristic``
-       - >1 matches      → ``uncertain`` (ambiguous)
-       - 0 matches       → ``unresolved``
-    4. ``unresolved``: caller_sym missing / source unreadable / Jedi exception.
+    Thin dispatcher: all resolution logic lives in ``_resolve_single_edge``.
+    One ``jedi.Script`` is constructed there; this function only routes the
+    ``_ResolveOutcome`` to the right counter bucket.
     """
-    result = _resolve_single_edge(
+    outcome = _resolve_single_edge(
         caller_name, callee_text, symbol_by_name, source_cache, project, repo_root
     )
-    if result is not None:
-        resolved_edges.append(result)
-        counts.resolved += 1
-        return
-
-    # Distinguish uncertain vs unresolved: uncertain means Jedi gave back
-    # inferred results but no full_name matched a known symbol.
-    caller_sym = symbol_by_name.get(caller_name)
-    if caller_sym is None:
-        counts.unresolved += 1
-        return
-
-    caller_path = (
-        caller_sym.file_path
-        if caller_sym.file_path.is_absolute()
-        else repo_root / caller_sym.file_path
-    )
-    source = source_cache.get(caller_path)
-    if source is None:
-        counts.unresolved += 1
-        return
-
-    try:
-        script: Any = jedi.Script(code=source, path=str(caller_path.absolute()), project=project)
-        refs: list[Any] = script.get_names(all_scopes=True, references=True, definitions=False)
-    except Exception:
-        counts.unresolved += 1
-        return
-
-    matching = [r for r in refs if r.name == callee_text]
-    any_inferred = False
-    for ref in matching:
-        try:
-            inferred: list[Any] = ref.infer()
-        except Exception:
-            continue
-        if inferred:
-            any_inferred = True
-            break
-
-    if any_inferred:
-        # Tier 1 uncertain: Jedi found something but it didn't map to a known symbol.
-        counts.uncertain += 1
-        return
-
-    # Tier 2: Jedi infer() returned [] — try name-based heuristic fallback.
-    candidates = _heuristic_name_match(callee_text, symbol_by_name)
-    if len(candidates) == 1:
-        resolved_edges.append((caller_name, candidates[0]))
-        counts.resolved_heuristic += 1
-        logger.debug(
-            "heuristic_resolved_edge",
-            caller=caller_name,
-            callee_text=callee_text,
-            resolved_to=candidates[0],
-        )
-    elif len(candidates) > 1:
-        # Ambiguous: multiple symbols share the same short name — cannot pick one safely.
-        counts.uncertain += 1
-        logger.debug(
-            "heuristic_ambiguous_edge",
-            caller=caller_name,
-            callee_text=callee_text,
-            candidates=candidates,
-        )
-    else:
-        counts.unresolved += 1
+    match outcome.state:
+        case "resolved":
+            assert outcome.resolved_edge is not None
+            resolved_edges.append(outcome.resolved_edge)
+            counts.resolved += 1
+        case "resolved_heuristic":
+            assert outcome.resolved_edge is not None
+            resolved_edges.append(outcome.resolved_edge)
+            counts.resolved_heuristic += 1
+        case "uncertain":
+            counts.uncertain += 1
+        case "unresolved" | "empty":
+            counts.unresolved += 1
 
 
 def _propagate_dynamic_markers(

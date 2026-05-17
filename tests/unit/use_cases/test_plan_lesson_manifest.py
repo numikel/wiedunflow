@@ -316,3 +316,68 @@ def test_plan_with_retry_passes_entry_points_through_to_reorder() -> None:
     )
 
     assert result.lessons[0].id == "lesson-002"
+
+
+# ---------------------------------------------------------------------------
+# Retry-slim assertions
+# ---------------------------------------------------------------------------
+
+
+def test_plan_reinforcement_second_retry_omits_full_outline() -> None:
+    """On the third planning attempt (attempt==2 reinforcement), the original
+    outline text must NOT appear in the prompt — only the slim error block."""
+    bad = _make_manifest(["mod.GHOST"])
+    good = _make_manifest(["mod.add"])
+    # Need 3 LLM calls: bad → bad → good
+    stub = StubPlanLLM([bad, bad, good])
+
+    plan_with_retry(stub, "ORIGINAL_OUTLINE_SENTINEL", frozenset({"mod.add"}))
+
+    assert len(stub.calls) == 3
+    # The third call's prompt must NOT contain the full outline.
+    third_prompt = stub.calls[2]
+    assert "ORIGINAL_OUTLINE_SENTINEL" not in third_prompt, (
+        "Full outline must be omitted on attempt 2+ to reduce token cost"
+    )
+
+
+def test_plan_reinforcement_retry_contains_invalid_symbols() -> None:
+    """The retry prompt must name the invalid symbol so the model can self-correct."""
+    bad = _make_manifest(["mod.GHOST"])
+    good = _make_manifest(["mod.add"])
+    stub = StubPlanLLM([bad, bad, good])
+
+    plan_with_retry(stub, "outline", frozenset({"mod.add"}))
+
+    # Check both retry prompts (calls[1] and calls[2]).
+    for retry_prompt in stub.calls[1:]:
+        assert "mod.GHOST" in retry_prompt, (
+            "Invalid symbol must be present in every retry reinforcement"
+        )
+
+
+def test_plan_reinforcement_first_retry_keeps_outline() -> None:
+    """The first retry (attempt==1) still includes the full outline so the model
+    has the complete context on its initial self-correction attempt."""
+    bad = _make_manifest(["mod.GHOST"])
+    good = _make_manifest(["mod.add"])
+    stub = StubPlanLLM([bad, good])
+
+    plan_with_retry(stub, "FIRST_RETRY_SENTINEL", frozenset({"mod.add"}))
+
+    # calls[1] is the first retry prompt — must still contain the outline.
+    assert "FIRST_RETRY_SENTINEL" in stub.calls[1], "First retry should retain the full outline"
+
+
+def test_plan_reinforcement_slim_contains_error_info() -> None:
+    """The slim retry message must include the error fragment and attempt counter."""
+    bad = _make_manifest(["mod.GHOST"])
+    good = _make_manifest(["mod.add"])
+    stub = StubPlanLLM([bad, bad, good])
+
+    plan_with_retry(stub, "outline", frozenset({"mod.add"}))
+
+    slim_prompt = stub.calls[2]
+    # Must contain attempt counter and the slim sentinel string.
+    assert "PREVIOUS ATTEMPT FAILED" in slim_prompt
+    assert "Retry with valid symbols only." in slim_prompt

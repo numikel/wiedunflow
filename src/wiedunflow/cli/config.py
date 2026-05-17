@@ -182,10 +182,35 @@ class WiedunflowConfig(BaseSettings):
     planning_entry_point_first: Literal["auto", "always", "never"] = "auto"
     # YAML path: planning.skip_trivial_helpers
     planning_skip_trivial_helpers: bool = False
+    # Cap on the number of call-graph edges injected into the planning prompt.
+    # The estimator showed a medium repo (300 symbols, ~2-5K edges) consumes
+    # 40-60% of the planning context window on edges alone, leaving too little
+    # room for lesson manifest output. Edges are ranked by the sum of caller
+    # and callee PageRank so structurally important call paths win. ``0``
+    # disables the cap (keeps the v0.11.x behaviour for users who relied on it).
+    # YAML path: planning.max_outline_edges
+    planning_max_outline_edges: int = Field(default=200, ge=0)
     # YAML path: narration.min_words_trivial
     narration_min_words_trivial: int = 50
     # YAML path: narration.snippet_validation
     narration_snippet_validation: bool = True
+    # Per-call cap (in kilobytes) on the concatenated researcher notes injected
+    # into the Writer and Reviewer prompts. Naïve concatenation of 5 researcher
+    # calls produced ~40 KB of input vs a 4 KB output ceiling — a 3:1 input/output
+    # ratio that wasted tokens and hurt cache hit rates. Set ``0`` to disable.
+    # YAML path: narration.research_notes_cap_kb
+    narration_research_notes_cap_kb: int = Field(default=20, ge=0)
+    # When concatenated researcher notes exceed this threshold (kilobytes),
+    # the orchestrator routes them through a single mini-model summarize call
+    # instead of FIFO-dropping the oldest entries. Set ``0`` to never summarize
+    # (FIFO drop only).
+    # YAML path: narration.research_notes_summarize_threshold_kb
+    narration_research_notes_summarize_threshold_kb: int = Field(default=30, ge=0)
+    # Model id used when summarize threshold is exceeded. ``None`` reuses the
+    # researcher model so users on BYOK (Ollama / LM Studio) stay on a single
+    # endpoint by default.
+    # YAML path: narration.summarize_model
+    narration_summarize_model: str | None = None
 
     model_config = SettingsConfigDict(
         env_prefix="WIEDUNFLOW_",
@@ -283,11 +308,15 @@ _LLM_BLOCK_MAP: dict[str, str] = {
 _PLANNING_BLOCK_MAP: dict[str, str] = {
     "entry_point_first": "planning_entry_point_first",
     "skip_trivial_helpers": "planning_skip_trivial_helpers",
+    "max_outline_edges": "planning_max_outline_edges",
 }
 
 _NARRATION_BLOCK_MAP: dict[str, str] = {
     "min_words_trivial": "narration_min_words_trivial",
     "snippet_validation": "narration_snippet_validation",
+    "research_notes_cap_kb": "narration_research_notes_cap_kb",
+    "research_notes_summarize_threshold_kb": "narration_research_notes_summarize_threshold_kb",
+    "summarize_model": "narration_summarize_model",
 }
 
 _TOP_LEVEL_KEYS: tuple[str, ...] = (

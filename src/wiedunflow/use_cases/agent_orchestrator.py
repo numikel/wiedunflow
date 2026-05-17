@@ -36,6 +36,116 @@ logger = logging.getLogger(__name__)
 
 ToolFn = Callable[[dict[str, Any]], str]
 
+# ---------------------------------------------------------------------------
+# Research-notes truncation
+# ---------------------------------------------------------------------------
+
+_NOTES_SEPARATOR = "\n\n---\n\n"
+
+_SUMMARIZE_SYSTEM = (
+    "You are a concise note compressor. Summarize the following researcher notes "
+    "for a tutorial Writer. Preserve all symbol names, function signatures, and "
+    "code references verbatim. Target output: ~4 KB of dense markdown. "
+    "Omit padding, repetition, and boilerplate."
+)
+
+
+def _summarize_notes(
+    combined: str,
+    *,
+    model: str,
+    llm: LLMProvider,
+    spend_meter: SpendMeterProto | None,
+) -> str:
+    """Call a mini-model to compress *combined* notes to ~4 KB.
+
+    Returns the summary text on success.  Any exception propagates to the caller
+    so the caller can apply a FIFO-drop fallback.
+    """
+
+    def _no_tools(tc: ToolCall) -> ToolResult:
+        return ToolResult(tool_call_id=tc.id, content="no tools", is_error=True)
+
+    result = llm.run_agent(
+        system=_SUMMARIZE_SYSTEM,
+        user=combined,
+        tools=[],
+        tool_executor=_no_tools,
+        model=model,
+        max_iterations=1,
+        max_cost_usd=0.10,
+        spend_meter=spend_meter,
+        prompt_caching=False,
+        max_history_iterations=1,
+    )
+    return result.final_text or combined
+
+
+def _truncate_research_notes(
+    parts: list[str],
+    cap_bytes: int,
+    summarize_threshold_bytes: int,
+    *,
+    llm: LLMProvider,
+    summarize_model: str,
+    spend_meter: SpendMeterProto | None,
+) -> str:
+    """Concatenate *parts* and keep the result within *cap_bytes* (UTF-8).
+
+    Three tiers based on total encoded size:
+
+    1. Under cap — return as-is (fast path).
+    2. Over cap but under *summarize_threshold_bytes* — FIFO drop oldest entries
+       until the joined result fits within *cap_bytes*.
+    3. Over *summarize_threshold_bytes* — route through a single mini-model
+       summarize call first, then FIFO drop if the summary still exceeds the cap.
+       On any exception from the summarize call, falls back to FIFO drop so a
+       transient API error never kills the Writer dispatch.
+
+    When *cap_bytes* is 0 the cap is disabled and the full concatenation is
+    returned (allows opt-out via config).
+    """
+    combined = _NOTES_SEPARATOR.join(parts)
+    if cap_bytes <= 0:
+        return combined
+
+    size = len(combined.encode("utf-8"))
+    if size <= cap_bytes:
+        return combined
+
+    if size > summarize_threshold_bytes > 0:
+        # Try to summarize first; fall back to FIFO on any failure.
+        try:
+            combined = _summarize_notes(
+                combined, model=summarize_model, llm=llm, spend_meter=spend_meter
+            )
+            logger.info(
+                "research_notes_summarized original_bytes=%d summarized_bytes=%d",
+                size,
+                len(combined.encode("utf-8")),
+            )
+        except Exception as exc:
+            logger.warning(
+                "research_notes_summarize_failed exc=%r — falling back to FIFO drop", exc
+            )
+            # Reset combined to original so FIFO drop below starts from full content.
+            combined = _NOTES_SEPARATOR.join(parts)
+
+    # FIFO drop: discard oldest notes until the joined result fits.
+    kept = combined.split(_NOTES_SEPARATOR)
+    while kept and len(_NOTES_SEPARATOR.join(kept).encode("utf-8")) > cap_bytes:
+        kept.pop(0)
+
+    result = _NOTES_SEPARATOR.join(kept)
+    logger.info(
+        "research_notes_truncated original_parts=%d kept_parts=%d final_bytes=%d",
+        len(parts),
+        len(kept),
+        len(result.encode("utf-8")),
+    )
+    return result
+
+
 # Reviewer-accessible subset of the researcher tool palette.
 _REVIEWER_TOOLS = {"read_symbol_body", "search_docs", "read_tests", "grep_usages"}
 
@@ -296,6 +406,9 @@ def _run_writer(
     agents_dir: Path | None,
     target_audience: str,
     reviewer_feedback: str = "",
+    research_notes_cap_kb: int = 20,
+    research_notes_summarize_threshold_kb: int = 30,
+    summarize_model: str = "",
 ) -> str:
     """Run a Writer sub-agent and save the draft to workspace.
 
@@ -323,7 +436,17 @@ def _run_writer(
             research_symbols.update(_extract_research_symbols(content))
         else:
             combined_notes_parts.append(f"[Research file not found: {ref}]")
-    combined_notes = "\n\n---\n\n".join(combined_notes_parts)
+    # Truncate concatenated notes to keep the Writer prompt under a stable input
+    # ceiling and improve cache hit rates.  The cap is configurable; 0 disables it.
+    _eff_summarize_model = summarize_model or model
+    combined_notes = _truncate_research_notes(
+        combined_notes_parts,
+        cap_bytes=research_notes_cap_kb * 1024,
+        summarize_threshold_bytes=research_notes_summarize_threshold_kb * 1024,
+        llm=llm,
+        summarize_model=_eff_summarize_model,
+        spend_meter=spend_meter,
+    )
 
     card = compile_card(
         "writer",
@@ -461,6 +584,9 @@ def _run_reviewer(
     agents_dir: Path | None,
     word_count_floor: int,
     word_count_fatal_floor: int,
+    research_notes_cap_kb: int = 20,
+    research_notes_summarize_threshold_kb: int = 30,
+    summarize_model: str = "",
 ) -> str:
     """Run a Reviewer sub-agent and return its JSON verdict as a string."""
     full_draft = workspace.base_dir / draft_path
@@ -471,7 +597,17 @@ def _run_reviewer(
         full_ref = workspace.base_dir / ref
         if full_ref.exists():
             combined_notes_parts.append(full_ref.read_text(encoding="utf-8"))
-    combined_notes = "\n\n---\n\n".join(combined_notes_parts)
+    # Apply the same input ceiling as the Writer so the Reviewer operates on
+    # a consistently bounded context.
+    _eff_summarize_model = summarize_model or model
+    combined_notes = _truncate_research_notes(
+        combined_notes_parts,
+        cap_bytes=research_notes_cap_kb * 1024,
+        summarize_threshold_bytes=research_notes_summarize_threshold_kb * 1024,
+        llm=llm,
+        summarize_model=_eff_summarize_model,
+        spend_meter=spend_meter,
+    )
 
     card = compile_card(
         "reviewer",
@@ -559,6 +695,9 @@ def _build_dispatch_tools(
     spend_meter: SpendMeterProto | None,
     agents_dir: Path | None,
     target_audience: str,
+    research_notes_cap_kb: int = 20,
+    research_notes_summarize_threshold_kb: int = 30,
+    summarize_model: str = "",
 ) -> dict[str, ToolFn]:
     """Return the 5 dispatch tool callables wired to sub-agents / state updates."""
     lesson_id = state.lesson_id
@@ -611,6 +750,9 @@ def _build_dispatch_tools(
             agents_dir=agents_dir,
             target_audience=target_audience,
             reviewer_feedback=reviewer_fb,
+            research_notes_cap_kb=research_notes_cap_kb,
+            research_notes_summarize_threshold_kb=research_notes_summarize_threshold_kb,
+            summarize_model=summarize_model,
         )
 
     def _dispatch_reviewer(args: dict[str, Any]) -> str:
@@ -634,6 +776,9 @@ def _build_dispatch_tools(
             agents_dir=agents_dir,
             word_count_floor=floor_for_span(_span),
             word_count_fatal_floor=fatal_floor_for_span(_span),
+            research_notes_cap_kb=research_notes_cap_kb,
+            research_notes_summarize_threshold_kb=research_notes_summarize_threshold_kb,
+            summarize_model=summarize_model,
         )
 
     def _mark_lesson_done(args: dict[str, Any]) -> str:
@@ -863,6 +1008,9 @@ def run_lesson(
     spend_meter: SpendMeterProto | None = None,
     agents_dir: Path | None = None,
     target_audience: str = _DEFAULT_TARGET_AUDIENCE,
+    research_notes_cap_kb: int = 20,
+    research_notes_summarize_threshold_kb: int = 30,
+    summarize_model: str = "",
 ) -> RunLessonOutcome:
     """Run the full per-lesson multi-agent pipeline.
 
@@ -929,6 +1077,9 @@ def run_lesson(
         spend_meter=spend_meter,
         agents_dir=agents_dir,
         target_audience=target_audience,
+        research_notes_cap_kb=research_notes_cap_kb,
+        research_notes_summarize_threshold_kb=research_notes_summarize_threshold_kb,
+        summarize_model=summarize_model,
     )
 
     orchestrator_card = compile_card(

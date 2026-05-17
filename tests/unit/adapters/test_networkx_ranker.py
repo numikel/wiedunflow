@@ -184,3 +184,117 @@ class TestNetworkxRanker:
         result: RankedGraph = self.ranker.rank(graph)
         # If validators fail, Pydantic raises ValidationError at construction time.
         assert isinstance(result, RankedGraph)
+
+
+# ---------------------------------------------------------------------------
+# Numpy PageRank — determinism, dangling nodes, empty graph
+# ---------------------------------------------------------------------------
+
+
+class TestPageRankNumpy:
+    """Verify the numpy dense-matrix PageRank implementation properties."""
+
+    def setup_method(self) -> None:
+        self.ranker = NetworkxRanker()
+
+    def test_pagerank_numpy_determinism(self) -> None:
+        """Two calls on the same digraph produce identical rank scores (within 1e-6)."""
+        graph = _graph(
+            ["A", "B", "C", "D", "E"],
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "E")],
+        )
+        result1 = self.ranker.rank(graph)
+        result2 = self.ranker.rank(graph)
+
+        scores1 = {s.symbol_name: s.pagerank_score for s in result1.ranked_symbols}
+        scores2 = {s.symbol_name: s.pagerank_score for s in result2.ranked_symbols}
+
+        assert scores1.keys() == scores2.keys()
+        for name, score1 in scores1.items():
+            score2 = scores2[name]
+            assert abs(score1 - score2) < 1e-6, (
+                f"PageRank for {name!r} drifted: {score1} vs {score2}"
+            )
+
+    def test_pagerank_dangling_nodes_no_crash(self) -> None:
+        """A single node with zero out-degree must not crash and return a sane score."""
+        # Single isolated node — pure dangling.
+        graph = _graph(["X"])
+        result = self.ranker.rank(graph)
+        assert len(result.ranked_symbols) == 1
+        sym = result.ranked_symbols[0]
+        assert sym.symbol_name == "X"
+        # On a 1-node graph the only valid rank is 1.0.
+        assert sym.pagerank_score == pytest.approx(1.0, abs=0.01)
+
+    def test_pagerank_dangling_scores_sum_to_one(self) -> None:
+        """Multiple dangling nodes (no outgoing edges) must still sum to ≈1.0."""
+        # Three isolated nodes — all dangling.
+        graph = _graph(["P", "Q", "R"])
+        result = self.ranker.rank(graph)
+        total = sum(s.pagerank_score for s in result.ranked_symbols)
+        assert total == pytest.approx(1.0, abs=0.01)
+
+    def test_pagerank_empty_graph_returns_empty_dict(self) -> None:
+        """Empty graph (0 nodes) must return an empty ranked_symbols tuple."""
+        import networkx as nx
+
+        from wiedunflow.adapters.networkx_ranker import _pagerank_power
+
+        empty_digraph: nx.DiGraph = nx.DiGraph()
+        result = _pagerank_power(empty_digraph)
+        assert result == {}
+
+    def test_pagerank_star_topology_center_wins(self) -> None:
+        """In a star graph (hub → many leaves), the leaves pointing to hub
+        give hub highest PageRank."""
+        # Hub receives edges from all spokes.
+        edges = [("spoke_" + str(i), "hub") for i in range(5)]
+        names = ["hub"] + [f"spoke_{i}" for i in range(5)]
+        graph = _graph(names, edges)
+        result = self.ranker.rank(graph)
+        scores = {s.symbol_name: s.pagerank_score for s in result.ranked_symbols}
+        assert scores["hub"] == max(scores.values())
+
+
+# ---------------------------------------------------------------------------
+# Cycles fast-path
+# ---------------------------------------------------------------------------
+
+
+class TestCyclesFastPath:
+    """Verify the fast-path that skips simple_cycles() on pure DAGs."""
+
+    def setup_method(self) -> None:
+        self.ranker = NetworkxRanker()
+
+    def test_dag_has_cycles_false_without_simple_cycles(self) -> None:
+        """A pure DAG triggers the SCC fast-path and reports has_cycles=False."""
+        # DAG: A → B → C → D (no back-edges).
+        graph = _graph(["A", "B", "C", "D"], [("A", "B"), ("B", "C"), ("C", "D")])
+
+        from unittest.mock import patch
+
+        import wiedunflow.adapters.networkx_ranker as _mod
+
+        with patch.object(_mod.nx, "simple_cycles") as mock_cycles:
+            result = self.ranker.rank(graph)
+
+        # Fast-path should have fired: simple_cycles must NOT have been called.
+        mock_cycles.assert_not_called()
+        assert result.has_cycles is False
+        assert result.cycle_groups == ()
+
+    def test_cyclic_graph_still_detects_cycles(self) -> None:
+        """A graph with back-edges must not trigger the fast-path."""
+        # A ↔ B cycle.
+        graph = _graph(["A", "B"], [("A", "B"), ("B", "A")])
+        result = self.ranker.rank(graph)
+        assert result.has_cycles is True
+        assert len(result.cycle_groups) >= 1
+
+    def test_self_loop_not_a_dag(self) -> None:
+        """A self-loop graph must NOT trigger the DAG fast-path."""
+        graph = _graph(["A"], [("A", "A")])
+        result = self.ranker.rank(graph)
+        assert result.has_cycles is True

@@ -523,21 +523,29 @@ target_audience: "mid-level Python developer"
 planning:
   entry_point_first: auto       # auto | always | never
   skip_trivial_helpers: false   # roll up sub-3-line non-primary helpers into a closing appendix
+  max_outline_edges: 200        # cap call-graph edges in the planning prompt (0 = no cap)
 narration:
   min_words_trivial: 50         # word floor for 1-line primary code refs
   snippet_validation: true      # validate ```python signatures against AST source_excerpt
+  research_notes_cap_kb: 20     # hard cap on concatenated researcher notes (0 = no cap)
+  research_notes_summarize_threshold_kb: 30  # over this, summarize instead of FIFO drop
+  summarize_model: null         # model id for the summarize call; null reuses researcher model
 ```
 
 ### Tutorial quality
 
-Four opt-in keys tune lesson selection, ordering, and narration length:
+Seven opt-in keys tune lesson selection, ordering, narration length, and per-run cost:
 
-| Key                                | Default | Effect                                                                                                                                                                              |
-|------------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `planning.entry_point_first`       | `auto`  | Move the entry-point lesson (`def main`/`def cli`/`__main__.py`/`@click.command`) to position 1. `auto` is a no-op when no entry point is detected; `never` preserves leaves→roots. |
-| `planning.skip_trivial_helpers`    | `false` | Drop lessons whose primary reference is <3 lines AND not cited as primary elsewhere AND not an entry point AND not in top-5% PageRank. Skipped helpers folded into a closing appendix. |
-| `narration.min_words_trivial`      | `50`    | Word-count floor for narration of 1-line primary code refs (other tiers stay at 80/220/350). Lower values allow tighter descriptions for one-liner helpers.                           |
-| `narration.snippet_validation`     | `true`  | Validate that ```python fenced blocks in narration quote the actual function signature from the AST snapshot. Mismatches trigger a 1-shot retry with an explicit hint.                |
+| Key                                                | Default | Effect                                                                                                                                                                              |
+|----------------------------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `planning.entry_point_first`                       | `auto`  | Move the entry-point lesson (`def main`/`def cli`/`__main__.py`/`@click.command`) to position 1. `auto` is a no-op when no entry point is detected; `never` preserves leaves→roots. |
+| `planning.skip_trivial_helpers`                    | `false` | Drop lessons whose primary reference is <3 lines AND not cited as primary elsewhere AND not an entry point AND not in top-5% PageRank. Skipped helpers folded into a closing appendix. |
+| `planning.max_outline_edges`                       | `200`   | Cap the number of call-graph edges fed into the Stage 4 planning prompt. Edges are ranked by the sum of caller + callee PageRank, so structurally important call paths win. Set `0` to disable the cap and keep the v0.11.x behaviour. |
+| `narration.min_words_trivial`                      | `50`    | Word-count floor for narration of 1-line primary code refs (other tiers stay at 80/220/350). Lower values allow tighter descriptions for one-liner helpers.                           |
+| `narration.snippet_validation`                     | `true`  | Validate that ```python fenced blocks in narration quote the actual function signature from the AST snapshot. Mismatches trigger a 1-shot retry with an explicit hint.                |
+| `narration.research_notes_cap_kb`                  | `20`    | Hard cap on the concatenated researcher notes passed to the Writer and Reviewer. When exceeded, the orchestrator drops the oldest researcher snapshots FIFO until under the cap.    |
+| `narration.research_notes_summarize_threshold_kb`  | `30`    | When raw concatenated notes exceed this threshold, the orchestrator routes them through a single mini-model summarize call instead of FIFO truncation.                                |
+| `narration.summarize_model`                        | `null`  | Model id used by the summarize call. `null` reuses the researcher model so BYOK users (Ollama / LM Studio / vLLM) stay on a single endpoint by default.                                |
 
 Source-excerpt injection (the underlying anti-hallucination mechanism for
 `snippet_validation`) is always on and bounded — the AST snippet is added

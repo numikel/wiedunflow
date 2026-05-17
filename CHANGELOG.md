@@ -6,6 +6,114 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-05-17 — Performance and Cost Tuning Wave
+
+### Highlights
+
+- **Static-analysis pipeline runs measurably faster.** `JediResolver._classify_edge`
+  used to construct a second `jedi.Script` for every Tier-1 miss (~60% of
+  edges on cold-start repos without a venv). A new `_ResolveOutcome` NamedTuple
+  carries the full tier-1 + tier-2 classification out of a single Script
+  construction, so a 5 000-edge graph instantiates ~5 000 scripts instead of
+  ~8 000. `NetworkXRanker._pagerank_power` swaps its pure-Python predecessor
+  loop for a NumPy dense matrix-vector multiply (`adj @ v`), measured at over
+  50× on 500-node graphs while preserving deterministic ordering. A
+  strongly-connected-components fast-path skips the O(V+E) `simple_cycles`
+  call entirely on pure DAGs, which covers the typical Python repository.
+- **Ingestion stops stat'ing non-Python files.** `repo_root.rglob("*")` became
+  `rglob("*.py")`, so a 10 000-file monorepo with 300 Python files now issues
+  ~300 `stat()` syscalls instead of ~10 000. The `__pycache__` and
+  dot-directory guards are kept.
+- **Planning prompt stays inside the context budget.** A new
+  `planning.max_outline_edges` field (default 200) caps the call-graph edge
+  list injected into the Stage 4 outline, with edges ranked by the sum of
+  caller + callee PageRank so structurally important edges win. Set to 0 to
+  disable the cap and reproduce the v0.11.x behaviour.
+- **Researcher notes fit inside the Writer/Reviewer prompt.** Five researcher
+  iterations used to concatenate into ~40 KB of input against a 4 KB output
+  ceiling — a 3:1 input/output ratio that wasted tokens and hurt cache hit
+  rates. The orchestrator now caps the concatenated notes at
+  `narration.research_notes_cap_kb` (default 20 KB) with a FIFO drop of the
+  oldest snapshots; if the raw concat exceeds
+  `narration.research_notes_summarize_threshold_kb` (default 30 KB) a single
+  mini-model summarize call replaces the truncation. The summarize model can
+  be overridden via `narration.summarize_model`; the default reuses the
+  researcher model so BYOK users stay on a single endpoint.
+- **Planning retries stop re-sending the whole outline.** The reinforcement
+  message used to rebuild a 30–50 KB outline three times per failed run; it
+  now sends a slim error context (last error + offending symbols + the top
+  20 allowed symbols) and lets the prompt cache cover the original outline.
+  Tokens-per-retry drops by a similar 80–90%.
+- **`run_agent` survives transient 5xx / 429 inside the agent loop.** The
+  inner SDK call is now routed through the existing `_create_with_retry`
+  helper in both providers. Anthropic's retry exception set additionally
+  catches `InternalServerError` and `APIConnectionError`; OpenAI already
+  covered the full set on the single-shot helpers and now gets the same
+  protection in the agent loop. A single mid-iteration server hiccup no
+  longer kills a lesson generation.
+- **SQLite cache writes commit faster.** Adapter init now sets
+  `PRAGMA synchronous=NORMAL`, `PRAGMA cache_size=-32000` (32 MB), and
+  `PRAGMA temp_store=MEMORY` after the existing WAL pragma. Combined with
+  the regenerable-cache durability model that already accepts a power-loss
+  edge case, lesson-checkpoint writes complete in a fraction of the prior
+  fsync time.
+- **Pygments highlighting tokenises per-block, not per-line.** Multi-line
+  docstrings, triple-quoted strings, and block comments used to break into
+  fragments because every line was re-lexed in isolation. The new
+  `highlight_python_lines(lines: list[str])` API tokenises the whole block
+  once, splits the resulting HTML by `\n`, and re-uses module-level
+  `PythonLexer` and `WiedunFlowHtmlFormatter` singletons so a 60-line
+  snippet pays one lexer setup cost instead of 60.
+- **`scripts/validate_cost_estimator.py` checks preflight estimates against
+  real runs.** Parses the per-lesson transcripts written under
+  `~/.wiedunflow/runs/`, aggregates by role, and prints a five-row delta
+  table against `cost_estimator.estimate()` so the conservative token
+  ceilings can be re-tuned against ground truth.
+
+### BREAKING
+
+- **`pygments_highlighter.highlight_python(code: str) -> str` is replaced by
+  `highlight_python_lines(lines: list[str]) -> list[str]`.** The old
+  per-line signature lost cross-line token context (multi-line strings,
+  block comments), so a clean break is the only correct fix. The Jinja
+  renderer was updated in the same release; external callers must switch
+  to the new API.
+
+### Added
+
+- `narration.research_notes_cap_kb` (int, default 20) — FIFO cap on
+  concatenated researcher notes injected into the Writer/Reviewer prompts.
+- `narration.research_notes_summarize_threshold_kb` (int, default 30) —
+  routes oversized concatenations through a single mini-model summarize
+  call instead of FIFO dropping.
+- `narration.summarize_model` (str | None, default null) — model id for
+  the summarize call; reuses the researcher model when null.
+- `planning.max_outline_edges` (int, default 200) — caps the call-graph
+  edge list passed to the Stage 4 outline; 0 disables the cap.
+- `scripts/validate_cost_estimator.py` — research tooling for checking
+  estimator accuracy against real transcripts.
+
+### Changed
+
+- `JediResolver._resolve_single_edge` now returns a `_ResolveOutcome`
+  NamedTuple; `_classify_edge` is a thin dispatch on `outcome.state`.
+- `NetworkXRanker._pagerank_power` uses NumPy dense matrix ops; output
+  ordering preserved within `1e-6` L1 norm.
+- `_collect_files` in ingestion walks `rglob("*.py")` instead of `rglob("*")`.
+- `build_outline` gains `max_edges: int = 200` kwarg; edges sorted by
+  combined PageRank before slicing.
+- `_build_reinforcement` in `plan_lesson_manifest` returns a slim error
+  message on retry attempts ≥ 1 instead of the full outline.
+- `_run_writer` / `_run_reviewer` / `run_lesson` / `run_closing_lesson` /
+  `_stage_generation` / `generate_tutorial` accept three new kwargs
+  (`research_notes_cap_kb`, `research_notes_summarize_threshold_kb`,
+  `summarize_model`) with safe defaults.
+- `AnthropicProvider._create_with_retry` catches `InternalServerError` and
+  `APIConnectionError` in addition to `RateLimitError`. Both adapters
+  route the inner agent-loop SDK call through the retry wrapper.
+- `SQLiteCache.__init__` sets `synchronous=NORMAL`, `cache_size=-32000`,
+  `temp_store=MEMORY` after WAL mode.
+
 ## [0.11.0] - 2026-05-17 — Cache, History, and Timeout Polish
 
 ### Highlights

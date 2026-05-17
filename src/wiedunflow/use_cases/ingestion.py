@@ -165,7 +165,11 @@ def _collect_files(
     kept: list[Path] = []
     excluded = 0
 
-    for abs_path in repo_root.rglob("*"):
+    # rglob("*.py") restricts the OS-level traversal to .py files only, eliminating
+    # stat() calls on the large majority of repository files (images, docs, configs,
+    # compiled artefacts).  On a 10 K-file monorepo with ~300 .py files this reduces
+    # stat calls by ~97% and cuts Stage 1 wall-clock time accordingly.
+    for abs_path in repo_root.rglob("*.py"):
         if not abs_path.is_file():
             continue
         rel = abs_path.relative_to(repo_root)
@@ -178,10 +182,6 @@ def _collect_files(
         # Combine hard-refuse + pathspec via should_include_file.
         if not should_include_file(abs_path, rel, spec, allow_list=allow_list):
             excluded += 1
-            continue
-
-        # Only collect Python source files.
-        if abs_path.suffix != ".py":
             continue
 
         kept.append(abs_path)
