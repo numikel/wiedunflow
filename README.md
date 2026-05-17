@@ -2,7 +2,7 @@
 
 ![Python version](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)
-![Version](https://img.shields.io/badge/version-0.10.0-orange.svg)
+![Version](https://img.shields.io/badge/version-0.10.1-orange.svg)
 ![CI](https://github.com/numikel/wiedunflow/actions/workflows/ci.yml/badge.svg)
 
 ## What is WiedunFlow

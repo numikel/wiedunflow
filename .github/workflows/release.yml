@@ -46,35 +46,73 @@ jobs:
       - name: Run pip-audit against OSV (JSON output)
         id: audit
         # continue-on-error so the next step can parse results and decide severity.
+        #
+        # --ignore-vuln allowlist — every entry MUST come with a written
+        # justification in docs/security/vulnerability-allowlist.md.
+        # That document is the audit trail (re-check cadence, removal
+        # procedure when an upstream fix lands, per-entry justification
+        # with file/function trace). Do NOT add an entry here without
+        # also adding the matching row there.
+        #
+        # GHSA-58cw-g322-p94v — mistune Figure directive XSS (no fix
+        #   upstream as of 2026-05-17). Not applicable: our renderer
+        #   passes `plugins=None`. Full justification + re-check
+        #   checklist: docs/security/vulnerability-allowlist.md.
+        # GHSA-8g87-j6q8-g93x — mistune Math plugin XSS escape bypass
+        #   (no fix upstream as of 2026-05-17). Not applicable: same
+        #   reason (plugins=None). Full justification: same doc.
         continue-on-error: true
         run: |
           uv run pip-audit \
             --requirement requirements.txt \
             --vulnerability-service osv \
             --format json \
-            --output audit.json
+            --output audit.json \
+            --ignore-vuln GHSA-58cw-g322-p94v \
+            --ignore-vuln GHSA-8g87-j6q8-g93x
 
-      - name: Analyse severity and enforce HIGH+ gate
-        # Block the release if any vulnerability has NO fix version available.
-        # Vulnerabilities WITH a fix available are LOW/MEDIUM — surfaced but
-        # do not block (teams can schedule a patch upgrade separately).
+      - name: Analyse audit results and enforce no-fix gate
+        # The release is blocked when pip-audit reports any vulnerability
+        # without an upstream fix version, AFTER applying the per-vuln
+        # allowlist above (each allowlisted ID must carry a written
+        # not-applicable justification). Vulnerabilities WITH a fix
+        # available are surfaced as a workflow warning so the team can
+        # schedule the upgrade in the next release.
+        #
+        # Note: this gate is about "is there a fix we are not taking" —
+        # not raw CVSS severity. A HIGH-severity vuln with a fix is
+        # surfaced as fixable; a LOW-severity vuln with no fix is
+        # surfaced as no-fix (and either allowlisted with a reason or
+        # blocking the release).
         run: |
           if [ -f audit.json ]; then
             FIXABLE=$(jq '[.dependencies[].vulns[] | select(.fix_versions != [])] | length' audit.json 2>/dev/null || echo 0)
             NO_FIX=$(jq '[.dependencies[].vulns[] | select(.fix_versions == [])] | length' audit.json 2>/dev/null || echo 0)
-            echo "Vulnerabilities with a fix (LOW/MEDIUM): $FIXABLE"
-            echo "Vulnerabilities without a fix (HIGH+):   $NO_FIX"
+            echo "Vulnerabilities with an upstream fix: $FIXABLE"
+            echo "Vulnerabilities without a fix:        $NO_FIX"
             if [ "$NO_FIX" -gt 0 ]; then
-              echo "::error::HIGH+ vulnerability detected (no fix available) — blocking release"
+              echo "::error::Unallowlisted vulnerability with no upstream fix — blocking release. Either upgrade away, allowlist with a not-applicable justification in release.yml, or accept the risk in a dedicated ADR."
+              jq '[.dependencies[] | select(.vulns != []) | {name, version, vulns: [.vulns[] | select(.fix_versions == []) | {id, summary: (.summary // ""), aliases: (.aliases // [])}]}] | map(select(.vulns | length > 0))' audit.json
               exit 1
             fi
             if [ "$FIXABLE" -gt 0 ]; then
               echo "::warning::$FIXABLE fixable vulnerabilities found — schedule upgrade"
+              jq '[.dependencies[] | select(.vulns != []) | {name, version, vulns: [.vulns[] | select(.fix_versions != []) | {id, fix_versions}]}] | map(select(.vulns | length > 0))' audit.json
             fi
             echo "pip-audit: no blocking vulnerabilities found"
           else
             echo "audit.json not produced (pip-audit found no vulnerabilities)"
           fi
+
+      - name: Upload audit.json as artifact
+        # Always upload — even on success — so a release reviewer can
+        # inspect what was scanned and which vulns were allowlisted.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-osv-report
+          path: audit.json
+          if-no-files-found: ignore
 
   notice-check:
     name: NOTICE aggregation check (hard gate)

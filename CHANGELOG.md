@@ -6,6 +6,40 @@ versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-05-17 — Security: mistune 3.2.1 + Vulnerability Allowlist Tracking
+
+### Security
+
+- **Bump `mistune` from `>=3.2.0` to `>=3.2.1`**. Closes four advisories
+  fixed in 3.2.1: `GHSA-6269-cqxg-mhhv` (TOC Anchor Injection XSS),
+  `GHSA-8mp2-v27r-99xp` (ReDoS in `LINK_TITLE_RE`),
+  `GHSA-ccfx-mfmx-2fx9` (Image Directive CSS Injection), and
+  `GHSA-v87v-83h2-53w7` (Heading ID Attribute Injection XSS).
+- **Allowlist two upstream-unfixed mistune advisories that do not apply
+  to WiedunFlow**: `GHSA-58cw-g322-p94v` (Figure directive XSS) and
+  `GHSA-8g87-j6q8-g93x` (Math plugin XSS escape bypass). Both require
+  plugins our renderer never loads (`mistune.create_markdown` is called
+  with `plugins=None`, `escape=True`, plus a sanitising
+  `_OfflineHTMLRenderer`). Each entry carries a written
+  not-applicable justification with file/function traces in the new
+  `docs/security/vulnerability-allowlist.md` tracker; the release
+  workflow points there for the audit trail. When upstream ships fixes
+  we will bump mistune, drop both `--ignore-vuln` entries, and remove
+  the doc rows.
+
+### Changed
+
+- **`release.yml` pip-audit job hardened**. The "Analyse severity" step
+  no longer mislabels no-fix vulnerabilities as "HIGH+" — that label
+  conflated "no upstream fix available" with raw CVSS severity, and
+  the current no-fix set is in fact LOW severity (no confidentiality
+  or integrity impact on the vulnerable surface). The step now prints
+  the actual JSON of any blocking or fixable vuln so reviewers see
+  which package and which GHSA caused the gate to flip. `audit.json`
+  is also now uploaded as a workflow artifact (`pip-audit-osv-report`)
+  on every run, success or failure, so a release reviewer can inspect
+  what was scanned and which advisories were allowlisted.
+
 ## [0.10.0] - 2026-05-17 — Architecture: Multi-Agent Cost Model + ADR-0016 Cleanup Completion
 
 ### BREAKING
