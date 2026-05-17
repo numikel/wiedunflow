@@ -996,8 +996,8 @@ def _run_pipeline(  # noqa: PLR0911, PLR0912, PLR0915 — CLI dispatcher with ma
     except Exception:
         # Emit a structured event before writing the report so operators
         # tailing JSON log streams see the failure without polling the
-        # report file. F-064: previous code only wrote run-report.json,
-        # leaving the live log silent.
+        # report file — the live log used to be silent when only
+        # run-report.json was written.
         logger.error(
             "unhandled_exception",
             exc_info=True,
