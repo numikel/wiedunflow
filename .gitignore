@@ -33,6 +33,7 @@ tests/eval/results/
 # AI
 .ai/
 .claude/
+release-notes-best-practices/
 
 # Docs
 # Top-level entries under `docs/` ignored by default (private notes, drafts,
